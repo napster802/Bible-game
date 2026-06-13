@@ -1,12 +1,10 @@
 /* ============================================================
    Bible Challenge Arena — style.css
    Mobile-first, offline Android WebView
-   Purple / Gold / Deep-Blue Christian aesthetic
+   Theme: Christian/church aesthetic — purple, gold, deep blue
    ============================================================ */
 
-/* ----------------------------------------------------------
-   1. THEME TOKENS (CSS Custom Properties)
-   ---------------------------------------------------------- */
+/* ── CSS Custom Properties ────────────────────────────────── */
 :root {
   /* Dark theme defaults */
   --bg: #1a0a2e;
@@ -23,7 +21,7 @@
   --blue: #3498db;
   --orange: #f39c12;
   --purple: #8e44ad;
-  --shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  --shadow: 0 4px 20px rgba(0,0,0,0.5);
   --radius: 16px;
   --radius-sm: 10px;
   --choice-a: #e74c3c;
@@ -40,15 +38,11 @@
   --card2: #f5efff;
   --text: #1a0a2e;
   --text2: #4a3070;
-  --shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  --shadow: 0 4px 20px rgba(0,0,0,0.12);
 }
 
-/* ----------------------------------------------------------
-   2. BASE RESET & BODY
-   ---------------------------------------------------------- */
-*,
-*::before,
-*::after {
+/* ── Base Reset & Body ────────────────────────────────────── */
+* {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -69,17 +63,20 @@ a,
 [role="button"],
 input,
 select,
-.choice,
+label,
+.btn,
 .mode-card,
 .diff-card,
+.choice,
 .avatar-opt,
-.filter-btn {
+.filter-btn,
+.admin-btn,
+.player-remove,
+.btn-back {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* ----------------------------------------------------------
-   3. SCREEN SYSTEM
-   ---------------------------------------------------------- */
+/* ── Screen System ────────────────────────────────────────── */
 .screen {
   position: absolute;
   inset: 0;
@@ -115,9 +112,39 @@ select,
   gap: 1rem;
 }
 
-/* ----------------------------------------------------------
-   4. HOME SCREEN
-   ---------------------------------------------------------- */
+/* ── Global Keyframe Animations ───────────────────────────── */
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50%       { transform: translateY(-20px) rotate(5deg); }
+}
+
+@keyframes glow {
+  0%, 100% { text-shadow: 0 0 10px rgba(245,208,32,0.5); }
+  50%       { text-shadow: 0 0 30px rgba(245,208,32,1), 0 0 60px rgba(245,208,32,0.5); }
+}
+
+@keyframes pop-in {
+  from { transform: scale(0); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes pulse-correct {
+  0%   { transform: scale(1);    }
+  50%  { transform: scale(1.04); }
+  100% { transform: scale(1);    }
+}
+
+@keyframes slide-in-right {
+  from { transform: translateX(100px); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+
+/* ── Home Screen ──────────────────────────────────────────── */
 .home-bg {
   position: absolute;
   inset: 0;
@@ -128,7 +155,7 @@ select,
 .floating-cross {
   position: absolute;
   font-size: 3rem;
-  color: rgba(245, 208, 32, 0.08);
+  color: rgba(245,208,32,0.08);
   animation: float 6s ease-in-out infinite;
 }
 
@@ -217,9 +244,7 @@ select,
   color: var(--text2);
 }
 
-/* ----------------------------------------------------------
-   5. BUTTONS
-   ---------------------------------------------------------- */
+/* ── Buttons ──────────────────────────────────────────────── */
 .btn {
   display: flex;
   align-items: center;
@@ -248,11 +273,11 @@ select,
 .btn-primary {
   background: linear-gradient(135deg, #8e44ad, #6c3483);
   color: white;
-  box-shadow: 0 4px 15px rgba(142, 68, 173, 0.4);
+  box-shadow: 0 4px 15px rgba(142,68,173,0.4);
 }
 
 .btn-primary:hover {
-  box-shadow: 0 6px 20px rgba(142, 68, 173, 0.6);
+  box-shadow: 0 6px 20px rgba(142,68,173,0.6);
 }
 
 .btn-secondary {
@@ -286,9 +311,7 @@ select,
   line-height: 1;
 }
 
-/* ----------------------------------------------------------
-   6. MODE CARDS
-   ---------------------------------------------------------- */
+/* ── Mode Cards ───────────────────────────────────────────── */
 .mode-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -327,9 +350,7 @@ select,
   font-size: 0.8rem;
 }
 
-/* ----------------------------------------------------------
-   7. DIFFICULTY CARDS
-   ---------------------------------------------------------- */
+/* ── Difficulty Cards ─────────────────────────────────────── */
 .diff-list {
   display: flex;
   flex-direction: column;
@@ -407,9 +428,7 @@ select,
   border-left-color: #8e44ad;
 }
 
-/* ----------------------------------------------------------
-   8. PLAYER SETUP
-   ---------------------------------------------------------- */
+/* ── Player Setup ─────────────────────────────────────────── */
 .player-list {
   display: flex;
   flex-direction: column;
@@ -479,7 +498,7 @@ select,
 
 .avatar-opt.selected {
   border-color: var(--gold);
-  background: rgba(245, 208, 32, 0.2);
+  background: rgba(245,208,32,0.2);
 }
 
 .input-row {
@@ -516,9 +535,7 @@ select,
   margin-top: 0.5rem;
 }
 
-/* ----------------------------------------------------------
-   9. PASS SCREEN
-   ---------------------------------------------------------- */
+/* ── Pass Screen ──────────────────────────────────────────── */
 .pass-content {
   flex: 1;
   display: flex;
@@ -550,16 +567,14 @@ select,
   max-width: 280px;
 }
 
-/* ----------------------------------------------------------
-   10. QUESTION SCREEN
-   ---------------------------------------------------------- */
+/* ── Question Screen ──────────────────────────────────────── */
 
 /* Admin bar */
 .admin-bar {
   display: flex;
   gap: 0.5rem;
   padding: 0.5rem;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0,0,0,0.5);
   position: absolute;
   top: 0;
   right: 0;
@@ -568,7 +583,7 @@ select,
 }
 
 .admin-btn {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255,255,255,0.1);
   border: none;
   color: white;
   font-size: 1.2rem;
@@ -578,7 +593,7 @@ select,
 }
 
 .admin-btn:active {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(255,255,255,0.25);
 }
 
 /* Question header */
@@ -623,7 +638,7 @@ select,
 
 .timer-track {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.15);
+  stroke: rgba(255,255,255,0.15);
   stroke-width: 4;
 }
 
@@ -722,7 +737,7 @@ select,
   width: 100%;
 }
 
-/* Choices grid — 2×2 */
+/* Choices grid — 2x2 */
 .choices-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -752,24 +767,13 @@ select,
   transform: scale(0.97);
 }
 
-.choice-a {
-  background: var(--choice-a);
-}
-
-.choice-b {
-  background: var(--choice-b);
-}
-
-.choice-c {
-  background: var(--choice-c);
-}
-
-.choice-d {
-  background: var(--choice-d);
-}
+.choice-a { background: var(--choice-a); }
+.choice-b { background: var(--choice-b); }
+.choice-c { background: var(--choice-c); }
+.choice-d { background: var(--choice-d); }
 
 .choice-ltr {
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(0,0,0,0.25);
   border-radius: 6px;
   width: 1.8rem;
   height: 1.8rem;
@@ -786,7 +790,7 @@ select,
 
 /* Answer states */
 .choice.correct {
-  box-shadow: 0 0 0 4px #00ff88, 0 0 20px rgba(0, 255, 136, 0.5);
+  box-shadow: 0 0 0 4px #00ff88, 0 0 20px rgba(0,255,136,0.5);
   animation: pulse-correct 0.5s ease;
 }
 
@@ -802,15 +806,7 @@ select,
   cursor: not-allowed;
 }
 
-@keyframes pulse-correct {
-  0%   { transform: scale(1); }
-  50%  { transform: scale(1.04); }
-  100% { transform: scale(1); }
-}
-
-/* ----------------------------------------------------------
-   11. FEEDBACK SCREEN
-   ---------------------------------------------------------- */
+/* ── Feedback Screen ──────────────────────────────────────── */
 .feedback-wrap {
   flex: 1;
   display: flex;
@@ -830,17 +826,17 @@ select,
   align-items: center;
   justify-content: center;
   font-size: 3rem;
-  animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: pop-in 0.4s cubic-bezier(0.34,1.56,0.64,1);
 }
 
 .feedback-icon.correct {
   background: var(--green);
-  box-shadow: 0 0 30px rgba(39, 174, 96, 0.5);
+  box-shadow: 0 0 30px rgba(39,174,96,0.5);
 }
 
 .feedback-icon.wrong {
   background: var(--red);
-  box-shadow: 0 0 30px rgba(231, 76, 60, 0.5);
+  box-shadow: 0 0 30px rgba(231,76,60,0.5);
 }
 
 .feedback-verdict {
@@ -887,19 +883,7 @@ select,
   max-width: 380px;
 }
 
-@keyframes pop-in {
-  from { transform: scale(0); opacity: 0; }
-  to   { transform: scale(1); opacity: 1; }
-}
-
-@keyframes slide-up {
-  from { transform: translateY(20px); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
-}
-
-/* ----------------------------------------------------------
-   12. LEADERBOARD SCREEN
-   ---------------------------------------------------------- */
+/* ── Leaderboard Screen ───────────────────────────────────── */
 .lb-header {
   padding: 1.5rem 1rem 0.5rem;
   text-align: center;
@@ -980,9 +964,7 @@ select,
   flex-shrink: 0;
 }
 
-/* ----------------------------------------------------------
-   13. RESULTS SCREEN
-   ---------------------------------------------------------- */
+/* ── Results Screen ───────────────────────────────────────── */
 .results-top {
   padding: 1.5rem 1rem 0.5rem;
   text-align: center;
@@ -1104,9 +1086,7 @@ select,
   min-width: 100px;
 }
 
-/* ----------------------------------------------------------
-   14. HISTORY SCREEN
-   ---------------------------------------------------------- */
+/* ── History Screen ───────────────────────────────────────── */
 .filter-bar {
   display: flex;
   gap: 0.5rem;
@@ -1189,9 +1169,7 @@ select,
   padding: 2rem;
 }
 
-/* ----------------------------------------------------------
-   15. SETTINGS SCREEN
-   ---------------------------------------------------------- */
+/* ── Settings Screen ──────────────────────────────────────── */
 .settings-group {
   background: var(--card);
   border-radius: var(--radius);
@@ -1279,13 +1257,11 @@ select,
   line-height: 1.6;
 }
 
-/* ----------------------------------------------------------
-   16. OVERLAYS
-   ---------------------------------------------------------- */
+/* ── Overlays ─────────────────────────────────────────────── */
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
+  background: rgba(0,0,0,0.75);
   z-index: 100;
   display: flex;
   align-items: center;
@@ -1304,7 +1280,7 @@ select,
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
 }
 
 .overlay-icon {
@@ -1325,12 +1301,10 @@ select,
 
 .achievement-badge {
   font-size: 4rem;
-  animation: pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: pop-in 0.5s cubic-bezier(0.34,1.56,0.64,1);
 }
 
-/* ----------------------------------------------------------
-   17. TOAST NOTIFICATIONS
-   ---------------------------------------------------------- */
+/* ── Toast Notifications ──────────────────────────────────── */
 #toast-container {
   position: fixed;
   top: 1rem;
@@ -1361,14 +1335,7 @@ select,
   border-left-color: var(--red);
 }
 
-@keyframes slide-in-right {
-  from { transform: translateX(100px); opacity: 0; }
-  to   { transform: translateX(0);     opacity: 1; }
-}
-
-/* ----------------------------------------------------------
-   18. CONFETTI CANVAS
-   ---------------------------------------------------------- */
+/* ── Confetti Canvas ──────────────────────────────────────── */
 #confetti-canvas {
   position: fixed;
   inset: 0;
@@ -1376,29 +1343,12 @@ select,
   z-index: 99;
 }
 
-/* ----------------------------------------------------------
-   19. GLOBAL KEYFRAME ANIMATIONS
-   ---------------------------------------------------------- */
-@keyframes float {
-  0%,  100% { transform: translateY(0px)   rotate(0deg); }
-  50%        { transform: translateY(-20px) rotate(5deg); }
-}
-
-@keyframes glow {
-  0%,  100% { text-shadow: 0 0 10px rgba(245, 208, 32, 0.5); }
-  50%        { text-shadow: 0 0 30px rgba(245, 208, 32, 1), 0 0 60px rgba(245, 208, 32, 0.5); }
-}
-
-/* ----------------------------------------------------------
-   20. UTILITY
-   ---------------------------------------------------------- */
+/* ── Spacer Utility ───────────────────────────────────────── */
 .spacer {
   flex: 1;
 }
 
-/* ----------------------------------------------------------
-   21. PRINT / PDF EXPORT
-   ---------------------------------------------------------- */
+/* ── Print / PDF Export ───────────────────────────────────── */
 @media print {
   body {
     background: white;
