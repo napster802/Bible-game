@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#1a0a2e">
+  <title>Bible Challenge Arena</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="confetti-canvas"></canvas>
+  <div id="toast-container"></div>
+
+  <div id="app">
+
+    <!-- ==================== SCREEN: HOME ==================== -->
+    <div class="screen active" id="screen-home">
+      <div class="home-bg">
+        <div class="floating-cross c1">✝</div>
+        <div class="floating-cross c2">✝</div>
+        <div class="floating-cross c3">✝</div>
+      </div>
+      <div class="home-content">
+        <div class="logo-section">
+          <div class="logo-cross">✝</div>
+          <h1 class="logo-title">Bible Challenge</h1>
+          <h2 class="logo-arena">ARENA</h2>
+          <p class="logo-tagline">"Your word is a lamp to my feet" — Psalm 119:105</p>
+        </div>
+        <div class="home-buttons">
+          <button class="btn btn-primary btn-xl" onclick="App.goTo('mode')">
+            <span>⚔️</span> Play Now
+          </button>
+          <button class="btn btn-secondary btn-xl" onclick="App.goTo('history')">
+            <span>🏆</span> Hall of Fame
+          </button>
+          <button class="btn btn-ghost btn-xl" onclick="App.goTo('settings')">
+            <span>⚙️</span> Settings
+          </button>
+        </div>
+        <div class="version-tag">Bible Challenge Arena • Offline Edition</div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: MODE ==================== -->
+    <div class="screen" id="screen-mode">
+      <div class="screen-header">
+        <button class="btn-back" onclick="App.goTo('home')">‹</button>
+        <h2>Choose Mode</h2>
+        <div class="spacer"></div>
+      </div>
+      <div class="screen-body">
+        <div class="mode-grid">
+          <div class="mode-card" onclick="App.selectMode('single')">
+            <div class="mode-emoji">👤</div>
+            <h3>Solo</h3>
+            <p>Test yourself</p>
+          </div>
+          <div class="mode-card" onclick="App.selectMode('multi')">
+            <div class="mode-emoji">👥</div>
+            <h3>Pass & Play</h3>
+            <p>2–8 players</p>
+          </div>
+          <div class="mode-card" onclick="App.selectMode('tournament')">
+            <div class="mode-emoji">🏆</div>
+            <h3>Tournament</h3>
+            <p>Championship round</p>
+          </div>
+          <div class="mode-card" onclick="App.selectMode('sabbath')">
+            <div class="mode-emoji">📖</div>
+            <h3>Sabbath School</h3>
+            <p>Learning mode</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: DIFFICULTY ==================== -->
+    <div class="screen" id="screen-difficulty">
+      <div class="screen-header">
+        <button class="btn-back" onclick="App.goTo('mode')">‹</button>
+        <h2>Difficulty</h2>
+        <div class="spacer"></div>
+      </div>
+      <div class="screen-body">
+        <div class="diff-list">
+          <div class="diff-card diff-easy" onclick="App.selectDifficulty('easy')">
+            <div class="diff-left">
+              <span class="diff-emoji">😊</span>
+              <div>
+                <h3>Easy</h3>
+                <p>Basic Bible Facts</p>
+              </div>
+            </div>
+            <div class="diff-right">
+              <span class="diff-timer">30s</span>
+              <span class="diff-stars">⭐</span>
+            </div>
+          </div>
+          <div class="diff-card diff-medium" onclick="App.selectDifficulty('medium')">
+            <div class="diff-left">
+              <span class="diff-emoji">🤔</span>
+              <div>
+                <h3>Medium</h3>
+                <p>Moderate Challenge</p>
+              </div>
+            </div>
+            <div class="diff-right">
+              <span class="diff-timer">25s</span>
+              <span class="diff-stars">⭐⭐</span>
+            </div>
+          </div>
+          <div class="diff-card diff-hard" onclick="App.selectDifficulty('hard')">
+            <div class="diff-left">
+              <span class="diff-emoji">😤</span>
+              <div>
+                <h3>Hard</h3>
+                <p>Deep Bible Knowledge</p>
+              </div>
+            </div>
+            <div class="diff-right">
+              <span class="diff-timer">20s</span>
+              <span class="diff-stars">⭐⭐⭐</span>
+            </div>
+          </div>
+          <div class="diff-card diff-expert" onclick="App.selectDifficulty('expert')">
+            <div class="diff-left">
+              <span class="diff-emoji">🧠</span>
+              <div>
+                <h3>Expert</h3>
+                <p>Scholar's Challenge</p>
+              </div>
+            </div>
+            <div class="diff-right">
+              <span class="diff-timer">15s</span>
+              <span class="diff-stars">⭐⭐⭐⭐</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: PLAYER SETUP ==================== -->
+    <div class="screen" id="screen-player-setup">
+      <div class="screen-header">
+        <button class="btn-back" onclick="App.goTo('difficulty')">‹</button>
+        <h2>Players</h2>
+        <div class="spacer"></div>
+      </div>
+      <div class="screen-body">
+        <div class="player-list" id="player-list">
+          <!-- Players rendered by JS -->
+        </div>
+
+        <div class="add-player-section" id="add-player-section">
+          <h3>Add Player</h3>
+          <div class="avatar-row" id="avatar-row">
+            <!-- Avatars rendered by JS -->
+          </div>
+          <div class="input-row">
+            <input type="text" id="player-name-input" class="text-input" placeholder="Player name..." maxlength="20" />
+            <button class="btn btn-primary" onclick="App.addPlayer()">Add</button>
+          </div>
+        </div>
+
+        <div class="setup-footer">
+          <p class="hint-text" id="player-hint">Add at least 1 player to start</p>
+          <button class="btn btn-success btn-xl" id="start-btn" disabled onclick="App.startGame()">
+            ⚔️ Start Game
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: PASS DEVICE ==================== -->
+    <div class="screen" id="screen-pass">
+      <div class="pass-content">
+        <div class="pass-icon">📱</div>
+        <h2>Pass the device to</h2>
+        <h1 id="pass-player-name" class="pass-name">Player</h1>
+        <div class="pass-avatar" id="pass-avatar">😊</div>
+        <p class="pass-hint">Make sure only <strong id="pass-player-name2">Player</strong> can see the screen</p>
+        <button class="btn btn-primary btn-xl" onclick="App.beginPlayerTurn()">I'm Ready! 👍</button>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: QUESTION ==================== -->
+    <div class="screen" id="screen-question">
+      <!-- Admin Bar -->
+      <div class="admin-bar" id="admin-bar">
+        <button class="admin-btn" id="pause-btn" onclick="App.togglePause()" title="Pause">⏸</button>
+        <button class="admin-btn" onclick="App.skipQuestion()" title="Skip">⏭</button>
+        <button class="admin-btn" onclick="App.confirmEndGame()" title="End">🚪</button>
+      </div>
+
+      <!-- Question Header -->
+      <div class="q-header">
+        <div class="q-meta">
+          <span class="q-number" id="q-number">Q 1/10</span>
+          <span class="q-category" id="q-category">Old Testament</span>
+        </div>
+        <div class="timer-wrap">
+          <svg class="timer-svg" viewBox="0 0 44 44">
+            <circle class="timer-track" cx="22" cy="22" r="18"/>
+            <circle class="timer-arc" id="timer-arc" cx="22" cy="22" r="18"
+              stroke-dasharray="113.1" stroke-dashoffset="0"/>
+          </svg>
+          <span class="timer-num" id="timer-num">30</span>
+        </div>
+        <div class="player-turn-badge" id="player-turn-badge" style="display:none">
+          <span id="turn-avatar">😊</span>
+          <span id="turn-name">Player</span>
+        </div>
+      </div>
+
+      <!-- Progress -->
+      <div class="q-progress">
+        <div class="q-progress-fill" id="q-progress-fill" style="width:0%"></div>
+      </div>
+
+      <!-- Points Display -->
+      <div class="pts-bar">
+        <span class="pts-label">Score:</span>
+        <span class="pts-val" id="pts-val">0</span>
+      </div>
+
+      <!-- Question Text -->
+      <div class="q-box">
+        <p class="q-text" id="q-text">Loading...</p>
+      </div>
+
+      <!-- Choices -->
+      <div class="choices-grid" id="choices-grid">
+        <button class="choice choice-a" id="c0" onclick="App.answer(0)">
+          <span class="choice-ltr">A</span>
+          <span class="choice-txt" id="c0-txt"></span>
+        </button>
+        <button class="choice choice-b" id="c1" onclick="App.answer(1)">
+          <span class="choice-ltr">B</span>
+          <span class="choice-txt" id="c1-txt"></span>
+        </button>
+        <button class="choice choice-c" id="c2" onclick="App.answer(2)">
+          <span class="choice-ltr">C</span>
+          <span class="choice-txt" id="c2-txt"></span>
+        </button>
+        <button class="choice choice-d" id="c3" onclick="App.answer(3)">
+          <span class="choice-ltr">D</span>
+          <span class="choice-txt" id="c3-txt"></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: FEEDBACK ==================== -->
+    <div class="screen" id="screen-feedback">
+      <div class="feedback-wrap">
+        <div class="feedback-icon" id="fb-icon">✓</div>
+        <h2 class="feedback-verdict" id="fb-verdict">Correct!</h2>
+        <div class="feedback-pts" id="fb-pts">+1000</div>
+        <div class="feedback-answer-box">
+          <p class="fb-label">Correct Answer:</p>
+          <div class="fb-answer" id="fb-answer"></div>
+          <div class="fb-reference" id="fb-reference"></div>
+        </div>
+        <div class="fb-actions">
+          <div id="fb-next-player" style="display:none">
+            <p>Pass device to next player</p>
+            <button class="btn btn-primary btn-xl" onclick="App.nextPlayerOrLeaderboard()">Continue →</button>
+          </div>
+          <div id="fb-leaderboard" style="display:none">
+            <button class="btn btn-primary btn-xl" onclick="App.showLeaderboard()">📊 See Rankings</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: LEADERBOARD ==================== -->
+    <div class="screen" id="screen-leaderboard">
+      <div class="lb-header">
+        <h2>🏆 Rankings</h2>
+        <span class="lb-sub" id="lb-sub">After Q1</span>
+      </div>
+      <div class="lb-list" id="lb-list"></div>
+      <div class="lb-footer">
+        <button class="btn btn-primary btn-xl" id="lb-next-btn" onclick="App.nextQuestion()">
+          Next Question →
+        </button>
+        <button class="btn btn-danger btn-xl" id="lb-end-btn" onclick="App.endGame()" style="display:none">
+          🏁 Finish Game
+        </button>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: RESULTS ==================== -->
+    <div class="screen" id="screen-results">
+      <div class="results-top">
+        <h2 class="results-title">Game Over!</h2>
+        <p class="results-sub" id="results-sub"></p>
+      </div>
+      <div class="podium" id="podium"></div>
+      <div class="results-table-wrap">
+        <table class="results-table" id="results-table">
+          <thead>
+            <tr><th>#</th><th>Player</th><th>Score</th><th>Correct</th><th>Accuracy</th><th>Avg Time</th></tr>
+          </thead>
+          <tbody id="results-tbody"></tbody>
+        </table>
+      </div>
+      <div class="results-actions">
+        <button class="btn btn-primary" onclick="App.exportCSV()">📥 CSV</button>
+        <button class="btn btn-secondary" onclick="App.printResults()">🖨️ Print/PDF</button>
+        <button class="btn btn-success" onclick="App.restartGame()">🔄 Play Again</button>
+        <button class="btn btn-ghost" onclick="App.goTo('home')">🏠 Home</button>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: HISTORY ==================== -->
+    <div class="screen" id="screen-history">
+      <div class="screen-header">
+        <button class="btn-back" onclick="App.goTo('home')">‹</button>
+        <h2>Hall of Fame 🏆</h2>
+        <div class="spacer"></div>
+      </div>
+      <div class="screen-body">
+        <div class="filter-bar">
+          <button class="filter-btn active" onclick="App.filterHistory('all', this)">All</button>
+          <button class="filter-btn" onclick="App.filterHistory('easy', this)">Easy</button>
+          <button class="filter-btn" onclick="App.filterHistory('medium', this)">Medium</button>
+          <button class="filter-btn" onclick="App.filterHistory('hard', this)">Hard</button>
+          <button class="filter-btn" onclick="App.filterHistory('expert', this)">Expert</button>
+        </div>
+        <div class="history-list" id="history-list">
+          <p class="empty-msg">No games yet. Start playing!</p>
+        </div>
+        <button class="btn btn-danger" style="margin-top:1rem" onclick="App.clearHistory()">🗑️ Clear History</button>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: SETTINGS ==================== -->
+    <div class="screen" id="screen-settings">
+      <div class="screen-header">
+        <button class="btn-back" onclick="App.goTo('home')">‹</button>
+        <h2>Settings ⚙️</h2>
+        <div class="spacer"></div>
+      </div>
+      <div class="screen-body">
+        <div class="settings-group">
+          <h4>Appearance</h4>
+          <label class="setting-row">
+            <span>Dark Mode</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-dark" onchange="App.setDarkMode(this.checked)">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </label>
+        </div>
+        <div class="settings-group">
+          <h4>Audio</h4>
+          <label class="setting-row">
+            <span>Sound Effects</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-sound" onchange="App.setSoundEnabled(this.checked)" checked>
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </label>
+          <div class="setting-row">
+            <span>Volume</span>
+            <input type="range" id="volume-slider" min="0" max="100" value="70"
+              oninput="App.setVolume(this.value)" class="range-input">
+          </div>
+        </div>
+        <div class="settings-group">
+          <h4>Game Options</h4>
+          <label class="setting-row">
+            <span>Shuffle Questions</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-shuffle" checked onchange="App.setSetting('shuffle', this.checked)">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </label>
+          <label class="setting-row">
+            <span>Show Bible Reference</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-refs" checked onchange="App.setSetting('showRefs', this.checked)">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </label>
+          <label class="setting-row">
+            <span>Anti-Cheat Lock</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-anticheat" onchange="App.setSetting('antiCheat', this.checked)">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </label>
+          <div class="setting-row">
+            <span>Questions per Game</span>
+            <select id="q-count-select" class="select-input" onchange="App.setSetting('questionCount', parseInt(this.value))">
+              <option value="10" selected>10</option>
+              <option value="20">20</option>
+              <option value="30">30</option>
+              <option value="50">50 (All)</option>
+            </select>
+          </div>
+        </div>
+        <div class="settings-group">
+          <h4>About</h4>
+          <div class="about-box">
+            <p><strong>Bible Challenge Arena</strong> v1.0</p>
+            <p>200 Bible questions across 4 difficulty levels.</p>
+            <p>Completely offline. No internet required.</p>
+            <p style="margin-top:0.5rem;font-style:italic;">"Study to show thyself approved unto God"<br>— 2 Timothy 2:15</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== OVERLAY: PAUSE ==================== -->
+    <div class="overlay" id="overlay-pause" style="display:none">
+      <div class="overlay-card">
+        <div class="overlay-icon">⏸</div>
+        <h2>Game Paused</h2>
+        <p>"Be still, and know that I am God" — Psalm 46:10</p>
+        <button class="btn btn-primary btn-xl" onclick="App.resumeGame()">▶ Resume</button>
+        <button class="btn btn-danger" onclick="App.confirmEndGame()">End Game</button>
+      </div>
+    </div>
+
+    <!-- ==================== OVERLAY: CONFIRM END ==================== -->
+    <div class="overlay" id="overlay-confirm" style="display:none">
+      <div class="overlay-card">
+        <div class="overlay-icon">🚪</div>
+        <h2>End Game?</h2>
+        <p>Your progress will be saved to the Hall of Fame.</p>
+        <button class="btn btn-danger btn-xl" onclick="App.endGame()">Yes, End Game</button>
+        <button class="btn btn-ghost" onclick="App.closeConfirm()">Cancel</button>
+      </div>
+    </div>
+
+    <!-- ==================== OVERLAY: ACHIEVEMENT ==================== -->
+    <div class="overlay" id="overlay-achievement" style="display:none">
+      <div class="overlay-card achievement-card">
+        <div class="achievement-badge" id="ach-badge">🏅</div>
+        <h2>Achievement Unlocked!</h2>
+        <h3 id="ach-title">Speed Demon</h3>
+        <p id="ach-desc">Answered 5 questions in under 5 seconds each</p>
+        <button class="btn btn-primary" onclick="App.closeAchievement()">Awesome! 🎉</button>
+      </div>
+    </div>
+
+  </div><!-- #app -->
+
+  <script src="questions.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
