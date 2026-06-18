@@ -58,12 +58,21 @@ const Profile = (function () {
     return id;
   }
 
+  function withDefaults(profile) {
+    if (profile.wallet === undefined) profile.wallet = 0;
+    if (profile.equippedNameEffect === undefined) profile.equippedNameEffect = null;
+    if (profile.equippedBorder === undefined) profile.equippedBorder = null;
+    if (profile.ownedNameEffects === undefined) profile.ownedNameEffects = [];
+    if (profile.ownedBorders === undefined) profile.ownedBorders = [];
+    return profile;
+  }
+
   function get() {
     if (cached) return cached;
     const raw = safeGet(STORAGE_KEY);
     if (!raw) return null;
     try {
-      cached = JSON.parse(raw);
+      cached = withDefaults(JSON.parse(raw));
       return cached;
     } catch (e) {
       return null;
@@ -74,16 +83,24 @@ const Profile = (function () {
     return !!get();
   }
 
-  function save(name, avatar, avatarType) {
-    const profile = {
+  // Local-only save, used for first-time setup and avatar-only edits which
+  // are always free. Preserves wallet/cosmetics already cached locally
+  // (the server remains the source of truth for those - see refreshFromServer).
+  function save(name, avatar, avatarType, walletOverride) {
+    const existing = get() || {};
+    const profile = withDefaults({
       deviceId: getDeviceId(),
       name: name.trim().slice(0, 20),
       avatar: avatar || AVATAR_EMOJIS[0],
-      avatarType: avatarType || 'emoji'
-    };
+      avatarType: avatarType || 'emoji',
+      wallet: walletOverride !== undefined ? walletOverride : existing.wallet,
+      equippedNameEffect: existing.equippedNameEffect,
+      equippedBorder: existing.equippedBorder,
+      ownedNameEffects: existing.ownedNameEffects,
+      ownedBorders: existing.ownedBorders
+    });
     safeSet(STORAGE_KEY, JSON.stringify(profile));
     cached = profile;
-    syncToServer(profile);
     return profile;
   }
 
@@ -100,6 +117,39 @@ const Profile = (function () {
     }).catch(() => { /* offline / no server yet — local copy still works */ });
   }
 
+  // Renaming an existing profile costs points and must be verified by the
+  // server (which holds the authoritative wallet balance); first-time setup
+  // and avatar-only edits stay free and work even if the server is unreachable.
+  function attemptSave(name, avatar, avatarType) {
+    const trimmedName = name.trim().slice(0, 20);
+    const existing = get();
+    const isRename = !!(existing && existing.name !== trimmedName);
+
+    if (!isRename) {
+      const profile = save(trimmedName, avatar, avatarType);
+      syncToServer(profile);
+      return Promise.resolve({ profile, charged: 0 });
+    }
+
+    const deviceId = getDeviceId();
+    return fetch('api/profile.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        device_id: deviceId,
+        name: trimmedName,
+        avatar: avatar,
+        avatar_type: avatarType
+      })
+    })
+      .then(r => r.json())
+      .then(res => {
+        if (!res.success) throw new Error(res.error || 'Could not rename profile.');
+        const profile = save(trimmedName, avatar, avatarType, res.wallet);
+        return { profile, charged: res.charged || 0 };
+      });
+  }
+
   function restoreFromServer() {
     if (get()) return; // local copy already present, nothing to restore
     const deviceId = getDeviceId();
@@ -107,16 +157,70 @@ const Profile = (function () {
       .then(r => r.json())
       .then(res => {
         if (!res.success || !res.profile || get()) return;
-        const profile = {
+        const profile = withDefaults({
           deviceId,
           name: res.profile.name,
           avatar: res.profile.avatar,
-          avatarType: res.profile.avatarType
-        };
+          avatarType: res.profile.avatarType,
+          wallet: res.profile.wallet,
+          equippedNameEffect: res.profile.equippedNameEffect,
+          equippedBorder: res.profile.equippedBorder,
+          ownedNameEffects: res.profile.ownedNameEffects,
+          ownedBorders: res.profile.ownedBorders
+        });
         safeSet(STORAGE_KEY, JSON.stringify(profile));
         cached = profile;
       })
       .catch(() => { /* server unreachable — leave profile screen as the fallback */ });
+  }
+
+  // Force a fresh pull of wallet/owned/equipped state from the server,
+  // used when entering My Profile or the Shop so they never show stale data.
+  function refreshFromServer() {
+    const existing = get();
+    if (!existing) return Promise.resolve(null);
+    const deviceId = getDeviceId();
+    return fetch(`api/profile.php?device_id=${encodeURIComponent(deviceId)}`)
+      .then(r => r.json())
+      .then(res => {
+        if (!res.success || !res.profile) return existing;
+        cached = withDefaults({
+          deviceId,
+          name: res.profile.name,
+          avatar: res.profile.avatar,
+          avatarType: res.profile.avatarType,
+          wallet: res.profile.wallet,
+          equippedNameEffect: res.profile.equippedNameEffect,
+          equippedBorder: res.profile.equippedBorder,
+          ownedNameEffects: res.profile.ownedNameEffects,
+          ownedBorders: res.profile.ownedBorders
+        });
+        safeSet(STORAGE_KEY, JSON.stringify(cached));
+        return cached;
+      })
+      .catch(() => existing);
+  }
+
+  // Persists whatever is currently cached in memory back to LocalStorage,
+  // used after the Shop module mutates wallet/owned/equipped fields in place.
+  function persistCache() {
+    if (!cached) return;
+    safeSet(STORAGE_KEY, JSON.stringify(cached));
+  }
+
+  function getWallet() {
+    const p = get();
+    return p ? (p.wallet || 0) : 0;
+  }
+
+  // Patches the cached wallet immediately (e.g. right after a multiplayer
+  // game credits points) without waiting for a full refreshFromServer round-trip.
+  function setWalletCache(amount) {
+    const p = get();
+    if (!p) return;
+    p.wallet = amount;
+    cached = p;
+    safeSet(STORAGE_KEY, JSON.stringify(p));
   }
 
   function renderAvatarPicker(containerId, selected) {
@@ -211,11 +315,44 @@ const Profile = (function () {
     const name = nameInput ? nameInput.value.trim() : '';
     if (!name) {
       App.showToast('Please enter your name', 'error');
-      return;
+      return Promise.reject(new Error('Please enter your name'));
     }
-    save(name, pickerSelection.avatar, pickerSelection.avatarType);
-    App.showToast('Profile saved!', 'success');
-    App.goTo(nextScreen || 'home');
+    return attemptSave(name, pickerSelection.avatar, pickerSelection.avatarType)
+      .then(result => {
+        App.showToast(result.charged > 0 ? `Profile saved! (-${result.charged.toLocaleString()} pts)` : 'Profile saved!', 'success');
+        if (nextScreen !== 'skip') App.goTo(nextScreen || 'home');
+        return result;
+      })
+      .catch(err => {
+        App.showToast(err.message || 'Could not save profile.', 'error');
+        throw err;
+      });
+  }
+
+  function onEnterMyProfileScreen() {
+    refreshFromServer().then(renderMyProfile);
+    renderMyProfile(get());
+  }
+
+  function renderMyProfile(profile) {
+    if (!profile) { App.goTo('profile'); return; }
+
+    const avatarWrap = document.getElementById('my-profile-avatar-wrap');
+    if (avatarWrap) {
+      avatarWrap.innerHTML = avatarMarkup(profile.avatar, profile.avatarType, '');
+      avatarWrap.className = 'my-profile-avatar-wrap' +
+        (profile.equippedBorder && window.Shop ? ' ' + Shop.borderClass(profile.equippedBorder) : '');
+    }
+
+    const nameEl = document.getElementById('my-profile-name');
+    if (nameEl) {
+      nameEl.textContent = profile.name;
+      nameEl.className = 'my-profile-name' +
+        (profile.equippedNameEffect && window.Shop ? ' ' + Shop.effectClass(profile.equippedNameEffect) : '');
+    }
+
+    const walletEl = document.getElementById('my-profile-wallet');
+    if (walletEl) walletEl.textContent = (profile.wallet || 0).toLocaleString();
   }
 
   function init() {
@@ -231,11 +368,17 @@ const Profile = (function () {
     get,
     exists,
     save,
+    attemptSave,
     getDeviceId,
     renderAvatarPicker,
     handlePhotoUpload,
     avatarMarkup,
     onEnterProfileScreen,
-    saveFromForm
+    onEnterMyProfileScreen,
+    saveFromForm,
+    refreshFromServer,
+    getWallet,
+    setWalletCache,
+    persistCache
   };
 })();
