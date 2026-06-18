@@ -242,6 +242,10 @@ const App = (function () {
     if (window.Shop) Shop.onEnterShop();
   };
 
+  hooks['onEnter_host-lobby'] = function () {
+    if (window.HostGame) HostGame.onEnterHostLobby();
+  };
+
   // ─────────────────────────────────────────────────────────────
   // AVATAR PICKER
   // ─────────────────────────────────────────────────────────────

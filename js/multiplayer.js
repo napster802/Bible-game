@@ -22,6 +22,9 @@ const Multiplayer = (function () {
 
   let sync = { serverElapsedMs: 0, clientTimeAtSync: 0, timeLimitSec: 30 };
   let currentDifficulty = 'easy';
+  let currentQuizMode = 'difficulty';
+  let currentBook = null;
+  let currentCategory = null;
   let currentDbIndex = 0;
   let currentTimeTaken = 0;
 
@@ -72,6 +75,9 @@ const Multiplayer = (function () {
       Profile.setWalletCache(data.my_wallet);
     }
     currentDifficulty = data.room.difficulty;
+    currentQuizMode = data.room.quiz_mode || 'difficulty';
+    currentBook = data.room.book || null;
+    currentCategory = data.room.category || null;
     const status = data.room.status;
     const qIdx = data.room.current_q_idx;
 
@@ -253,6 +259,9 @@ const Multiplayer = (function () {
   }
 
   function lookupQuestion(qInfo) {
+    if (currentQuizMode === 'book' && currentBook && currentCategory && window.BookQuestions) {
+      return BookQuestions.getPool(currentBook, currentCategory, currentDifficulty)[qInfo.db_index];
+    }
     return QUESTION_DB[currentDifficulty][qInfo.db_index];
   }
 
@@ -439,8 +448,11 @@ const Multiplayer = (function () {
 
     App.goTo('results');
     try {
+      const sourceLabel = currentQuizMode === 'book' && currentBook && currentCategory
+        ? `${currentBook} • ${currentCategory}`
+        : currentDifficulty.toUpperCase();
       document.getElementById('results-sub').textContent =
-        `${currentDifficulty.toUpperCase()} • ${data.room.question_count} Questions • Multiplayer`;
+        `${sourceLabel} • ${data.room.question_count} Questions • Multiplayer`;
       renderPodium(sorted);
       renderResultsTable(sorted, data.room.question_count);
       if (sorted[0] && sorted[0].score > 0 && App.startConfetti) App.startConfetti();
@@ -497,6 +509,9 @@ const Multiplayer = (function () {
     const record = {
       date: new Date().toISOString(),
       difficulty: room.difficulty,
+      quizMode: room.quiz_mode,
+      book: room.book,
+      category: room.category,
       mode: isHost ? 'host' : 'join',
       questionCount: room.question_count,
       players: sorted.map(p => ({

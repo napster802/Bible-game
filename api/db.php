@@ -73,6 +73,10 @@ function initDB(PDO $db): void {
             q_indices TEXT DEFAULT '[]',
             time_limit INTEGER DEFAULT 30,
             points_awarded INTEGER DEFAULT 0,
+            quiz_mode TEXT DEFAULT 'difficulty',
+            book TEXT,
+            category TEXT,
+            pool_size INTEGER DEFAULT 50,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         );
@@ -122,7 +126,13 @@ function initDB(PDO $db): void {
 // "duplicate column" error each ALTER TABLE throws if already applied.
 function migrateSchema(PDO $db): void {
     $columns = [
-        'rooms'    => ['points_awarded' => "INTEGER DEFAULT 0"],
+        'rooms'    => [
+            'points_awarded' => "INTEGER DEFAULT 0",
+            'quiz_mode'      => "TEXT DEFAULT 'difficulty'",
+            'book'           => "TEXT",
+            'category'       => "TEXT",
+            'pool_size'      => "INTEGER DEFAULT 50",
+        ],
         'profiles' => [
             'wallet'                => "INTEGER DEFAULT 0",
             'equipped_name_effect'  => "TEXT",

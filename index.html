@@ -239,6 +239,22 @@
 
         <div class="lobby-settings">
           <div class="setting-row">
+            <span>Question Source</span>
+            <select id="host-mode-select" class="select-input" onchange="HostGame.setQuizMode(this.value)">
+              <option value="difficulty" selected>By Difficulty</option>
+              <option value="book">By Book &amp; Category</option>
+            </select>
+          </div>
+          <div class="setting-row" id="host-book-row" style="display:none;">
+            <span>Book</span>
+            <select id="host-book-select" class="select-input" onchange="HostGame.setBook(this.value)"></select>
+          </div>
+          <div class="setting-row" id="host-category-row" style="display:none;">
+            <span>Category</span>
+            <select id="host-category-select" class="select-input" onchange="HostGame.setCategory(this.value)"></select>
+          </div>
+          <p class="hint-text" id="host-book-pool-hint" style="display:none;"></p>
+          <div class="setting-row">
             <span>Difficulty</span>
             <select id="host-diff-select" class="select-input" onchange="HostGame.setDifficulty(this.value)">
               <option value="easy" selected>Easy</option>
@@ -645,6 +661,7 @@
   </div><!-- #app -->
 
   <script src="js/questions.js"></script>
+  <script src="js/book_questions.js"></script>
   <script src="js/profile.js"></script>
   <script src="js/shop.js"></script>
   <script src="js/admin.js"></script>

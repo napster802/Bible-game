@@ -31,7 +31,14 @@ switch ($action) {
         $count  = (int)$room['question_count'];
         $tlimit = getTimeLimitForDifficulty($diff);
 
-        $indices = range(0, 49);
+        if ($room['quiz_mode'] === 'book') {
+            if (!$room['book'] || !$room['category']) jsonOut(['success' => false, 'error' => 'Pick a book and category first'], 400);
+            $poolSize = (int)$room['pool_size'];
+            if ($poolSize <= 0) jsonOut(['success' => false, 'error' => 'No questions available for that book/category/difficulty'], 400);
+            $indices = range(0, $poolSize - 1);
+        } else {
+            $indices = range(0, 49);
+        }
         shuffle($indices);
         $indices = array_slice($indices, 0, $count);
 
@@ -87,6 +94,24 @@ switch ($action) {
         $count = in_array($value, [10, 20, 30, 50], true) ? $value : 10;
         $db->prepare("UPDATE rooms SET question_count = ?, updated_at = ? WHERE code = ?")
            ->execute([$count, $now, $code]);
+        break;
+
+    case 'set_quiz_mode':
+        if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
+        $value = $input['value'] ?? 'difficulty';
+        $mode = in_array($value, ['difficulty', 'book'], true) ? $value : 'difficulty';
+        $db->prepare("UPDATE rooms SET quiz_mode = ?, updated_at = ? WHERE code = ?")
+           ->execute([$mode, $now, $code]);
+        break;
+
+    case 'set_book_category':
+        if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
+        $book     = trim($input['book'] ?? '');
+        $category = trim($input['category'] ?? '');
+        $poolSize = max(0, (int)($input['pool_size'] ?? 0));
+        if (!$book || !$category) jsonOut(['success' => false, 'error' => 'Missing book or category'], 400);
+        $db->prepare("UPDATE rooms SET book = ?, category = ?, pool_size = ?, updated_at = ? WHERE code = ?")
+           ->execute([$book, $category, $poolSize, $now, $code]);
         break;
 
     default:
