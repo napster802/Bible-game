@@ -150,6 +150,7 @@ foreach ($players as $p) {
         'score'        => (int)$p['score'],
         'correct'      => (int)$p['correct_count'],
         'wrong'        => (int)$p['wrong_count'],
+        'total_time'   => (float)$p['total_time'],
         'is_host'      => (bool)$p['is_host'],
         'has_answered' => $hasAnswered
     ];
