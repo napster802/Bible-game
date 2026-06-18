@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="theme-color" content="#1a0a2e">
+  <meta name="theme-color" content="#0a1a3e">
   <title>Bible Challenge Arena</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <canvas id="confetti-canvas"></canvas>
@@ -18,29 +18,64 @@
     <!-- ==================== SCREEN: HOME ==================== -->
     <div class="screen active" id="screen-home">
       <div class="home-bg">
-        <div class="floating-cross c1">✝</div>
-        <div class="floating-cross c2">✝</div>
-        <div class="floating-cross c3">✝</div>
+        <div class="light-ray r1"></div>
+        <div class="light-ray r2"></div>
+        <div class="light-ray r3"></div>
+        <div class="floating-icon i1">🕊️</div>
+        <div class="floating-icon i2">🌿</div>
+        <div class="floating-icon i3">📜</div>
       </div>
       <div class="home-content">
         <div class="logo-section">
-          <div class="logo-cross">✝</div>
-          <h1 class="logo-title">Bible Challenge</h1>
-          <h2 class="logo-arena">ARENA</h2>
-          <p class="logo-tagline">"Your word is a lamp to my feet" — Psalm 119:105</p>
+          <div class="logo-icon">📖</div>
+          <h1 class="logo-title">Bible Challenge Arena</h1>
+          <p class="logo-tagline">Test Your Knowledge of God's Word</p>
         </div>
         <div class="home-buttons">
-          <button class="btn btn-primary btn-xl" onclick="App.goTo('mode')">
-            <span>⚔️</span> Play Now
+          <button class="btn btn-primary btn-xl" onclick="App.selectMode('single')">
+            <span>📖</span> Solo
           </button>
-          <button class="btn btn-secondary btn-xl" onclick="App.goTo('history')">
-            <span>🏆</span> Hall of Fame
+          <button class="btn btn-primary btn-xl" onclick="App.selectMode('tournament')">
+            <span>🏆</span> Tournament
           </button>
-          <button class="btn btn-ghost btn-xl" onclick="App.goTo('settings')">
-            <span>⚙️</span> Settings
+          <button class="btn btn-secondary btn-xl" onclick="App.goHostGame()">
+            <span>📡</span> Host Game
+          </button>
+          <button class="btn btn-secondary btn-xl" onclick="App.goJoinGame()">
+            <span>🔑</span> Join Game
           </button>
         </div>
-        <div class="version-tag">Bible Challenge Arena • Offline Edition</div>
+        <div class="home-links">
+          <button class="btn btn-ghost" onclick="App.goTo('mode')">📜 More Modes</button>
+          <button class="btn btn-ghost" onclick="App.goTo('history')">🏆 Hall of Fame</button>
+          <button class="btn btn-ghost" onclick="App.goTo('settings')">⚙️ Settings</button>
+        </div>
+        <div class="version-tag">Bible Challenge Arena • Offline &amp; LAN Multiplayer</div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: PLAYER PROFILE ==================== -->
+    <div class="screen" id="screen-profile">
+      <div class="screen-header">
+        <button class="btn-back" onclick="App.goTo('home')">‹</button>
+        <h2 id="profile-screen-title">Create Your Profile</h2>
+        <div class="spacer"></div>
+      </div>
+      <div class="screen-body">
+        <div class="profile-form">
+          <input type="text" id="profile-name-input" class="text-input" placeholder="Your name..." maxlength="20" />
+
+          <h3>Choose an Avatar</h3>
+          <div class="avatar-row" id="profile-avatar-grid"></div>
+
+          <div class="photo-upload-row">
+            <label class="btn btn-secondary" for="profile-photo-upload">🖼️ Upload Photo</label>
+            <input type="file" id="profile-photo-upload" accept="image/*" style="display:none" onchange="Profile.handlePhotoUpload(this)">
+            <img id="profile-photo-preview" class="profile-photo-preview" style="display:none">
+          </div>
+
+          <button class="btn btn-primary btn-xl" onclick="App.profileSaveContinue()">Save Profile</button>
+        </div>
       </div>
     </div>
 
@@ -54,13 +89,13 @@
       <div class="screen-body">
         <div class="mode-grid">
           <div class="mode-card" onclick="App.selectMode('single')">
-            <div class="mode-emoji">👤</div>
+            <div class="mode-emoji">📖</div>
             <h3>Solo</h3>
             <p>Test yourself</p>
           </div>
           <div class="mode-card" onclick="App.selectMode('multi')">
-            <div class="mode-emoji">👥</div>
-            <h3>Pass & Play</h3>
+            <div class="mode-emoji">🌿</div>
+            <h3>Pass &amp; Play</h3>
             <p>2–8 players</p>
           </div>
           <div class="mode-card" onclick="App.selectMode('tournament')">
@@ -69,7 +104,7 @@
             <p>Championship round</p>
           </div>
           <div class="mode-card" onclick="App.selectMode('sabbath')">
-            <div class="mode-emoji">📖</div>
+            <div class="mode-emoji">📜</div>
             <h3>Sabbath School</h3>
             <p>Learning mode</p>
           </div>
@@ -168,7 +203,7 @@
         <div class="setup-footer">
           <p class="hint-text" id="player-hint">Add at least 1 player to start</p>
           <button class="btn btn-success btn-xl" id="start-btn" disabled onclick="App.startGame()">
-            ⚔️ Start Game
+            📖 Start Game
           </button>
         </div>
       </div>
@@ -183,6 +218,87 @@
         <div class="pass-avatar" id="pass-avatar">😊</div>
         <p class="pass-hint">Make sure only <strong id="pass-player-name2">Player</strong> can see the screen</p>
         <button class="btn btn-primary btn-xl" onclick="App.beginPlayerTurn()">I'm Ready! 👍</button>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: HOST LOBBY ==================== -->
+    <div class="screen" id="screen-host-lobby">
+      <div class="screen-header">
+        <button class="btn-back" onclick="HostGame.leaveLobby()">‹</button>
+        <h2>Host Lobby</h2>
+        <div class="spacer"></div>
+      </div>
+      <div class="screen-body">
+        <div class="room-code-box">
+          <p class="hint-text">Room Code</p>
+          <div class="room-code" id="host-room-code">------</div>
+          <p class="hint-text">Players join with this code on the same WiFi</p>
+        </div>
+
+        <div class="lobby-settings">
+          <div class="setting-row">
+            <span>Difficulty</span>
+            <select id="host-diff-select" class="select-input" onchange="HostGame.setDifficulty(this.value)">
+              <option value="easy" selected>Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+              <option value="expert">Expert</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <span>Questions</span>
+            <select id="host-qcount-select" class="select-input" onchange="HostGame.setQuestionCount(parseInt(this.value))">
+              <option value="10" selected>10</option>
+              <option value="20">20</option>
+              <option value="30">30</option>
+              <option value="50">50</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="lobby-players">
+          <p class="hint-text" id="host-player-count">1/20 Connected</p>
+          <div class="player-list" id="host-player-list"></div>
+        </div>
+
+        <button class="btn btn-success btn-xl" id="host-start-btn" onclick="HostGame.startGame()">▶ Start Game</button>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: JOIN ENTRY ==================== -->
+    <div class="screen" id="screen-join-entry">
+      <div class="screen-header">
+        <button class="btn-back" onclick="App.goTo('home')">‹</button>
+        <h2>Join Game</h2>
+        <div class="spacer"></div>
+      </div>
+      <div class="screen-body">
+        <div class="join-form">
+          <p class="hint-text">Enter the 6-digit room code from the host</p>
+          <input type="text" id="join-code-input" class="text-input join-code-input" placeholder="000000" maxlength="6" inputmode="numeric">
+          <p class="error-text" id="join-error"></p>
+          <button class="btn btn-primary btn-xl" onclick="JoinGame.attemptJoin()">Join Room</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: JOIN WAIT ==================== -->
+    <div class="screen" id="screen-join-wait">
+      <div class="screen-header">
+        <button class="btn-back" onclick="JoinGame.leaveLobby()">‹</button>
+        <h2>Waiting for Host</h2>
+        <div class="spacer"></div>
+      </div>
+      <div class="screen-body">
+        <div class="room-code-box">
+          <p class="hint-text">Room Code</p>
+          <div class="room-code" id="join-wait-code">------</div>
+        </div>
+        <div class="lobby-players">
+          <p class="hint-text">Players</p>
+          <div class="player-list" id="join-wait-player-list"></div>
+        </div>
+        <p class="hint-text">The host will start the game soon…</p>
       </div>
     </div>
 
@@ -213,6 +329,7 @@
           <span id="turn-avatar">😊</span>
           <span id="turn-name">Player</span>
         </div>
+        <div class="mp-status-badge" id="mp-status-badge" style="display:none"></div>
       </div>
 
       <!-- Progress -->
@@ -346,6 +463,13 @@
       </div>
       <div class="screen-body">
         <div class="settings-group">
+          <h4>Player Profile</h4>
+          <div class="setting-row">
+            <span>Name &amp; Avatar (used for multiplayer)</span>
+            <button class="btn btn-secondary" onclick="App.goTo('profile')">✏️ Edit Profile</button>
+          </div>
+        </div>
+        <div class="settings-group">
           <h4>Appearance</h4>
           <label class="setting-row">
             <span>Dark Mode</span>
@@ -406,9 +530,9 @@
         <div class="settings-group">
           <h4>About</h4>
           <div class="about-box">
-            <p><strong>Bible Challenge Arena</strong> v1.0</p>
+            <p><strong>Bible Challenge Arena</strong> v2.0</p>
             <p>200 Bible questions across 4 difficulty levels.</p>
-            <p>Completely offline. No internet required.</p>
+            <p>Fully offline, with optional Host/Join multiplayer over the same WiFi network.</p>
             <p style="margin-top:0.5rem;font-style:italic;">"Study to show thyself approved unto God"<br>— 2 Timothy 2:15</p>
           </div>
         </div>
@@ -450,7 +574,11 @@
 
   </div><!-- #app -->
 
-  <script src="questions.js"></script>
-  <script src="app.js"></script>
+  <script src="js/questions.js"></script>
+  <script src="js/profile.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/multiplayer.js"></script>
+  <script src="js/host.js"></script>
+  <script src="js/join.js"></script>
 </body>
 </html>

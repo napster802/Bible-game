@@ -37,7 +37,7 @@ const App = (function () {
   // ─────────────────────────────────────────────────────────────
   // CONSTANTS
   // ─────────────────────────────────────────────────────────────
-  const AVATARS = ['😊','🦁','🌟','👑','🕊️','🔥','⚡','🌊','🌺','🎯','🏆','📖','✝️','🙏','🌈','⚔️'];
+  const AVATARS = ['😊','🦁','🌟','👑','🕊️','🔥','⚡','🌊','🌺','🎯','🏆','📖','📜','🙏','🌈','⚔️'];
   const CIRCUMFERENCE = 113.1; // 2π × 18
 
   const ACHIEVEMENTS = [
@@ -225,6 +225,14 @@ const App = (function () {
     renderResults();
   };
 
+  hooks['onEnter_profile'] = function () {
+    if (window.Profile) Profile.onEnterProfileScreen();
+  };
+
+  hooks['onEnter_join-entry'] = function () {
+    if (window.JoinGame) JoinGame.onEnterJoinEntry();
+  };
+
   // ─────────────────────────────────────────────────────────────
   // AVATAR PICKER
   // ─────────────────────────────────────────────────────────────
@@ -252,6 +260,41 @@ const App = (function () {
     state.mode = mode;
     state.players = [];
     goTo('difficulty');
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // MULTIPLAYER ENTRY (gated behind Player Profile)
+  // ─────────────────────────────────────────────────────────────
+  function goHostGame() {
+    if (window.Profile && Profile.exists()) {
+      HostGame.createRoom();
+    } else {
+      sessionStorage.setItem('bca_pending_action', 'host');
+      goTo('profile');
+    }
+  }
+
+  function goJoinGame() {
+    if (window.Profile && Profile.exists()) {
+      goTo('join-entry');
+    } else {
+      sessionStorage.setItem('bca_pending_action', 'join');
+      goTo('profile');
+    }
+  }
+
+  function profileSaveContinue() {
+    const nameInput = document.getElementById('profile-name-input');
+    const name = nameInput ? nameInput.value.trim() : '';
+    if (!name) {
+      showToast('Please enter your name', 'error');
+      return;
+    }
+    Profile.saveFromForm('home');
+    const pending = sessionStorage.getItem('bca_pending_action');
+    sessionStorage.removeItem('bca_pending_action');
+    if (pending === 'host') HostGame.createRoom();
+    else if (pending === 'join') goTo('join-entry');
   }
 
   function selectDifficulty(diff) {
@@ -1164,6 +1207,7 @@ const App = (function () {
   function init() {
     loadSettings();
     applySettings();
+    if (window.Profile) Profile.init();
 
     const nameInput = document.getElementById('player-name-input');
     if (nameInput) {
@@ -1188,6 +1232,9 @@ const App = (function () {
     goTo,
     // Mode / Difficulty / Setup
     selectMode,
+    goHostGame,
+    goJoinGame,
+    profileSaveContinue,
     selectDifficulty,
     addPlayer,
     removePlayer,
