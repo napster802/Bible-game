@@ -266,12 +266,14 @@ const App = (function () {
   // MULTIPLAYER ENTRY (gated behind Player Profile)
   // ─────────────────────────────────────────────────────────────
   function goHostGame() {
-    if (window.Profile && Profile.exists()) {
-      HostGame.createRoom();
-    } else {
-      sessionStorage.setItem('bca_pending_action', 'host');
-      goTo('profile');
-    }
+    Admin.requireAdmin(function () {
+      if (window.Profile && Profile.exists()) {
+        HostGame.createRoom();
+      } else {
+        sessionStorage.setItem('bca_pending_action', 'host');
+        goTo('profile');
+      }
+    });
   }
 
   function goJoinGame() {
@@ -744,6 +746,7 @@ const App = (function () {
   // RESULTS SCREEN
   // ─────────────────────────────────────────────────────────────
   function renderResults() {
+    if (!state.players || state.players.length === 0) return;
     const sorted = state.players.slice().sort((a, b) => b.score - a.score);
     const qCount = state.questions.length;
 
@@ -985,10 +988,12 @@ const App = (function () {
   }
 
   function clearHistory() {
-    if (!confirm('Clear all game history? This cannot be undone.')) return;
-    localStorage.removeItem('bca_history');
-    loadHistory();
-    showToast('History cleared.', 'info');
+    Admin.requireAdmin(function () {
+      if (!confirm('Clear all game history? This cannot be undone.')) return;
+      localStorage.removeItem('bca_history');
+      loadHistory();
+      showToast('History cleared.', 'info');
+    });
   }
 
   // ─────────────────────────────────────────────────────────────

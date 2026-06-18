@@ -149,35 +149,54 @@ const Multiplayer = (function () {
 
     document.getElementById('q-number').textContent = `Q ${data.current_question.q_idx + 1}/${data.room.question_count}`;
     document.getElementById('q-category').textContent = q.category || '';
-    document.getElementById('q-text').textContent = q.question;
-    q.choices.forEach((c, i) => { document.getElementById(`c${i}-txt`).textContent = c; });
-
-    for (let i = 0; i < 4; i++) {
-      const btn = document.getElementById(`c${i}`);
-      btn.className = `choice choice-${'abcd'[i]}`;
-      btn.disabled = false;
-      btn.onclick = () => submitAnswer(i, q);
-    }
 
     document.getElementById('q-progress-fill').style.width =
       `${(data.current_question.q_idx / data.room.question_count) * 100}%`;
 
-    const myPlayer = data.players.find(p => p.device_id === deviceId);
-    document.getElementById('pts-val').textContent = myPlayer ? myPlayer.score : 0;
-
     const badge = document.getElementById('player-turn-badge');
     if (badge) badge.style.display = 'none';
 
+    // The host never plays - they only watch contestants answer.
     const adminBar = document.getElementById('admin-bar');
-    if (adminBar) adminBar.style.display = isHost ? 'flex' : 'none';
+    if (adminBar) adminBar.style.display = 'none';
 
-    setMpStatusBadge(data);
+    const qBox = document.querySelector('#screen-question .q-box');
+    const ptsBar = document.querySelector('#screen-question .pts-bar');
+    const choicesGrid = document.getElementById('choices-grid');
+    const hostMonitor = document.getElementById('host-monitor');
 
-    if (data.my_answer) {
-      answeredThisQuestion = true;
-      lockChoices(data.my_answer.choice_idx, q);
+    if (isHost) {
+      if (qBox) qBox.style.display = 'none';
+      if (ptsBar) ptsBar.style.display = 'none';
+      if (choicesGrid) choicesGrid.style.display = 'none';
+      if (hostMonitor) hostMonitor.style.display = 'flex';
+      renderHostMonitor(data);
+    } else {
+      if (qBox) qBox.style.display = '';
+      if (ptsBar) ptsBar.style.display = '';
+      if (choicesGrid) choicesGrid.style.display = '';
+      if (hostMonitor) hostMonitor.style.display = 'none';
+
+      document.getElementById('q-text').textContent = q.question;
+      q.choices.forEach((c, i) => { document.getElementById(`c${i}-txt`).textContent = c; });
+
+      for (let i = 0; i < 4; i++) {
+        const btn = document.getElementById(`c${i}`);
+        btn.className = `choice choice-${'abcd'[i]}`;
+        btn.disabled = false;
+        btn.onclick = () => submitAnswer(i, q);
+      }
+
+      const myPlayer = data.players.find(p => p.device_id === deviceId);
+      document.getElementById('pts-val').textContent = myPlayer ? myPlayer.score : 0;
+
+      if (data.my_answer) {
+        answeredThisQuestion = true;
+        lockChoices(data.my_answer.choice_idx, q);
+      }
     }
 
+    setMpStatusBadge(data);
     startLocalTicker();
   }
 
@@ -186,10 +205,39 @@ const Multiplayer = (function () {
     if (!badge) return;
     badge.style.display = 'flex';
     if (isHost) {
-      badge.textContent = `👥 ${data.answered_count}/${data.player_count} answered`;
+      badge.textContent = `👥 ${data.answered_count}/${data.contestant_count} answered`;
     } else {
       badge.textContent = answeredThisQuestion ? '✓ Answer locked' : '⏳ Answer now!';
     }
+  }
+
+  function renderHostMonitor(data) {
+    const list = document.getElementById('host-monitor-list');
+    if (!list) return;
+    const contestants = data.players.filter(p => !p.is_host);
+    list.innerHTML = contestants.map(p => {
+      let statusClass = '';
+      let statusText = 'Waiting…';
+      if (p.has_answered) {
+        statusClass = 'answered';
+        statusText = '✓ Answered';
+        if (p.is_correct === true) { statusClass += ' correct'; statusText = '✓ Correct'; }
+        else if (p.is_correct === false) { statusClass += ' wrong'; statusText = '✗ Wrong'; }
+      }
+      const avatarHtml = (p.avatar && p.avatar.startsWith('data:'))
+        ? `<img src="${p.avatar}" style="width:1.8rem;height:1.8rem;border-radius:50%;object-fit:cover;">`
+        : `<span class="player-avatar-badge">${p.avatar}</span>`;
+      return `
+        <div class="host-monitor-item ${statusClass}">
+          ${avatarHtml}
+          <span class="host-monitor-name">${escapeHtml(p.name)}</span>
+          <span class="host-monitor-status">${statusText}</span>
+        </div>
+      `;
+    }).join('');
+
+    const revealBtn = document.getElementById('host-reveal-btn');
+    if (revealBtn) revealBtn.style.display = (data.room.status === 'playing') ? '' : 'none';
   }
 
   function lookupQuestion(qInfo) {
@@ -226,6 +274,7 @@ const Multiplayer = (function () {
     sync.serverElapsedMs = data.room.time_elapsed_ms;
     sync.clientTimeAtSync = Date.now();
     setMpStatusBadge(data);
+    if (isHost) renderHostMonitor(data);
   }
 
   function submitAnswer(choiceIdx, question) {
@@ -283,13 +332,16 @@ const Multiplayer = (function () {
       document.querySelector('.fb-actions').appendChild(waitDiv);
     }
     waitDiv.style.display = 'block';
-    waitDiv.innerHTML = isHost
-      ? `<p>Waiting for all players to answer…</p><button class="btn btn-secondary" onclick="HostGame.forceReveal()">Reveal Now</button>`
-      : `<p>Waiting for other players…</p>`;
+    waitDiv.innerHTML = `<p>Waiting for other players…</p>`;
   }
 
   // ---------------- ANSWER REVEAL ----------------
   function enterReveal(data) {
+    if (isHost) {
+      // Host stays on the monitor and just sees everyone's final answers.
+      renderHostMonitor(data);
+      return;
+    }
     const q = lookupQuestion(data.current_question);
     // If I never answered (timeout), still show feedback with 0 points
     if (!document.getElementById('screen-feedback').classList.contains('active')) {
@@ -309,7 +361,7 @@ const Multiplayer = (function () {
   function updateWaitingCount(data) {
     const waitDiv = document.getElementById('fb-mp-waiting');
     if (waitDiv && data.answer_reveal) {
-      waitDiv.innerHTML = `<p>${data.answer_reveal.total_answers}/${data.player_count} answered • moving to rankings…</p>`;
+      waitDiv.innerHTML = `<p>${data.answer_reveal.total_answers}/${data.contestant_count} answered • moving to rankings…</p>`;
     }
   }
 
@@ -320,7 +372,8 @@ const Multiplayer = (function () {
 
     const list = document.getElementById('lb-list');
     list.innerHTML = '';
-    data.players.forEach((p, i) => {
+    const contestants = data.players.filter(p => !p.is_host);
+    contestants.forEach((p, i) => {
       const rank = i + 1;
       const item = document.createElement('div');
       item.className = `lb-item${rank <= 3 ? ' rank-' + rank : ''}`;
@@ -356,17 +409,26 @@ const Multiplayer = (function () {
   // ---------------- RESULTS ----------------
   function enterResults(data) {
     stop();
+    const contestants = data.players.filter(p => !p.is_host);
+    const sorted = contestants.slice().sort((a, b) => b.score - a.score);
+
+    // Save history first so a rendering bug can never cost the match record.
+    try {
+      saveMatchHistory(sorted, data.room);
+    } catch (e) {
+      console.error('Failed to save match history:', e);
+    }
+
     App.goTo('results');
-    document.getElementById('results-sub').textContent =
-      `${currentDifficulty.toUpperCase()} • ${data.room.question_count} Questions • Multiplayer`;
-
-    const sorted = data.players.slice().sort((a, b) => b.score - a.score);
-    renderPodium(sorted);
-    renderResultsTable(sorted, data.room.question_count);
-
-    if (sorted[0] && sorted[0].score > 0 && App.startConfetti) App.startConfetti();
-
-    saveMatchHistory(sorted, data.room);
+    try {
+      document.getElementById('results-sub').textContent =
+        `${currentDifficulty.toUpperCase()} • ${data.room.question_count} Questions • Multiplayer`;
+      renderPodium(sorted);
+      renderResultsTable(sorted, data.room.question_count);
+      if (sorted[0] && sorted[0].score > 0 && App.startConfetti) App.startConfetti();
+    } catch (e) {
+      console.error('Failed to render multiplayer results:', e);
+    }
   }
 
   function renderPodium(sorted) {
