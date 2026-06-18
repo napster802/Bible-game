@@ -53,7 +53,10 @@ const Multiplayer = (function () {
     if (!roomCode || !deviceId) return;
     api(`room_state.php?code=${roomCode}&device_id=${deviceId}`)
       .then(handleState)
-      .catch(() => App.showToast('Connection lost. Retrying…', 'error', 1500));
+      .catch(err => {
+        console.error('Room sync failed:', err);
+        App.showToast('Connection lost. Retrying…', 'error', 1500);
+      });
   }
 
   function handleState(data) {

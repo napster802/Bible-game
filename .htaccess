@@ -15,10 +15,14 @@ Options -Indexes
     Header always set Access-Control-Allow-Headers "Content-Type"
 </IfModule>
 
-# Make sure PHP files in /api are executed, not downloaded as plain text
-<FilesMatch "\.php$">
-    SetHandler application/x-httpd-php
-</FilesMatch>
+# NOTE: We deliberately do NOT force a PHP SetHandler here. KSWEB (and most
+# Apache+PHP builds) already register .php files with their own handler
+# (mod_php or PHP-FPM via a proxy handler whose name we cannot predict).
+# Overriding it with the wrong handler name causes PHP files to either 500
+# or be served as plain text/source instead of being executed, which looks
+# to the app like "Could not reach the host server" even though Apache did
+# respond. If your KSWEB build truly does not execute .php automatically,
+# enable PHP support in the KSWEB app settings instead of patching this file.
 
 # Direct web access to the SQLite database folder is blocked by data/.htaccess
 # (Apache does not allow <Directory> blocks inside a .htaccess file, so the

@@ -47,8 +47,8 @@ const JoinGame = (function () {
       }
       App.goTo('join-wait');
       Multiplayer.start(code, false);
-    }).catch(() => {
-      if (error) error.textContent = 'Could not reach the host server.';
+    }).catch(err => {
+      if (error) error.textContent = 'Could not reach the host server: ' + err.message;
     });
   }
 

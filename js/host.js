@@ -43,7 +43,7 @@ const HostGame = (function () {
       roomCode = res.room_code;
       App.goTo('host-lobby');
       Multiplayer.start(roomCode, true);
-    }).catch(() => App.showToast('Could not reach the host server', 'error'));
+    }).catch(err => App.showToast('Could not reach the host server: ' + err.message, 'error', 5000));
   }
 
   function setDifficulty(diff) {
