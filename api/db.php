@@ -72,6 +72,7 @@ function initDB(PDO $db): void {
             q_start_time INTEGER DEFAULT 0,
             q_indices TEXT DEFAULT '[]',
             time_limit INTEGER DEFAULT 30,
+            points_awarded INTEGER DEFAULT 0,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         );
@@ -94,6 +95,11 @@ function initDB(PDO $db): void {
             name TEXT NOT NULL,
             avatar TEXT NOT NULL,
             avatar_type TEXT DEFAULT 'emoji',
+            wallet INTEGER DEFAULT 0,
+            equipped_name_effect TEXT,
+            equipped_border TEXT,
+            owned_name_effects TEXT DEFAULT '[]',
+            owned_borders TEXT DEFAULT '[]',
             updated_at INTEGER NOT NULL
         );
         CREATE TABLE IF NOT EXISTS answers (
@@ -108,6 +114,32 @@ function initDB(PDO $db): void {
             PRIMARY KEY (room_code, device_id, q_idx)
         );
     ");
+    migrateSchema($db);
+}
+
+// SQLite has no "ADD COLUMN IF NOT EXISTS"; safely retrofit columns onto
+// databases created before this column existed by ignoring the
+// "duplicate column" error each ALTER TABLE throws if already applied.
+function migrateSchema(PDO $db): void {
+    $columns = [
+        'rooms'    => ['points_awarded' => "INTEGER DEFAULT 0"],
+        'profiles' => [
+            'wallet'                => "INTEGER DEFAULT 0",
+            'equipped_name_effect'  => "TEXT",
+            'equipped_border'       => "TEXT",
+            'owned_name_effects'    => "TEXT DEFAULT '[]'",
+            'owned_borders'         => "TEXT DEFAULT '[]'",
+        ],
+    ];
+    foreach ($columns as $table => $cols) {
+        foreach ($cols as $col => $def) {
+            try {
+                $db->exec("ALTER TABLE $table ADD COLUMN $col $def");
+            } catch (PDOException $e) {
+                // Column already exists - ignore.
+            }
+        }
+    }
 }
 
 function jsonOut(array $data, int $code = 200): void {

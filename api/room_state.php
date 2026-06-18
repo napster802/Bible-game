@@ -79,6 +79,29 @@ $room = $stmt2->fetch();
 $status = $room['status'];
 $currentQIdx = (int)$room['current_q_idx'];
 
+// === WALLET CREDITING: finished -> award points once, server-side only ===
+// Points are only ever credited here, from a completed multiplayer room,
+// never from solo/local play, and the points_awarded flag makes this
+// idempotent no matter how many clients poll after the room finishes.
+if ($status === 'finished' && (int)$room['points_awarded'] === 0) {
+    $creditStmt = $db->prepare("SELECT device_id, score FROM players WHERE room_code = ? AND is_host = 0");
+    $creditStmt->execute([$code]);
+    $toCredit = $creditStmt->fetchAll();
+
+    $db->beginTransaction();
+    foreach ($toCredit as $pc) {
+        $score = (int)$pc['score'];
+        if ($score <= 0) continue;
+        $db->prepare("INSERT INTO profiles (device_id, name, avatar, wallet, updated_at) VALUES (?, '', '', ?, ?)
+                      ON CONFLICT(device_id) DO UPDATE SET wallet = wallet + excluded.wallet, updated_at = excluded.updated_at")
+           ->execute([$pc['device_id'], $score, nowMs()]);
+    }
+    $db->prepare("UPDATE rooms SET points_awarded = 1 WHERE code = ?")->execute([$code]);
+    $db->commit();
+
+    $room['points_awarded'] = 1;
+}
+
 // Players sorted by score
 $playerStmt = $db->prepare("SELECT * FROM players WHERE room_code = ? ORDER BY score DESC, correct_count DESC");
 $playerStmt->execute([$code]);
@@ -167,6 +190,11 @@ foreach ($playersOut as $p) { if (!$p['is_host']) $contestantCount++; }
 
 $timeElapsedMs = $status === 'playing' ? max(0, $now - (int)$room['q_start_time']) : 0;
 
+$myWalletStmt = $db->prepare("SELECT wallet FROM profiles WHERE device_id = ?");
+$myWalletStmt->execute([$deviceId]);
+$myWalletCol = $myWalletStmt->fetchColumn();
+$myWallet = $myWalletCol === false ? null : (int)$myWalletCol;
+
 jsonOut([
     'success' => true,
     'room' => [
@@ -187,5 +215,6 @@ jsonOut([
     'answer_reveal'     => $answerReveal,
     'my_answer'         => $myAnswer,
     'is_host'           => $isHost,
+    'my_wallet'         => $myWallet,
     'server_time'       => $now
 ]);
