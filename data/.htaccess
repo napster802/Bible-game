@@ -1,0 +1,10 @@
+# Deny all direct web access to the SQLite database files in this folder.
+# Apache 2.4+
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+# Apache 2.2 and older (some KSWEB builds)
+<IfModule !mod_authz_core.c>
+    Order Deny,Allow
+    Deny from all
+</IfModule>

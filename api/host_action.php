@@ -1,0 +1,96 @@
+<?php
+require_once __DIR__ . '/db.php';
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { jsonOut([]); }
+
+$input    = getInput();
+$code     = trim($input['room_code'] ?? '');
+$deviceId = trim($input['device_id'] ?? '');
+$action   = trim($input['action'] ?? '');
+
+if (!$code || !$deviceId || !$action) jsonOut(['success' => false, 'error' => 'Missing params'], 400);
+
+$db = getDB();
+
+$hostStmt = $db->prepare("SELECT * FROM players WHERE room_code = ? AND device_id = ? AND is_host = 1");
+$hostStmt->execute([$code, $deviceId]);
+if (!$hostStmt->fetch()) jsonOut(['success' => false, 'error' => 'Not authorized'], 403);
+
+$roomStmt = $db->prepare("SELECT * FROM rooms WHERE code = ?");
+$roomStmt->execute([$code]);
+$room = $roomStmt->fetch();
+if (!$room) jsonOut(['success' => false, 'error' => 'Room not found'], 404);
+
+$now = nowMs();
+
+switch ($action) {
+    case 'start_game':
+        if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game already started'], 400);
+
+        $diff   = $room['difficulty'];
+        $count  = (int)$room['question_count'];
+        $tlimit = getTimeLimitForDifficulty($diff);
+
+        $indices = range(0, 49);
+        shuffle($indices);
+        $indices = array_slice($indices, 0, $count);
+
+        $db->prepare("UPDATE rooms SET status = 'playing', current_q_idx = 0, q_start_time = ?, q_indices = ?, time_limit = ?, updated_at = ? WHERE code = ?")
+           ->execute([$now, json_encode($indices), $tlimit, $now, $code]);
+        break;
+
+    case 'next_question':
+        if (!in_array($room['status'], ['leaderboard', 'answer_reveal'], true))
+            jsonOut(['success' => false, 'error' => 'Not in leaderboard state'], 400);
+
+        $nextIdx = (int)$room['current_q_idx'] + 1;
+        $qIndices = json_decode($room['q_indices'], true) ?: [];
+
+        if ($nextIdx >= count($qIndices)) {
+            $db->prepare("UPDATE rooms SET status = 'finished', updated_at = ? WHERE code = ?")
+               ->execute([$now, $code]);
+        } else {
+            $db->prepare("UPDATE rooms SET status = 'playing', current_q_idx = ?, q_start_time = ?, updated_at = ? WHERE code = ?")
+               ->execute([$nextIdx, $now, $now, $code]);
+        }
+        break;
+
+    case 'force_reveal':
+        if ($room['status'] !== 'playing') jsonOut(['success' => false, 'error' => 'Not playing'], 400);
+        $db->prepare("UPDATE rooms SET status = 'answer_reveal', updated_at = ? WHERE code = ?")
+           ->execute([$now, $code]);
+        break;
+
+    case 'end_game':
+        $db->prepare("UPDATE rooms SET status = 'finished', updated_at = ? WHERE code = ?")
+           ->execute([$now, $code]);
+        break;
+
+    case 'remove_player':
+        $targetId = trim($input['target_device_id'] ?? '');
+        if (!$targetId) jsonOut(['success' => false, 'error' => 'No target'], 400);
+        $db->prepare("DELETE FROM players WHERE room_code = ? AND device_id = ? AND is_host = 0")->execute([$code, $targetId]);
+        break;
+
+    case 'set_difficulty':
+        if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
+        $value = $input['value'] ?? 'easy';
+        $diff = in_array($value, ['easy', 'medium', 'hard', 'expert'], true) ? $value : 'easy';
+        $tlimit = getTimeLimitForDifficulty($diff);
+        $db->prepare("UPDATE rooms SET difficulty = ?, time_limit = ?, updated_at = ? WHERE code = ?")
+           ->execute([$diff, $tlimit, $now, $code]);
+        break;
+
+    case 'set_question_count':
+        if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
+        $value = (int)($input['value'] ?? 10);
+        $count = in_array($value, [10, 20, 30, 50], true) ? $value : 10;
+        $db->prepare("UPDATE rooms SET question_count = ?, updated_at = ? WHERE code = ?")
+           ->execute([$count, $now, $code]);
+        break;
+
+    default:
+        jsonOut(['success' => false, 'error' => 'Unknown action'], 400);
+}
+
+jsonOut(['success' => true]);

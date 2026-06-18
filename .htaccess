@@ -1,0 +1,25 @@
+# Bible Challenge Arena - Apache configuration for KSWEB / Apache / localhost
+# Place this whole project folder inside your web server's document root,
+# e.g. KSWEB htdocs/biblegame/, then visit http://PHONE-IP:8000/biblegame/
+
+# Serve index.html automatically when a directory is requested
+DirectoryIndex index.html
+
+# Hide directory listings
+Options -Indexes
+
+# Allow LAN devices (other players) to call the PHP API from a different origin/port
+<IfModule mod_headers.c>
+    Header always set Access-Control-Allow-Origin "*"
+    Header always set Access-Control-Allow-Methods "GET, POST, OPTIONS"
+    Header always set Access-Control-Allow-Headers "Content-Type"
+</IfModule>
+
+# Make sure PHP files in /api are executed, not downloaded as plain text
+<FilesMatch "\.php$">
+    SetHandler application/x-httpd-php
+</FilesMatch>
+
+# Direct web access to the SQLite database folder is blocked by data/.htaccess
+# (Apache does not allow <Directory> blocks inside a .htaccess file, so the
+# deny rule lives in its own .htaccess placed directly inside that folder.)
