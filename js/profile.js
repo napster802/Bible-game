@@ -117,37 +117,14 @@ const Profile = (function () {
     }).catch(() => { /* offline / no server yet — local copy still works */ });
   }
 
-  // Renaming an existing profile costs points and must be verified by the
-  // server (which holds the authoritative wallet balance); first-time setup
-  // and avatar-only edits stay free and work even if the server is unreachable.
+  // Renaming a profile is free (same as first-time setup and avatar-only
+  // edits) and works even if the server is unreachable - the local copy
+  // is the immediate source of truth, with a fire-and-forget server sync.
   function attemptSave(name, avatar, avatarType) {
     const trimmedName = name.trim().slice(0, 20);
-    const existing = get();
-    const isRename = !!(existing && existing.name !== trimmedName);
-
-    if (!isRename) {
-      const profile = save(trimmedName, avatar, avatarType);
-      syncToServer(profile);
-      return Promise.resolve({ profile, charged: 0 });
-    }
-
-    const deviceId = getDeviceId();
-    return fetch('api/profile.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        device_id: deviceId,
-        name: trimmedName,
-        avatar: avatar,
-        avatar_type: avatarType
-      })
-    })
-      .then(r => r.json())
-      .then(res => {
-        if (!res.success) throw new Error(res.error || 'Could not rename profile.');
-        const profile = save(trimmedName, avatar, avatarType, res.wallet);
-        return { profile, charged: res.charged || 0 };
-      });
+    const profile = save(trimmedName, avatar, avatarType);
+    syncToServer(profile);
+    return Promise.resolve({ profile, charged: 0 });
   }
 
   function restoreFromServer() {

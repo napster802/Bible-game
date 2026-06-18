@@ -15,8 +15,6 @@ require_once __DIR__ . '/db.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { jsonOut([]); }
 
-const RENAME_COST = 20000;
-
 $db = getDB();
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -51,35 +49,16 @@ $avatarType = trim($input['avatar_type'] ?? 'emoji');
 
 if (!$deviceId || !$name || !$avatar) jsonOut(['success' => false, 'error' => 'Missing params'], 400);
 
-$existingStmt = $db->prepare("SELECT name, wallet FROM profiles WHERE device_id = ?");
-$existingStmt->execute([$deviceId]);
-$existing = $existingStmt->fetch();
-
-$isRename = $existing && $existing['name'] !== $name;
-$cost = 0;
-
-if ($isRename) {
-    $wallet = (int)$existing['wallet'];
-    if ($wallet < RENAME_COST) {
-        jsonOut([
-            'success' => false,
-            'error' => "Changing your name costs " . number_format(RENAME_COST) . " points. You have " . number_format($wallet) . "."
-        ], 400);
-    }
-    $cost = RENAME_COST;
-}
-
 $db->prepare("INSERT INTO profiles (device_id, name, avatar, avatar_type, wallet, updated_at) VALUES (?, ?, ?, ?, 0, ?)
               ON CONFLICT(device_id) DO UPDATE SET
                 name = excluded.name,
                 avatar = excluded.avatar,
                 avatar_type = excluded.avatar_type,
-                wallet = wallet - ?,
                 updated_at = excluded.updated_at")
-   ->execute([$deviceId, $name, $avatar, $avatarType, nowMs(), $cost]);
+   ->execute([$deviceId, $name, $avatar, $avatarType, nowMs()]);
 
 $walletStmt = $db->prepare("SELECT wallet FROM profiles WHERE device_id = ?");
 $walletStmt->execute([$deviceId]);
 $newWallet = (int)$walletStmt->fetchColumn();
 
-jsonOut(['success' => true, 'wallet' => $newWallet, 'charged' => $cost]);
+jsonOut(['success' => true, 'wallet' => $newWallet, 'charged' => 0]);
