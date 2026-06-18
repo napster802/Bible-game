@@ -21,6 +21,11 @@ $room = $stmt->fetch();
 if (!$room || $room['status'] !== 'playing') jsonOut(['success' => false, 'error' => 'Not in playing state'], 400);
 if ((int)$room['current_q_idx'] !== $qIdx) jsonOut(['success' => false, 'error' => 'Wrong question index'], 400);
 
+$hostCheckStmt = $db->prepare("SELECT is_host FROM players WHERE room_code = ? AND device_id = ?");
+$hostCheckStmt->execute([$code, $deviceId]);
+$playerRow = $hostCheckStmt->fetch();
+if ($playerRow && (int)$playerRow['is_host'] === 1) jsonOut(['success' => false, 'error' => 'The host does not play'], 403);
+
 // Anti-cheat: reject duplicate answers
 $checkStmt = $db->prepare("SELECT 1 FROM answers WHERE room_code = ? AND device_id = ? AND q_idx = ?");
 $checkStmt->execute([$code, $deviceId, $qIdx]);

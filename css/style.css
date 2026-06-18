@@ -528,6 +528,62 @@ label,
   cursor: pointer;
 }
 
+/* ── Host Monitor (host watches, never plays) ─────────────── */
+.host-monitor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.host-monitor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.host-monitor-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--card);
+  padding: 0.75rem;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  opacity: 0.7;
+}
+
+.host-monitor-item.answered {
+  opacity: 1;
+}
+
+.host-monitor-item.correct {
+  border: 2px solid var(--green, #2ecc71);
+}
+
+.host-monitor-item.wrong {
+  border: 2px solid var(--red);
+}
+
+.host-monitor-name {
+  flex: 1;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.host-monitor-status {
+  font-size: 0.9rem;
+  color: var(--text2);
+}
+
+.host-monitor-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.host-monitor-actions .btn {
+  flex: 1;
+}
+
 .add-player-section {
   background: var(--card);
   border-radius: var(--radius);

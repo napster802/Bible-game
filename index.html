@@ -367,6 +367,16 @@
           <span class="choice-txt" id="c3-txt"></span>
         </button>
       </div>
+
+      <!-- Host Monitor (host does not play - just watches answers come in) -->
+      <div class="host-monitor" id="host-monitor" style="display:none">
+        <p class="hint-text">Watching players answer…</p>
+        <div class="host-monitor-list" id="host-monitor-list"></div>
+        <div class="host-monitor-actions">
+          <button class="btn btn-secondary" id="host-reveal-btn" onclick="HostGame.forceReveal()">Reveal Now</button>
+          <button class="btn btn-danger" onclick="HostGame.endGame()">🚪 End Game</button>
+        </div>
+      </div>
     </div>
 
     <!-- ==================== SCREEN: FEEDBACK ==================== -->

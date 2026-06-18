@@ -30,7 +30,7 @@ $currentQIdx = (int)$room['current_q_idx'];
 if ($status === 'playing') {
     $elapsed = $now - (int)$room['q_start_time'];
 
-    $totalStmt = $db->prepare("SELECT COUNT(*) FROM players WHERE room_code = ?");
+    $totalStmt = $db->prepare("SELECT COUNT(*) FROM players WHERE room_code = ? AND is_host = 0");
     $totalStmt->execute([$code]);
     $totalPlayers = (int)$totalStmt->fetchColumn();
 
@@ -39,8 +39,8 @@ if ($status === 'playing') {
     $answeredCount = (int)$answeredStmt->fetchColumn();
 
     if ($elapsed >= $timeLimitMs + 2000 || ($totalPlayers > 0 && $answeredCount >= $totalPlayers)) {
-        // Record 0-point timeouts for anyone who didn't answer
-        $playerStmt = $db->prepare("SELECT device_id FROM players WHERE room_code = ?");
+        // Record 0-point timeouts for anyone who didn't answer (contestants only - the host never plays)
+        $playerStmt = $db->prepare("SELECT device_id FROM players WHERE room_code = ? AND is_host = 0");
         $playerStmt->execute([$code]);
         $allPlayers = $playerStmt->fetchAll(PDO::FETCH_COLUMN);
 
@@ -135,13 +135,18 @@ $answeredNowStmt = $db->prepare("SELECT COUNT(*) FROM answers WHERE room_code = 
 $answeredNowStmt->execute([$code, $currentQIdx]);
 $answeredCount = (int)$answeredNowStmt->fetchColumn();
 
+$revealedNow = in_array($status, ['answer_reveal', 'leaderboard', 'finished'], true);
+
 $playersOut = [];
 foreach ($players as $p) {
     $hasAnswered = false;
+    $isCorrectNow = null;
     if ($currentQIdx >= 0) {
-        $stmt3 = $db->prepare("SELECT 1 FROM answers WHERE room_code = ? AND device_id = ? AND q_idx = ?");
+        $stmt3 = $db->prepare("SELECT is_correct FROM answers WHERE room_code = ? AND device_id = ? AND q_idx = ?");
         $stmt3->execute([$code, $p['device_id'], $currentQIdx]);
-        $hasAnswered = (bool)$stmt3->fetchColumn();
+        $ansRow = $stmt3->fetch();
+        $hasAnswered = (bool)$ansRow;
+        if ($ansRow && $revealedNow) $isCorrectNow = (bool)$ansRow['is_correct'];
     }
     $playersOut[] = [
         'device_id'    => $p['device_id'],
@@ -152,9 +157,13 @@ foreach ($players as $p) {
         'wrong'        => (int)$p['wrong_count'],
         'total_time'   => (float)$p['total_time'],
         'is_host'      => (bool)$p['is_host'],
-        'has_answered' => $hasAnswered
+        'has_answered' => $hasAnswered,
+        'is_correct'   => $isCorrectNow
     ];
 }
+
+$contestantCount = 0;
+foreach ($playersOut as $p) { if (!$p['is_host']) $contestantCount++; }
 
 $timeElapsedMs = $status === 'playing' ? max(0, $now - (int)$room['q_start_time']) : 0;
 
@@ -172,6 +181,7 @@ jsonOut([
     ],
     'players'           => $playersOut,
     'player_count'      => count($playersOut),
+    'contestant_count'  => $contestantCount,
     'answered_count'    => $answeredCount,
     'current_question'  => $qData,
     'answer_reveal'     => $answerReveal,
