@@ -572,10 +572,25 @@
       </div>
     </div>
 
+    <!-- ==================== OVERLAY: ADMIN LOGIN ==================== -->
+    <div class="overlay" id="overlay-admin-login" style="display:none">
+      <div class="overlay-card">
+        <div class="overlay-icon">🔒</div>
+        <h2>Admin Access Required</h2>
+        <p>Sign in to host a game or manage the Hall of Fame.</p>
+        <input type="text" id="admin-username-input" class="text-input" placeholder="Username" autocomplete="off" />
+        <input type="password" id="admin-password-input" class="text-input" placeholder="Password" autocomplete="off" />
+        <p class="error-text" id="admin-login-error"></p>
+        <button class="btn btn-primary btn-xl" onclick="Admin.attemptLogin()">Sign In</button>
+        <button class="btn btn-ghost" onclick="Admin.closeLoginOverlay()">Cancel</button>
+      </div>
+    </div>
+
   </div><!-- #app -->
 
   <script src="js/questions.js"></script>
   <script src="js/profile.js"></script>
+  <script src="js/admin.js"></script>
   <script src="js/app.js"></script>
   <script src="js/multiplayer.js"></script>
   <script src="js/host.js"></script>
