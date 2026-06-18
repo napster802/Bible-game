@@ -19,18 +19,48 @@ const Profile = (function () {
     });
   }
 
+  /* ----------------------------------------------------------
+     Browsers/WebViews never expose a device's real MAC address
+     to JavaScript (it's blocked everywhere for privacy/security
+     reasons). The closest practical equivalent is a persistent
+     random ID generated once and kept on the device. To survive
+     a "clear site data" wipe of LocalStorage as well as possible,
+     that ID is mirrored into both LocalStorage and a long-lived
+     cookie, and the resolved name/avatar are also backed up on
+     the host server keyed by this ID, so they can be restored
+     even if LocalStorage alone gets wiped.
+     ---------------------------------------------------------- */
+  function getCookie(name) {
+    const match = document.cookie.match('(?:^|; )' + name + '=([^;]*)');
+    return match ? decodeURIComponent(match[1]) : null;
+  }
+
+  function setCookie(name, value, days) {
+    const expires = new Date(Date.now() + days * 86400000).toUTCString();
+    document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+  }
+
+  function safeGet(key) {
+    try { return localStorage.getItem(key); } catch (e) { return null; }
+  }
+
+  function safeSet(key, value) {
+    try { localStorage.setItem(key, value); } catch (e) { /* storage unavailable */ }
+  }
+
   function getDeviceId() {
-    let id = localStorage.getItem('bca_device_id');
+    let id = safeGet('bca_device_id') || getCookie('bca_device_id');
     if (!id) {
       id = uuid();
-      localStorage.setItem('bca_device_id', id);
     }
+    safeSet('bca_device_id', id);
+    setCookie('bca_device_id', id, 3650);
     return id;
   }
 
   function get() {
     if (cached) return cached;
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = safeGet(STORAGE_KEY);
     if (!raw) return null;
     try {
       cached = JSON.parse(raw);
@@ -51,9 +81,42 @@ const Profile = (function () {
       avatar: avatar || AVATAR_EMOJIS[0],
       avatarType: avatarType || 'emoji'
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+    safeSet(STORAGE_KEY, JSON.stringify(profile));
     cached = profile;
+    syncToServer(profile);
     return profile;
+  }
+
+  function syncToServer(profile) {
+    fetch('api/profile.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        device_id: profile.deviceId,
+        name: profile.name,
+        avatar: profile.avatar,
+        avatar_type: profile.avatarType
+      })
+    }).catch(() => { /* offline / no server yet — local copy still works */ });
+  }
+
+  function restoreFromServer() {
+    if (get()) return; // local copy already present, nothing to restore
+    const deviceId = getDeviceId();
+    fetch(`api/profile.php?device_id=${encodeURIComponent(deviceId)}`)
+      .then(r => r.json())
+      .then(res => {
+        if (!res.success || !res.profile || get()) return;
+        const profile = {
+          deviceId,
+          name: res.profile.name,
+          avatar: res.profile.avatar,
+          avatarType: res.profile.avatarType
+        };
+        safeSet(STORAGE_KEY, JSON.stringify(profile));
+        cached = profile;
+      })
+      .catch(() => { /* server unreachable — leave profile screen as the fallback */ });
   }
 
   function renderAvatarPicker(containerId, selected) {
@@ -159,6 +222,7 @@ const Profile = (function () {
     // Called once on app boot. If no profile, home screen buttons will
     // redirect through the profile screen first (handled in app.js).
     getDeviceId();
+    restoreFromServer();
   }
 
   return {

@@ -89,6 +89,13 @@ function initDB(PDO $db): void {
             last_ping INTEGER NOT NULL,
             PRIMARY KEY (device_id, room_code)
         );
+        CREATE TABLE IF NOT EXISTS profiles (
+            device_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            avatar TEXT NOT NULL,
+            avatar_type TEXT DEFAULT 'emoji',
+            updated_at INTEGER NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS answers (
             room_code TEXT NOT NULL,
             device_id TEXT NOT NULL,
