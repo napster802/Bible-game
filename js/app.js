@@ -10,7 +10,7 @@ const App = (function () {
   // STATE
   // ─────────────────────────────────────────────────────────────
   let state = {
-    mode: 'single',
+    mode: 'multi',
     difficulty: 'easy',
     timeLimit: 30,
     questions: [],
@@ -219,6 +219,7 @@ const App = (function () {
 
   hooks['onEnter_settings'] = function () {
     applySettingsToUI();
+    applyGameOptionsLock();
   };
 
   hooks['onEnter_results'] = function () {
@@ -231,6 +232,14 @@ const App = (function () {
 
   hooks['onEnter_join-entry'] = function () {
     if (window.JoinGame) JoinGame.onEnterJoinEntry();
+  };
+
+  hooks['onEnter_my-profile'] = function () {
+    if (window.Profile) Profile.onEnterMyProfileScreen();
+  };
+
+  hooks['onEnter_shop'] = function () {
+    if (window.Shop) Shop.onEnterShop();
   };
 
   // ─────────────────────────────────────────────────────────────
@@ -259,7 +268,16 @@ const App = (function () {
   function selectMode(mode) {
     state.mode = mode;
     state.players = [];
-    goTo('difficulty');
+    if (mode === 'daily') {
+      // Daily Challenge uses a fixed difficulty/timer so every player on a
+      // given calendar day faces the same deterministic question set.
+      state.difficulty = 'medium';
+      state.timeLimit = 25;
+      state.selectedAvatar = AVATARS[0];
+      goTo('player-setup');
+    } else {
+      goTo('difficulty');
+    }
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -285,6 +303,24 @@ const App = (function () {
     }
   }
 
+  function goMyProfile() {
+    if (window.Profile && Profile.exists()) {
+      goTo('my-profile');
+    } else {
+      sessionStorage.setItem('bca_pending_action', 'my-profile');
+      goTo('profile');
+    }
+  }
+
+  function goShop() {
+    if (window.Profile && Profile.exists()) {
+      goTo('shop');
+    } else {
+      sessionStorage.setItem('bca_pending_action', 'shop');
+      goTo('profile');
+    }
+  }
+
   function profileSaveContinue() {
     const nameInput = document.getElementById('profile-name-input');
     const name = nameInput ? nameInput.value.trim() : '';
@@ -292,20 +328,34 @@ const App = (function () {
       showToast('Please enter your name', 'error');
       return;
     }
-    Profile.saveFromForm('home');
+    const saveBtn = document.getElementById('profile-save-btn');
     const pending = sessionStorage.getItem('bca_pending_action');
     sessionStorage.removeItem('bca_pending_action');
-    if (pending === 'host') HostGame.createRoom();
-    else if (pending === 'join') goTo('join-entry');
+    if (saveBtn) saveBtn.disabled = true;
+    Profile.saveFromForm(pending ? 'skip' : 'home')
+      .then(function () {
+        if (saveBtn) saveBtn.disabled = false;
+        if (pending === 'host') HostGame.createRoom();
+        else if (pending === 'join') goTo('join-entry');
+        else if (pending === 'my-profile') goTo('my-profile');
+        else if (pending === 'shop') goTo('shop');
+      })
+      .catch(function () {
+        if (saveBtn) saveBtn.disabled = false;
+      });
   }
 
   function selectDifficulty(diff) {
     state.difficulty = diff;
     const timeLimits = { easy: 30, medium: 25, hard: 20, expert: 15 };
-    state.timeLimit = timeLimits[diff] || 30;
+    state.timeLimit = state.mode === 'speed' ? 10 : (timeLimits[diff] || 30);
     state.players = [];
     state.selectedAvatar = AVATARS[0];
     goTo('player-setup');
+  }
+
+  function backFromPlayerSetup() {
+    goTo(state.mode === 'daily' ? 'mode' : 'difficulty');
   }
 
   function addPlayer() {
@@ -379,8 +429,8 @@ const App = (function () {
     if (hint) {
       if (count === 0) {
         hint.textContent = 'Add at least 1 player to start';
-      } else if (state.mode !== 'single' && count < 2) {
-        hint.textContent = 'Add at least 2 players for ' + state.mode + ' mode (or start solo)';
+      } else if (state.mode === 'multi' && count < 2) {
+        hint.textContent = 'Add at least 2 players for Pass & Play mode (or start solo)';
       } else {
         hint.textContent = `${count} player${count > 1 ? 's' : ''} ready — let's go!`;
       }
@@ -398,10 +448,16 @@ const App = (function () {
 
     // Load and optionally shuffle question pool
     let pool = (QUESTION_DB[state.difficulty] || []).slice();
-    if (state.settings.shuffle) {
-      fisherYates(pool);
+    let count;
+    if (state.mode === 'daily') {
+      // Same date-seeded shuffle for everyone, so all players face an
+      // identical question set on a given calendar day.
+      seededShuffle(pool, todaySeed());
+      count = Math.min(10, pool.length);
+    } else {
+      if (state.settings.shuffle) fisherYates(pool);
+      count = Math.min(state.settings.questionCount, pool.length);
     }
-    const count = Math.min(state.settings.questionCount, pool.length);
     state.questions = pool.slice(0, count);
 
     if (state.questions.length === 0) {
@@ -428,6 +484,31 @@ const App = (function () {
   function fisherYates(arr) {
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+  }
+
+  function todaySeed() {
+    const d = new Date();
+    const dateStr = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+    let hash = 0;
+    for (let i = 0; i < dateStr.length; i++) {
+      hash = (hash << 5) - hash + dateStr.charCodeAt(i);
+      hash |= 0;
+    }
+    return hash >>> 0;
+  }
+
+  function seededShuffle(arr, seed) {
+    let s = seed || 1;
+    const rand = function () {
+      s |= 0; s = (s + 0x6D2B79F5) | 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
       [arr[i], arr[j]] = [arr[j], arr[i]];
     }
   }
@@ -1066,6 +1147,21 @@ const App = (function () {
     saveSettings();
   }
 
+  function applyGameOptionsLock() {
+    const lockRow = document.getElementById('game-options-lock-row');
+    const fields = document.getElementById('game-options-fields');
+    const unlocked = window.Admin && Admin.isAuthenticated();
+    if (lockRow) lockRow.style.display = unlocked ? 'none' : 'flex';
+    if (fields) fields.style.display = unlocked ? '' : 'none';
+  }
+
+  function unlockGameOptions() {
+    Admin.requireAdmin(function () {
+      applyGameOptionsLock();
+      showToast('Game Options unlocked.', 'success');
+    });
+  }
+
   // ─────────────────────────────────────────────────────────────
   // ACHIEVEMENTS
   // ─────────────────────────────────────────────────────────────
@@ -1201,7 +1297,9 @@ const App = (function () {
       single: 'Solo',
       multi: 'Pass & Play',
       tournament: 'Tournament',
-      sabbath: 'Sabbath School'
+      sabbath: 'Sabbath School',
+      speed: 'Speed Round',
+      daily: 'Daily Challenge'
     };
     return labels[mode] || mode;
   }
@@ -1239,8 +1337,11 @@ const App = (function () {
     selectMode,
     goHostGame,
     goJoinGame,
+    goMyProfile,
+    goShop,
     profileSaveContinue,
     selectDifficulty,
+    backFromPlayerSetup,
     addPlayer,
     removePlayer,
     renderPlayerList,
@@ -1270,6 +1371,7 @@ const App = (function () {
     setSoundEnabled,
     setVolume,
     setSetting,
+    unlockGameOptions,
     // Export
     exportCSV,
     printResults,

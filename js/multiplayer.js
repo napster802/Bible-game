@@ -68,6 +68,9 @@ const Multiplayer = (function () {
     }
 
     isHost = data.is_host;
+    if (data.my_wallet !== null && data.my_wallet !== undefined && window.Profile && Profile.setWalletCache) {
+      Profile.setWalletCache(data.my_wallet);
+    }
     currentDifficulty = data.room.difficulty;
     const status = data.room.status;
     const qIdx = data.room.current_q_idx;
@@ -165,20 +168,29 @@ const Multiplayer = (function () {
     const choicesGrid = document.getElementById('choices-grid');
     const hostMonitor = document.getElementById('host-monitor');
 
+    if (qBox) qBox.style.display = '';
+    if (choicesGrid) choicesGrid.style.display = '';
+
+    document.getElementById('q-text').textContent = q.question;
+    q.choices.forEach((c, i) => { document.getElementById(`c${i}-txt`).textContent = c; });
+
     if (isHost) {
-      if (qBox) qBox.style.display = 'none';
       if (ptsBar) ptsBar.style.display = 'none';
-      if (choicesGrid) choicesGrid.style.display = 'none';
       if (hostMonitor) hostMonitor.style.display = 'flex';
+      if (choicesGrid) choicesGrid.classList.add('host-view');
+
+      for (let i = 0; i < 4; i++) {
+        const btn = document.getElementById(`c${i}`);
+        btn.className = `choice choice-${'abcd'[i]}`;
+        btn.disabled = true;
+        btn.onclick = null;
+      }
+
       renderHostMonitor(data);
     } else {
-      if (qBox) qBox.style.display = '';
       if (ptsBar) ptsBar.style.display = '';
-      if (choicesGrid) choicesGrid.style.display = '';
       if (hostMonitor) hostMonitor.style.display = 'none';
-
-      document.getElementById('q-text').textContent = q.question;
-      q.choices.forEach((c, i) => { document.getElementById(`c${i}-txt`).textContent = c; });
+      if (choicesGrid) choicesGrid.classList.remove('host-view');
 
       for (let i = 0; i < 4; i++) {
         const btn = document.getElementById(`c${i}`);
@@ -337,12 +349,18 @@ const Multiplayer = (function () {
 
   // ---------------- ANSWER REVEAL ----------------
   function enterReveal(data) {
+    const q = lookupQuestion(data.current_question);
     if (isHost) {
-      // Host stays on the monitor and just sees everyone's final answers.
+      // Host stays on the question screen, sees the correct answer highlighted
+      // alongside the live monitor of everyone's final answers.
+      const correctIdx = q.choices.indexOf(q.answer);
+      for (let i = 0; i < 4; i++) {
+        const btn = document.getElementById(`c${i}`);
+        if (i === correctIdx) btn.classList.add('reveal-correct');
+      }
       renderHostMonitor(data);
       return;
     }
-    const q = lookupQuestion(data.current_question);
     // If I never answered (timeout), still show feedback with 0 points
     if (!document.getElementById('screen-feedback').classList.contains('active')) {
       App.goTo('feedback');

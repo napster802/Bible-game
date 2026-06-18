@@ -32,11 +32,11 @@
           <p class="logo-tagline">Test Your Knowledge of God's Word</p>
         </div>
         <div class="home-buttons">
-          <button class="btn btn-primary btn-xl" onclick="App.selectMode('single')">
-            <span>📖</span> Solo
+          <button class="btn btn-primary btn-xl" onclick="App.selectMode('speed')">
+            <span>⚡</span> Speed Round
           </button>
-          <button class="btn btn-primary btn-xl" onclick="App.selectMode('tournament')">
-            <span>🏆</span> Tournament
+          <button class="btn btn-primary btn-xl" onclick="App.selectMode('daily')">
+            <span>📅</span> Daily Challenge
           </button>
           <button class="btn btn-secondary btn-xl" onclick="App.goHostGame()">
             <span>📡</span> Host Game
@@ -48,6 +48,8 @@
         <div class="home-links">
           <button class="btn btn-ghost" onclick="App.goTo('mode')">📜 More Modes</button>
           <button class="btn btn-ghost" onclick="App.goTo('history')">🏆 Hall of Fame</button>
+          <button class="btn btn-ghost" onclick="App.goMyProfile()">👤 My Profile</button>
+          <button class="btn btn-ghost" onclick="App.goShop()">🛍️ Shop</button>
           <button class="btn btn-ghost" onclick="App.goTo('settings')">⚙️ Settings</button>
         </div>
         <div class="version-tag">Bible Challenge Arena • Offline &amp; LAN Multiplayer</div>
@@ -64,6 +66,7 @@
       <div class="screen-body">
         <div class="profile-form">
           <input type="text" id="profile-name-input" class="text-input" placeholder="Your name..." maxlength="20" />
+          <p class="hint-text">Changing your name later costs 20,000 points. Your first name is free.</p>
 
           <h3>Choose an Avatar</h3>
           <div class="avatar-row" id="profile-avatar-grid"></div>
@@ -74,7 +77,7 @@
             <img id="profile-photo-preview" class="profile-photo-preview" style="display:none">
           </div>
 
-          <button class="btn btn-primary btn-xl" onclick="App.profileSaveContinue()">Save Profile</button>
+          <button class="btn btn-primary btn-xl" id="profile-save-btn" onclick="App.profileSaveContinue()">Save Profile</button>
         </div>
       </div>
     </div>
@@ -88,20 +91,20 @@
       </div>
       <div class="screen-body">
         <div class="mode-grid">
-          <div class="mode-card" onclick="App.selectMode('single')">
-            <div class="mode-emoji">📖</div>
-            <h3>Solo</h3>
-            <p>Test yourself</p>
+          <div class="mode-card" onclick="App.selectMode('speed')">
+            <div class="mode-emoji">⚡</div>
+            <h3>Speed Round</h3>
+            <p>Fast 10s answers</p>
           </div>
           <div class="mode-card" onclick="App.selectMode('multi')">
             <div class="mode-emoji">🌿</div>
             <h3>Pass &amp; Play</h3>
             <p>2–8 players</p>
           </div>
-          <div class="mode-card" onclick="App.selectMode('tournament')">
-            <div class="mode-emoji">🏆</div>
-            <h3>Tournament</h3>
-            <p>Championship round</p>
+          <div class="mode-card" onclick="App.selectMode('daily')">
+            <div class="mode-emoji">📅</div>
+            <h3>Daily Challenge</h3>
+            <p>Same questions for everyone today</p>
           </div>
           <div class="mode-card" onclick="App.selectMode('sabbath')">
             <div class="mode-emoji">📜</div>
@@ -180,7 +183,7 @@
     <!-- ==================== SCREEN: PLAYER SETUP ==================== -->
     <div class="screen" id="screen-player-setup">
       <div class="screen-header">
-        <button class="btn-back" onclick="App.goTo('difficulty')">‹</button>
+        <button class="btn-back" onclick="App.backFromPlayerSetup()">‹</button>
         <h2>Players</h2>
         <div class="spacer"></div>
       </div>
@@ -504,8 +507,13 @@
               oninput="App.setVolume(this.value)" class="range-input">
           </div>
         </div>
-        <div class="settings-group">
-          <h4>Game Options</h4>
+        <div class="settings-group" id="game-options-group">
+          <h4>Game Options <span style="opacity:0.6;font-size:0.8rem;">(Host only)</span></h4>
+          <div class="setting-row" id="game-options-lock-row" style="display:none">
+            <span>Game Options are locked to the host/admin.</span>
+            <button class="btn btn-secondary" onclick="App.unlockGameOptions()">🔒 Unlock</button>
+          </div>
+          <div id="game-options-fields">
           <label class="setting-row">
             <span>Shuffle Questions</span>
             <label class="toggle-switch">
@@ -536,6 +544,7 @@
               <option value="50">50 (All)</option>
             </select>
           </div>
+          </div>
         </div>
         <div class="settings-group">
           <h4>About</h4>
@@ -546,6 +555,44 @@
             <p style="margin-top:0.5rem;font-style:italic;">"Study to show thyself approved unto God"<br>— 2 Timothy 2:15</p>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: MY PROFILE ==================== -->
+    <div class="screen" id="screen-my-profile">
+      <div class="screen-header">
+        <button class="btn-back" onclick="App.goTo('home')">‹</button>
+        <h2>My Profile</h2>
+        <div class="spacer"></div>
+      </div>
+      <div class="screen-body">
+        <div class="my-profile-card">
+          <div class="my-profile-avatar-wrap" id="my-profile-avatar-wrap"></div>
+          <div class="my-profile-name" id="my-profile-name"></div>
+          <div class="wallet-badge">💰 <span id="my-profile-wallet">0</span> pts</div>
+          <p class="hint-text">Points are earned by playing Host/Join multiplayer games.</p>
+          <div class="my-profile-actions">
+            <button class="btn btn-secondary btn-xl" onclick="App.goTo('profile')">✏️ Edit Profile</button>
+            <button class="btn btn-primary btn-xl" onclick="App.goShop()">🛍️ Shop</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: SHOP ==================== -->
+    <div class="screen" id="screen-shop">
+      <div class="screen-header">
+        <button class="btn-back" onclick="App.goTo('my-profile')">‹</button>
+        <h2>Shop</h2>
+        <div class="spacer"></div>
+      </div>
+      <div class="screen-body">
+        <div class="wallet-badge">💰 <span id="shop-wallet">0</span> pts</div>
+        <div class="shop-tabs">
+          <button class="shop-tab active" id="shop-tab-effects" onclick="Shop.setTab('effects')">✨ Name Effects</button>
+          <button class="shop-tab" id="shop-tab-borders" onclick="Shop.setTab('borders')">🖼️ Profile Borders</button>
+        </div>
+        <div class="shop-grid" id="shop-grid"></div>
       </div>
     </div>
 
@@ -600,6 +647,7 @@
 
   <script src="js/questions.js"></script>
   <script src="js/profile.js"></script>
+  <script src="js/shop.js"></script>
   <script src="js/admin.js"></script>
   <script src="js/app.js"></script>
   <script src="js/multiplayer.js"></script>
