@@ -145,6 +145,7 @@
               <option value="emojiclue">🌊 Emoji Story Clue</option>
             </select>
           </div>
+          <div class="instructions-box" id="host-instructions-box"></div>
           <div class="setting-row">
             <span>Question Source</span>
             <select id="host-mode-select" class="select-input" onchange="HostGame.setQuizMode(this.value)">
@@ -243,6 +244,7 @@
           <p class="hint-text">Players</p>
           <div class="player-list" id="join-wait-player-list"></div>
         </div>
+        <div class="instructions-box" id="join-instructions-box"></div>
         <p class="hint-text">The host will start the game soon…</p>
       </div>
     </div>
@@ -699,6 +701,7 @@
   <script src="js/higherlower_data.js"></script>
   <script src="js/versefill_data.js"></script>
   <script src="js/emojiclue_data.js"></script>
+  <script src="js/game_instructions.js"></script>
   <script src="js/question_tracker.js"></script>
   <script src="js/custom_questions.js"></script>
   <script src="js/profile.js"></script>

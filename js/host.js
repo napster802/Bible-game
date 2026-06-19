@@ -62,6 +62,7 @@ const HostGame = (function () {
   function onEnterHostLobby() {
     const formatSelect = document.getElementById('host-format-select');
     if (formatSelect) formatSelect.value = gameFormat;
+    if (typeof GameInstructions !== 'undefined') GameInstructions.render(gameFormat, 'host-instructions-box');
 
     const modeSelect = document.getElementById('host-mode-select');
     if (modeSelect) modeSelect.value = quizMode;
@@ -266,6 +267,7 @@ const HostGame = (function () {
 
   function setGameFormat(format) {
     gameFormat = ['truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue'].includes(format) ? format : 'classic';
+    if (typeof GameInstructions !== 'undefined') GameInstructions.render(gameFormat, 'host-instructions-box');
     action('set_game_format', { value: gameFormat });
   }
 

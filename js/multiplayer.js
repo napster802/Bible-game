@@ -149,6 +149,10 @@ const Multiplayer = (function () {
 
     renderPlayerList('host-player-list', data.players, true);
     renderPlayerList('join-wait-player-list', data.players, false);
+
+    if (!isHost && typeof GameInstructions !== 'undefined') {
+      GameInstructions.render(data.room.game_format || 'classic', 'join-instructions-box');
+    }
   }
 
   function renderPlayerList(containerId, players, allowRemove) {
