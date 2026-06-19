@@ -84,6 +84,7 @@ function initDB(PDO $db): void {
             category TEXT,
             testament TEXT DEFAULT 'all',
             pool_size INTEGER DEFAULT 50,
+            game_format TEXT DEFAULT 'classic',
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         );
@@ -165,6 +166,7 @@ function migrateSchema(PDO $db): void {
             'category'       => "TEXT",
             'testament'      => "TEXT DEFAULT 'all'",
             'pool_size'      => "INTEGER DEFAULT 50",
+            'game_format'    => "TEXT DEFAULT 'classic'",
         ],
         'profiles' => [
             'wallet'                => "INTEGER DEFAULT 0",

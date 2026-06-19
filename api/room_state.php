@@ -240,6 +240,7 @@ jsonOut([
         'book'            => $room['book'],
         'category'        => $room['category'],
         'testament'       => $room['testament'],
+        'game_format'     => $room['game_format'] ?: 'classic',
         'question_count'  => (int)$room['question_count'],
         'current_q_idx'   => $currentQIdx,
         'time_limit'      => (int)$room['time_limit'],

@@ -132,6 +132,14 @@
 
         <div class="lobby-settings">
           <div class="setting-row">
+            <span>Game Mode</span>
+            <select id="host-format-select" class="select-input" onchange="HostGame.setGameFormat(this.value)">
+              <option value="classic" selected>Classic (4 Choices)</option>
+              <option value="truefalse">⚡ Lightning True/False</option>
+              <option value="scramble">🔤 Word Scramble</option>
+            </select>
+          </div>
+          <div class="setting-row">
             <span>Question Source</span>
             <select id="host-mode-select" class="select-input" onchange="HostGame.setQuizMode(this.value)">
               <option value="difficulty" selected>By Difficulty</option>
@@ -327,6 +335,22 @@
           <span class="choice-ltr">D</span>
           <span class="choice-txt" id="c3-txt"></span>
         </button>
+      </div>
+
+      <!-- Lightning True/False -->
+      <div class="tf-grid" id="tf-grid" style="display:none">
+        <p class="tf-statement" id="tf-statement"></p>
+        <button class="choice tf-true" id="tf-true">✅ TRUE</button>
+        <button class="choice tf-false" id="tf-false">❌ FALSE</button>
+      </div>
+
+      <!-- Word Scramble -->
+      <div class="scramble-box" id="scramble-box" style="display:none">
+        <p class="hint-text">Unscramble the answer:</p>
+        <p class="scramble-word" id="scramble-word"></p>
+        <input type="text" id="scramble-input" class="text-input" placeholder="Type your answer" autocomplete="off">
+        <button class="btn btn-primary btn-xl" id="scramble-submit-btn">Submit</button>
+        <p class="scramble-result" id="scramble-result" style="display:none"></p>
       </div>
 
       <!-- Host Monitor (host does not play - just watches answers come in) -->

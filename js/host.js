@@ -10,6 +10,7 @@ const HostGame = (function () {
   const API = 'api/';
   const SHARE_IP_KEY = 'bca_hotspot_ip';
   let roomCode = null;
+  let gameFormat = 'classic';
   let quizMode = 'difficulty';
   let selectedDifficulty = 'easy';
   let selectedBook = null;
@@ -47,6 +48,7 @@ const HostGame = (function () {
         return;
       }
       roomCode = res.room_code;
+      gameFormat = 'classic';
       quizMode = 'difficulty';
       selectedDifficulty = 'easy';
       selectedBook = null;
@@ -58,6 +60,9 @@ const HostGame = (function () {
   }
 
   function onEnterHostLobby() {
+    const formatSelect = document.getElementById('host-format-select');
+    if (formatSelect) formatSelect.value = gameFormat;
+
     const modeSelect = document.getElementById('host-mode-select');
     if (modeSelect) modeSelect.value = quizMode;
 
@@ -259,6 +264,11 @@ const HostGame = (function () {
     action('set_book_category', { book: selectedBook, category: selectedCategory, pool_size: poolSize, testament: selectedTestament });
   }
 
+  function setGameFormat(format) {
+    gameFormat = (format === 'truefalse' || format === 'scramble') ? format : 'classic';
+    action('set_game_format', { value: gameFormat });
+  }
+
   function setDifficulty(diff) {
     selectedDifficulty = diff;
     action('set_difficulty', { value: diff });
@@ -413,6 +423,7 @@ const HostGame = (function () {
   return {
     createRoom,
     onEnterHostLobby,
+    setGameFormat,
     setDifficulty,
     setQuestionCount,
     setQuizMode,

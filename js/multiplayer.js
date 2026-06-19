@@ -23,6 +23,7 @@ const Multiplayer = (function () {
   let lastData = null;
 
   let sync = { serverElapsedMs: 0, clientTimeAtSync: 0, timeLimitSec: 30 };
+  let currentGameFormat = 'classic';
   let currentDifficulty = 'easy';
   let currentQuizMode = 'difficulty';
   let currentBook = null;
@@ -97,6 +98,7 @@ const Multiplayer = (function () {
     if (data.my_wallet !== null && data.my_wallet !== undefined && typeof Profile !== 'undefined' && Profile.setWalletCache) {
       Profile.setWalletCache(data.my_wallet);
     }
+    currentGameFormat = data.room.game_format || 'classic';
     currentDifficulty = data.room.difficulty;
     currentQuizMode = data.room.quiz_mode || 'difficulty';
     currentBook = data.room.book || null;
@@ -209,48 +211,100 @@ const Multiplayer = (function () {
     const qBox = document.querySelector('#screen-question .q-box');
     const ptsBar = document.querySelector('#screen-question .pts-bar');
     const choicesGrid = document.getElementById('choices-grid');
+    const tfGrid = document.getElementById('tf-grid');
+    const scrambleBox = document.getElementById('scramble-box');
     const hostMonitor = document.getElementById('host-monitor');
     const powerupBar = document.getElementById('powerup-bar');
 
     if (qBox) qBox.style.display = '';
-    if (choicesGrid) choicesGrid.style.display = '';
+    if (choicesGrid) choicesGrid.style.display = 'none';
+    if (tfGrid) tfGrid.style.display = 'none';
+    if (scrambleBox) scrambleBox.style.display = 'none';
 
     document.getElementById('q-text').textContent = q.question;
-    q.choices.forEach((c, i) => { document.getElementById(`c${i}-txt`).textContent = c; });
+
+    let tfState = null;
+    if (currentGameFormat === 'truefalse') {
+      tfState = buildTrueFalseStatement(q, data.current_question.q_idx);
+      const stEl = document.getElementById('tf-statement');
+      if (stEl) stEl.textContent = `Proposed answer: ${tfState.statement}`;
+      if (tfGrid) tfGrid.style.display = 'flex';
+    } else if (currentGameFormat === 'scramble') {
+      const wordEl = document.getElementById('scramble-word');
+      if (wordEl) wordEl.textContent = scrambleWord(q.answer, `${roomCode}-${data.current_question.q_idx}`);
+      const resultEl = document.getElementById('scramble-result');
+      if (resultEl) resultEl.style.display = 'none';
+      if (scrambleBox) scrambleBox.style.display = 'block';
+    } else {
+      q.choices.forEach((c, i) => { document.getElementById(`c${i}-txt`).textContent = c; });
+      if (choicesGrid) choicesGrid.style.display = '';
+    }
 
     if (isHost) {
       if (ptsBar) ptsBar.style.display = 'none';
       if (hostMonitor) hostMonitor.style.display = 'flex';
-      if (choicesGrid) choicesGrid.classList.add('host-view');
       if (powerupBar) powerupBar.style.display = 'none';
 
-      for (let i = 0; i < 4; i++) {
-        const btn = document.getElementById(`c${i}`);
-        btn.className = `choice choice-${'abcd'[i]}`;
-        btn.disabled = true;
-        btn.onclick = null;
+      if (currentGameFormat === 'truefalse') {
+        ['tf-true', 'tf-false'].forEach(id => {
+          const btn = document.getElementById(id);
+          if (btn) { btn.classList.remove('correct', 'wrong', 'reveal-correct'); btn.disabled = true; btn.onclick = null; }
+        });
+      } else if (currentGameFormat === 'scramble') {
+        const input = document.getElementById('scramble-input');
+        const submitBtn = document.getElementById('scramble-submit-btn');
+        if (input) input.disabled = true;
+        if (submitBtn) submitBtn.disabled = true;
+      } else {
+        if (choicesGrid) choicesGrid.classList.add('host-view');
+        for (let i = 0; i < 4; i++) {
+          const btn = document.getElementById(`c${i}`);
+          btn.className = `choice choice-${'abcd'[i]}`;
+          btn.disabled = true;
+          btn.onclick = null;
+        }
       }
 
       renderHostMonitor(data);
     } else {
       if (ptsBar) ptsBar.style.display = '';
       if (hostMonitor) hostMonitor.style.display = 'none';
-      if (choicesGrid) choicesGrid.classList.remove('host-view');
 
-      for (let i = 0; i < 4; i++) {
-        const btn = document.getElementById(`c${i}`);
-        btn.className = `choice choice-${'abcd'[i]}`;
-        btn.disabled = false;
-        btn.onclick = () => submitAnswer(i, q);
+      if (currentGameFormat === 'truefalse') {
+        const trueBtn = document.getElementById('tf-true');
+        const falseBtn = document.getElementById('tf-false');
+        [trueBtn, falseBtn].forEach(b => { if (b) { b.classList.remove('correct', 'wrong', 'reveal-correct'); b.disabled = false; } });
+        if (trueBtn) trueBtn.onclick = () => submitTrueFalse(true, tfState, q);
+        if (falseBtn) falseBtn.onclick = () => submitTrueFalse(false, tfState, q);
+        if (data.my_answer) {
+          answeredThisQuestion = true;
+          lockTrueFalse(data.my_answer.choice_idx === 1, tfState);
+        }
+      } else if (currentGameFormat === 'scramble') {
+        const input = document.getElementById('scramble-input');
+        const submitBtn = document.getElementById('scramble-submit-btn');
+        if (input) { input.value = ''; input.disabled = false; }
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.onclick = () => submitScramble(q); }
+        if (data.my_answer) {
+          answeredThisQuestion = true;
+          lockScramble(data.my_answer.is_correct, q, null);
+        }
+      } else {
+        if (choicesGrid) choicesGrid.classList.remove('host-view');
+        for (let i = 0; i < 4; i++) {
+          const btn = document.getElementById(`c${i}`);
+          btn.className = `choice choice-${'abcd'[i]}`;
+          btn.disabled = false;
+          btn.onclick = () => submitAnswer(i, q);
+        }
+        if (data.my_answer) {
+          answeredThisQuestion = true;
+          lockChoices(data.my_answer.choice_idx, q);
+        }
       }
 
       const myPlayer = data.players.find(p => p.device_id === deviceId);
       document.getElementById('pts-val').textContent = myPlayer ? myPlayer.score : 0;
-
-      if (data.my_answer) {
-        answeredThisQuestion = true;
-        lockChoices(data.my_answer.choice_idx, q);
-      }
 
       renderPowerupBar(data);
       applyFreezeState(data);
@@ -258,6 +312,125 @@ const Multiplayer = (function () {
 
     setMpStatusBadge(data);
     startLocalTicker();
+  }
+
+  // ---------------- LIGHTNING TRUE/FALSE ----------------
+  // Deterministic pure function of (room, question index, question text) so
+  // every polling client - host and all players - derives the exact same
+  // proposed statement and ground truth without any extra server storage.
+  function seededHash(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+    return h;
+  }
+
+  function buildTrueFalseStatement(q, qIdx) {
+    const seed = `${roomCode}-${qIdx}-${q.question}`;
+    const useCorrect = seededHash(seed) % 2 === 0;
+    let statement;
+    if (useCorrect) {
+      statement = q.answer;
+    } else {
+      const wrongChoices = q.choices.filter(c => c !== q.answer);
+      statement = wrongChoices[seededHash(seed + '-w') % wrongChoices.length];
+    }
+    return { statement, isTrue: useCorrect };
+  }
+
+  function submitTrueFalse(selectedBool, tf, question) {
+    if (answeredThisQuestion) return;
+    answeredThisQuestion = true;
+    const elapsedMs = sync.serverElapsedMs + (Date.now() - sync.clientTimeAtSync);
+    currentTimeTaken = Math.min(sync.timeLimitSec, elapsedMs / 1000);
+    const isCorrect = selectedBool === tf.isTrue;
+
+    lockTrueFalse(selectedBool, tf);
+
+    api('submit_answer.php', {
+      room_code: roomCode,
+      device_id: deviceId,
+      q_idx: lastQIdx,
+      choice_idx: selectedBool ? 1 : 0,
+      is_correct: isCorrect,
+      time_taken: currentTimeTaken
+    }).then(res => {
+      if (res.success) {
+        playLocalFeedbackSound(isCorrect);
+        showWaitingFeedback(isCorrect, res.points, question, res.streak, res.doubled);
+      }
+    });
+  }
+
+  function lockTrueFalse(selectedBool, tf) {
+    const trueBtn = document.getElementById('tf-true');
+    const falseBtn = document.getElementById('tf-false');
+    [trueBtn, falseBtn].forEach(b => { if (b) { b.disabled = true; b.onclick = null; } });
+    const selectedBtn = selectedBool ? trueBtn : falseBtn;
+    if (selectedBtn) selectedBtn.classList.add(selectedBool === tf.isTrue ? 'correct' : 'wrong');
+  }
+
+  // ---------------- WORD SCRAMBLE ----------------
+  // Scrambles letters within each word (seeded by room + question index) so
+  // every client shows the same puzzle while word boundaries stay visible.
+  function scrambleWord(answer, seedStr) {
+    let seed = seededHash(seedStr);
+    function rand() { seed = (seed * 1103515245 + 12345) >>> 0; return seed / 4294967296; }
+    return answer.split(' ').map(word => {
+      const letters = word.split('');
+      for (let i = letters.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [letters[i], letters[j]] = [letters[j], letters[i]];
+      }
+      if (letters.length > 1 && letters.join('') === word) letters.reverse();
+      return letters.join('');
+    }).join(' ').toUpperCase();
+  }
+
+  function normalizeAnswer(s) {
+    return s.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+  }
+
+  function submitScramble(question) {
+    if (answeredThisQuestion) return;
+    const input = document.getElementById('scramble-input');
+    const typed = input ? input.value.trim() : '';
+    if (!typed) { App.showToast('Type an answer first', 'error'); return; }
+
+    answeredThisQuestion = true;
+    const elapsedMs = sync.serverElapsedMs + (Date.now() - sync.clientTimeAtSync);
+    currentTimeTaken = Math.min(sync.timeLimitSec, elapsedMs / 1000);
+    const isCorrect = normalizeAnswer(typed) === normalizeAnswer(question.answer);
+
+    lockScramble(isCorrect, question, typed);
+
+    api('submit_answer.php', {
+      room_code: roomCode,
+      device_id: deviceId,
+      q_idx: lastQIdx,
+      choice_idx: 0,
+      is_correct: isCorrect,
+      time_taken: currentTimeTaken
+    }).then(res => {
+      if (res.success) {
+        playLocalFeedbackSound(isCorrect);
+        showWaitingFeedback(isCorrect, res.points, question, res.streak, res.doubled);
+      }
+    });
+  }
+
+  function lockScramble(isCorrect, question, typed) {
+    const input = document.getElementById('scramble-input');
+    const submitBtn = document.getElementById('scramble-submit-btn');
+    if (input) input.disabled = true;
+    if (submitBtn) submitBtn.disabled = true;
+    const resultEl = document.getElementById('scramble-result');
+    if (resultEl) {
+      resultEl.style.display = 'block';
+      resultEl.textContent = isCorrect
+        ? `✓ Correct! "${typed !== null ? typed : question.answer}"`
+        : `✗ Correct answer: ${question.answer}`;
+      resultEl.className = 'scramble-result ' + (isCorrect ? 'correct' : 'wrong');
+    }
   }
 
   function setMpStatusBadge(data) {
@@ -349,6 +522,7 @@ const Multiplayer = (function () {
   function renderPowerupBar(data) {
     const bar = document.getElementById('powerup-bar');
     if (!bar || isHost) return;
+    if (currentGameFormat !== 'classic') { bar.style.display = 'none'; return; }
     bar.style.display = 'flex';
 
     const used = data.my_used_powerups || [];
@@ -453,6 +627,7 @@ const Multiplayer = (function () {
   function applyFreezeState(data) {
     const banner = document.getElementById('freeze-banner');
     if (!banner) return;
+    if (currentGameFormat !== 'classic') { banner.style.display = 'none'; return; }
     const frozen = data.my_frozen_until > data.server_time;
     if (frozen) {
       const secsLeft = Math.max(0, Math.ceil((data.my_frozen_until - data.server_time) / 1000));
@@ -637,10 +812,16 @@ const Multiplayer = (function () {
     if (isHost) {
       // Host stays on the question screen, sees the correct answer highlighted
       // alongside the live monitor of everyone's final answers.
-      const correctIdx = q.choices.indexOf(q.answer);
-      for (let i = 0; i < 4; i++) {
-        const btn = document.getElementById(`c${i}`);
-        if (i === correctIdx) btn.classList.add('reveal-correct');
+      if (currentGameFormat === 'truefalse') {
+        const tf = buildTrueFalseStatement(q, data.current_question.q_idx);
+        const btn = document.getElementById(tf.isTrue ? 'tf-true' : 'tf-false');
+        if (btn) btn.classList.add('reveal-correct');
+      } else if (currentGameFormat === 'classic') {
+        const correctIdx = q.choices.indexOf(q.answer);
+        for (let i = 0; i < 4; i++) {
+          const btn = document.getElementById(`c${i}`);
+          if (i === correctIdx) btn.classList.add('reveal-correct');
+        }
       }
       renderHostMonitor(data);
       return;
@@ -665,8 +846,9 @@ const Multiplayer = (function () {
     if (waitDiv && data.answer_reveal) {
       waitDiv.innerHTML = `<p>${data.answer_reveal.total_answers}/${data.contestant_count} answered • moving to rankings…</p>`;
     }
-    renderDistribution('fb-distribution', data.answer_reveal);
-    renderDistribution('host-distribution', data.answer_reveal);
+    const reveal = currentGameFormat === 'classic' ? data.answer_reveal : null;
+    renderDistribution('fb-distribution', reveal);
+    renderDistribution('host-distribution', reveal);
   }
 
   // ---------------- LEADERBOARD ----------------
