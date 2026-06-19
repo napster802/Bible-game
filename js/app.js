@@ -890,6 +890,7 @@ const App = (function () {
             <td>${p.correct}/${qCount}</td>
             <td>${acc}%</td>
             <td>${avgTime}</td>
+            <td>-</td>
           </tr>
         `;
       }).join('');

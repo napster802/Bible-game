@@ -19,6 +19,8 @@ const Multiplayer = (function () {
   let lastStatus = null;
   let lastQIdx = -1;
   let answeredThisQuestion = false;
+  let lastEventId = 0;
+  let lastData = null;
 
   let sync = { serverElapsedMs: 0, clientTimeAtSync: 0, timeLimitSec: 30 };
   let currentDifficulty = 'easy';
@@ -28,6 +30,9 @@ const Multiplayer = (function () {
   let currentTestament = 'all';
   let currentDbIndex = 0;
   let currentTimeTaken = 0;
+
+  const POWERUP_COSTS = { fifty: 800, double: 1500, freeze: 1000, steal: 2000 };
+  const POWERUP_LABELS = { fifty: '50/50', double: '2x Points', freeze: 'Freeze', steal: 'Steal' };
 
   function api(path, body) {
     const opts = body
@@ -43,7 +48,11 @@ const Multiplayer = (function () {
     lastStatus = null;
     lastQIdx = -1;
     answeredThisQuestion = false;
+    lastEventId = 0;
+    lastData = null;
     stop();
+    const fab = document.getElementById('social-fab');
+    if (fab) fab.style.display = 'flex';
     const begin = () => {
       poll();
       pollTimer = setInterval(poll, POLL_MS);
@@ -58,11 +67,15 @@ const Multiplayer = (function () {
   function stop() {
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     if (localTickTimer) { clearInterval(localTickTimer); localTickTimer = null; }
+    const fab = document.getElementById('social-fab');
+    if (fab) fab.style.display = 'none';
+    const panel = document.getElementById('social-panel');
+    if (panel) panel.style.display = 'none';
   }
 
   function poll() {
     if (!roomCode || !deviceId) return;
-    api(`room_state.php?code=${roomCode}&device_id=${deviceId}`)
+    api(`room_state.php?code=${roomCode}&device_id=${deviceId}&since_event_id=${lastEventId}`)
       .then(handleState)
       .catch(err => {
         console.error('Room sync failed:', err);
@@ -78,6 +91,8 @@ const Multiplayer = (function () {
       return;
     }
 
+    lastData = data;
+    processEvents(data.events);
     isHost = data.is_host;
     if (data.my_wallet !== null && data.my_wallet !== undefined && typeof Profile !== 'undefined' && Profile.setWalletCache) {
       Profile.setWalletCache(data.my_wallet);
@@ -195,6 +210,7 @@ const Multiplayer = (function () {
     const ptsBar = document.querySelector('#screen-question .pts-bar');
     const choicesGrid = document.getElementById('choices-grid');
     const hostMonitor = document.getElementById('host-monitor');
+    const powerupBar = document.getElementById('powerup-bar');
 
     if (qBox) qBox.style.display = '';
     if (choicesGrid) choicesGrid.style.display = '';
@@ -206,6 +222,7 @@ const Multiplayer = (function () {
       if (ptsBar) ptsBar.style.display = 'none';
       if (hostMonitor) hostMonitor.style.display = 'flex';
       if (choicesGrid) choicesGrid.classList.add('host-view');
+      if (powerupBar) powerupBar.style.display = 'none';
 
       for (let i = 0; i < 4; i++) {
         const btn = document.getElementById(`c${i}`);
@@ -234,6 +251,9 @@ const Multiplayer = (function () {
         answeredThisQuestion = true;
         lockChoices(data.my_answer.choice_idx, q);
       }
+
+      renderPowerupBar(data);
+      applyFreezeState(data);
     }
 
     setMpStatusBadge(data);
@@ -317,7 +337,224 @@ const Multiplayer = (function () {
     sync.serverElapsedMs = data.room.time_elapsed_ms;
     sync.clientTimeAtSync = Date.now();
     setMpStatusBadge(data);
-    if (isHost) renderHostMonitor(data);
+    if (isHost) {
+      renderHostMonitor(data);
+    } else {
+      renderPowerupBar(data);
+      applyFreezeState(data);
+    }
+  }
+
+  // ---------------- POWER-UPS ----------------
+  function renderPowerupBar(data) {
+    const bar = document.getElementById('powerup-bar');
+    if (!bar || isHost) return;
+    bar.style.display = 'flex';
+
+    const used = data.my_used_powerups || [];
+    const wallet = typeof data.my_wallet === 'number' ? data.my_wallet : 0;
+    const answered = !!data.my_answer || answeredThisQuestion;
+    const frozen = data.my_frozen_until > data.server_time;
+    const contestants = data.players.filter(p => !p.is_host);
+    const leader = contestants.slice().sort((a, b) => b.score - a.score)[0];
+    const iAmLeader = leader && leader.device_id === deviceId;
+
+    const walletVal = document.getElementById('pu-wallet-val');
+    if (walletVal) walletVal.textContent = wallet.toLocaleString();
+
+    Object.keys(POWERUP_COSTS).forEach(type => {
+      const btn = document.getElementById(`pu-${type}`);
+      if (!btn) return;
+      const cost = POWERUP_COSTS[type];
+      let disabled = used.includes(type) || wallet < cost || frozen;
+      if (type === 'fifty' || type === 'double') disabled = disabled || answered;
+      if (type === 'steal') disabled = disabled || iAmLeader;
+      btn.disabled = disabled;
+      btn.classList.toggle('used', used.includes(type));
+      btn.title = used.includes(type)
+        ? `${POWERUP_LABELS[type]} already used this game`
+        : (type === 'steal' && iAmLeader ? 'You are already the leader' : `${POWERUP_LABELS[type]} - ${cost.toLocaleString()} pts`);
+    });
+  }
+
+  function usePowerup(type, targetId) {
+    if (!roomCode || !deviceId) return;
+    api('use_powerup.php', {
+      room_code: roomCode,
+      device_id: deviceId,
+      powerup: type,
+      target_device_id: targetId || ''
+    }).then(res => {
+      if (!res.success) {
+        App.showToast(res.error || 'Could not use power-up', 'error');
+        return;
+      }
+      if (typeof Profile !== 'undefined' && Profile.setWalletCache) Profile.setWalletCache(res.wallet);
+      if (type === 'fifty') {
+        applyFiftyFifty();
+        App.showToast('🎯 Two wrong answers eliminated!', 'success');
+      } else if (type === 'double') {
+        App.showToast('⚡ Double Points armed for this question!', 'success');
+      } else if (type === 'freeze') {
+        App.showToast('❄️ Target frozen for 5 seconds!', 'success');
+      } else if (type === 'steal') {
+        App.showToast(`🦹 You stole ${res.steal_amount.toLocaleString()} points!`, 'success');
+      }
+      poll();
+    });
+  }
+
+  function applyFiftyFifty() {
+    if (!lastData || !lastData.current_question) return;
+    const q = lookupQuestion(lastData.current_question);
+    const correctIdx = q.choices.indexOf(q.answer);
+    const wrongIndices = [0, 1, 2, 3].filter(i => i !== correctIdx);
+    wrongIndices.sort(() => Math.random() - 0.5);
+    wrongIndices.slice(0, 2).forEach(i => {
+      const btn = document.getElementById(`c${i}`);
+      if (btn) {
+        btn.disabled = true;
+        btn.classList.add('eliminated');
+        btn.onclick = null;
+      }
+    });
+  }
+
+  function openFreezeTargetPicker() {
+    if (!lastData) return;
+    const list = document.getElementById('freeze-target-list');
+    if (!list) return;
+    const targets = lastData.players.filter(p => !p.is_host && p.device_id !== deviceId);
+    if (targets.length === 0) {
+      App.showToast('No other players to freeze', 'warn');
+      return;
+    }
+    list.innerHTML = targets.map(p => {
+      const avatarHtml = (p.avatar && p.avatar.startsWith('data:'))
+        ? `<img src="${p.avatar}" style="width:1.8rem;height:1.8rem;border-radius:50%;object-fit:cover;">`
+        : `<span class="player-avatar-badge">${p.avatar}</span>`;
+      return `<button class="freeze-target-btn" data-id="${p.device_id}">${avatarHtml}<span>${escapeHtml(p.name)}</span></button>`;
+    }).join('');
+    list.querySelectorAll('.freeze-target-btn').forEach(btn => {
+      btn.onclick = () => {
+        const targetId = btn.getAttribute('data-id');
+        closeFreezeTargetPicker();
+        usePowerup('freeze', targetId);
+      };
+    });
+    document.getElementById('overlay-freeze-target').style.display = 'flex';
+  }
+
+  function closeFreezeTargetPicker() {
+    const overlay = document.getElementById('overlay-freeze-target');
+    if (overlay) overlay.style.display = 'none';
+  }
+
+  function applyFreezeState(data) {
+    const banner = document.getElementById('freeze-banner');
+    if (!banner) return;
+    const frozen = data.my_frozen_until > data.server_time;
+    if (frozen) {
+      const secsLeft = Math.max(0, Math.ceil((data.my_frozen_until - data.server_time) / 1000));
+      banner.style.display = 'block';
+      const countdown = document.getElementById('freeze-countdown');
+      if (countdown) countdown.textContent = secsLeft;
+      if (!answeredThisQuestion) {
+        for (let i = 0; i < 4; i++) {
+          const btn = document.getElementById(`c${i}`);
+          if (btn) btn.disabled = true;
+        }
+      }
+    } else {
+      banner.style.display = 'none';
+      if (!answeredThisQuestion) {
+        for (let i = 0; i < 4; i++) {
+          const btn = document.getElementById(`c${i}`);
+          if (btn && !btn.classList.contains('eliminated')) btn.disabled = false;
+        }
+      }
+    }
+  }
+
+  // ---------------- DISTRIBUTION CHART ----------------
+  function renderDistribution(containerId, reveal) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    if (!reveal || !reveal.distribution) {
+      container.style.display = 'none';
+      return;
+    }
+    container.style.display = 'block';
+    const letters = ['a', 'b', 'c', 'd'];
+    const total = reveal.distribution.reduce((s, n) => s + n, 0) || 1;
+    container.innerHTML = reveal.distribution.map((count, i) => {
+      const pct = Math.round((count / total) * 100);
+      return `
+        <div class="dist-row">
+          <span class="dist-letter dist-${letters[i]}">${letters[i].toUpperCase()}</span>
+          <div class="dist-bar-track"><div class="dist-bar-fill dist-${letters[i]}" style="width:${pct}%"></div></div>
+          <span class="dist-pct">${pct}% (${count})</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ---------------- SOCIAL: REACTIONS & QUICK-CHAT ----------------
+  function toggleSocialPanel() {
+    const panel = document.getElementById('social-panel');
+    if (!panel) return;
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function sendReaction(emoji) {
+    if (!roomCode || !deviceId) return;
+    api('send_event.php', { room_code: roomCode, device_id: deviceId, type: 'reaction', payload: emoji });
+  }
+
+  function sendChat(key) {
+    if (!roomCode || !deviceId) return;
+    api('send_event.php', { room_code: roomCode, device_id: deviceId, type: 'chat', payload: key });
+  }
+
+  function processEvents(events) {
+    if (!events || !events.length) return;
+    events.forEach(e => {
+      if (e.id > lastEventId) lastEventId = e.id;
+      if (e.type === 'reaction') spawnReaction(e);
+      else if (e.type === 'chat') spawnChatBubble(e);
+      else if (e.type === 'steal') spawnStealAnnouncement(e);
+    });
+  }
+
+  function spawnReaction(e) {
+    const layer = document.getElementById('reaction-layer');
+    if (!layer) return;
+    const el = document.createElement('div');
+    el.className = 'reaction-emoji';
+    el.textContent = e.payload;
+    el.style.left = `${10 + Math.random() * 80}%`;
+    layer.appendChild(el);
+    setTimeout(() => el.remove(), 2200);
+  }
+
+  function spawnChatBubble(e) {
+    const feed = document.getElementById('chat-feed');
+    if (!feed) return;
+    const avatarHtml = (e.avatar && e.avatar.startsWith('data:'))
+      ? `<img src="${e.avatar}" style="width:1.4rem;height:1.4rem;border-radius:50%;object-fit:cover;">`
+      : `<span>${e.avatar}</span>`;
+    const el = document.createElement('div');
+    el.className = 'chat-bubble';
+    el.innerHTML = `${avatarHtml}<strong>${escapeHtml(e.name)}:</strong> <span>${escapeHtml(e.payload)}</span>`;
+    feed.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
+
+  function spawnStealAnnouncement(e) {
+    try {
+      const payload = JSON.parse(e.payload);
+      App.showToast(`🦹 ${payload.thief} stole ${payload.amount.toLocaleString()} pts from ${payload.victim}!`, 'success', 3500);
+    } catch (err) { /* malformed payload - ignore */ }
   }
 
   function submitAnswer(choiceIdx, question) {
@@ -339,7 +576,7 @@ const Multiplayer = (function () {
     }).then(res => {
       if (res.success) {
         playLocalFeedbackSound(isCorrect);
-        showWaitingFeedback(isCorrect, res.points, question);
+        showWaitingFeedback(isCorrect, res.points, question, res.streak, res.doubled);
       }
     });
   }
@@ -356,7 +593,7 @@ const Multiplayer = (function () {
     if (typeof App !== 'undefined' && App.playSound) App.playSound(isCorrect ? 'correct' : 'wrong');
   }
 
-  function showWaitingFeedback(isCorrect, points, question) {
+  function showWaitingFeedback(isCorrect, points, question, streak, doubled) {
     App.goTo('feedback');
     document.getElementById('fb-icon').className = 'feedback-icon ' + (isCorrect ? 'correct' : 'wrong');
     document.getElementById('fb-icon').textContent = isCorrect ? '✓' : '✗';
@@ -364,6 +601,22 @@ const Multiplayer = (function () {
     document.getElementById('fb-pts').textContent = isCorrect ? `+${points}` : '0 pts';
     document.getElementById('fb-answer').textContent = question.answer;
     document.getElementById('fb-reference').textContent = question.reference || '';
+
+    const streakBadge = document.getElementById('fb-streak-badge');
+    if (streakBadge) {
+      if (isCorrect && streak >= 2) {
+        streakBadge.style.display = 'block';
+        streakBadge.textContent = doubled ? `🔥 ${streak} in a row! ⚡ Doubled!` : `🔥 ${streak} in a row!`;
+      } else if (isCorrect && doubled) {
+        streakBadge.style.display = 'block';
+        streakBadge.textContent = '⚡ Doubled!';
+      } else {
+        streakBadge.style.display = 'none';
+      }
+    }
+
+    const dist = document.getElementById('fb-distribution');
+    if (dist) dist.style.display = 'none';
 
     document.getElementById('fb-next-player').style.display = 'none';
     document.getElementById('fb-leaderboard').style.display = 'none';
@@ -412,6 +665,8 @@ const Multiplayer = (function () {
     if (waitDiv && data.answer_reveal) {
       waitDiv.innerHTML = `<p>${data.answer_reveal.total_answers}/${data.contestant_count} answered • moving to rankings…</p>`;
     }
+    renderDistribution('fb-distribution', data.answer_reveal);
+    renderDistribution('host-distribution', data.answer_reveal);
   }
 
   // ---------------- LEADERBOARD ----------------
@@ -429,10 +684,12 @@ const Multiplayer = (function () {
       const avatarHtml = (p.avatar && p.avatar.startsWith('data:'))
         ? `<img src="${p.avatar}" style="width:1.8rem;height:1.8rem;border-radius:50%;object-fit:cover;">`
         : `<span class="lb-avatar">${p.avatar}</span>`;
+      const streakBadge = p.streak >= 2 ? `<span class="lb-streak">🔥${p.streak}</span>` : '';
       item.innerHTML = `
         <span class="lb-rank">${rank}</span>
         ${avatarHtml}
         <span class="lb-name">${escapeHtml(p.name)}</span>
+        ${streakBadge}
         <span class="lb-score">${p.score}</span>
       `;
       list.appendChild(item);
@@ -535,6 +792,7 @@ const Multiplayer = (function () {
         <td>${p.correct}</td>
         <td>${accuracy}%</td>
         <td>${avgTime ? avgTime.toFixed(1) + 's' : '-'}</td>
+        <td>${p.best_streak >= 2 ? '🔥' + p.best_streak : (p.best_streak || 0)}</td>
       `;
       tbody.appendChild(tr);
     });
@@ -574,6 +832,12 @@ const Multiplayer = (function () {
     start,
     stop,
     poll,
+    usePowerup,
+    openFreezeTargetPicker,
+    closeFreezeTargetPicker,
+    toggleSocialPanel,
+    sendReaction,
+    sendChat,
     get roomCode() { return roomCode; },
     get deviceId() { return deviceId; },
     get isHost() { return isHost; }

@@ -12,6 +12,30 @@
 <body>
   <canvas id="confetti-canvas"></canvas>
   <div id="toast-container"></div>
+  <div id="reaction-layer"></div>
+  <div id="chat-feed"></div>
+
+  <button class="social-fab" id="social-fab" onclick="Multiplayer.toggleSocialPanel()" style="display:none">💬</button>
+  <div class="social-panel" id="social-panel" style="display:none">
+    <p class="social-section-title">Reactions</p>
+    <div class="social-row">
+      <button class="social-react-btn" onclick="Multiplayer.sendReaction('🔥')">🔥</button>
+      <button class="social-react-btn" onclick="Multiplayer.sendReaction('😂')">😂</button>
+      <button class="social-react-btn" onclick="Multiplayer.sendReaction('👏')">👏</button>
+      <button class="social-react-btn" onclick="Multiplayer.sendReaction('😱')">😱</button>
+      <button class="social-react-btn" onclick="Multiplayer.sendReaction('🙏')">🙏</button>
+      <button class="social-react-btn" onclick="Multiplayer.sendReaction('💯')">💯</button>
+    </div>
+    <p class="social-section-title">Quick Chat</p>
+    <div class="social-row social-row-chat">
+      <button class="social-chat-btn" onclick="Multiplayer.sendChat('nice')">Nice one! 👏</button>
+      <button class="social-chat-btn" onclick="Multiplayer.sendChat('close')">So close! 😅</button>
+      <button class="social-chat-btn" onclick="Multiplayer.sendChat('bring_it')">Bring it on! 💪</button>
+      <button class="social-chat-btn" onclick="Multiplayer.sendChat('wow')">Wow! 😲</button>
+      <button class="social-chat-btn" onclick="Multiplayer.sendChat('ggwp')">Good game! 🤝</button>
+      <button class="social-chat-btn" onclick="Multiplayer.sendChat('oops')">Oops! 🙈</button>
+    </div>
+  </div>
 
   <div id="app">
 
@@ -232,6 +256,36 @@
         <span class="pts-val" id="pts-val">0</span>
       </div>
 
+      <!-- Power-Up Bar (multiplayer contestants only) -->
+      <div class="powerup-bar" id="powerup-bar" style="display:none">
+        <button class="powerup-btn" id="pu-fifty" onclick="Multiplayer.usePowerup('fifty')">
+          <span class="pu-icon">🎯</span>
+          <span class="pu-label">50/50</span>
+          <span class="pu-cost">800</span>
+        </button>
+        <button class="powerup-btn" id="pu-double" onclick="Multiplayer.usePowerup('double')">
+          <span class="pu-icon">⚡</span>
+          <span class="pu-label">2x Points</span>
+          <span class="pu-cost">1,500</span>
+        </button>
+        <button class="powerup-btn" id="pu-freeze" onclick="Multiplayer.openFreezeTargetPicker()">
+          <span class="pu-icon">❄️</span>
+          <span class="pu-label">Freeze</span>
+          <span class="pu-cost">1,000</span>
+        </button>
+        <button class="powerup-btn" id="pu-steal" onclick="Multiplayer.usePowerup('steal')">
+          <span class="pu-icon">🦹</span>
+          <span class="pu-label">Steal</span>
+          <span class="pu-cost">2,000</span>
+        </button>
+        <span class="pu-wallet-display">💰 <span id="pu-wallet-val">0</span></span>
+      </div>
+
+      <!-- Freeze Banner (shown to a frozen contestant) -->
+      <div class="freeze-banner" id="freeze-banner" style="display:none">
+        ❄️ You've been frozen! <span id="freeze-countdown">5</span>s
+      </div>
+
       <!-- Question Text -->
       <div class="q-box">
         <p class="q-text" id="q-text">Loading...</p>
@@ -261,6 +315,7 @@
       <div class="host-monitor" id="host-monitor" style="display:none">
         <p class="hint-text">Watching players answer…</p>
         <div class="host-monitor-list" id="host-monitor-list"></div>
+        <div class="distribution-chart" id="host-distribution" style="display:none"></div>
         <div class="host-monitor-actions">
           <button class="btn btn-secondary" id="host-reveal-btn" onclick="HostGame.forceReveal()">Reveal Now</button>
           <button class="btn btn-danger" onclick="HostGame.endGame()">🚪 End Game</button>
@@ -274,11 +329,13 @@
         <div class="feedback-icon" id="fb-icon">✓</div>
         <h2 class="feedback-verdict" id="fb-verdict">Correct!</h2>
         <div class="feedback-pts" id="fb-pts">+1000</div>
+        <div class="fb-streak-badge" id="fb-streak-badge" style="display:none"></div>
         <div class="feedback-answer-box">
           <p class="fb-label">Correct Answer:</p>
           <div class="fb-answer" id="fb-answer"></div>
           <div class="fb-reference" id="fb-reference"></div>
         </div>
+        <div class="distribution-chart" id="fb-distribution" style="display:none"></div>
         <div class="fb-actions">
           <div id="fb-next-player" style="display:none">
             <p>Pass device to next player</p>
@@ -318,7 +375,7 @@
       <div class="results-table-wrap">
         <table class="results-table" id="results-table">
           <thead>
-            <tr><th>#</th><th>Player</th><th>Score</th><th>Correct</th><th>Accuracy</th><th>Avg Time</th></tr>
+            <tr><th>#</th><th>Player</th><th>Score</th><th>Correct</th><th>Accuracy</th><th>Avg Time</th><th>Best Streak</th></tr>
           </thead>
           <tbody id="results-tbody"></tbody>
         </table>
@@ -501,6 +558,17 @@
         <p>Your progress will be saved to the Hall of Fame.</p>
         <button class="btn btn-danger btn-xl" onclick="App.endGame()">Yes, End Game</button>
         <button class="btn btn-ghost" onclick="App.closeConfirm()">Cancel</button>
+      </div>
+    </div>
+
+    <!-- ==================== OVERLAY: FREEZE TARGET ==================== -->
+    <div class="overlay" id="overlay-freeze-target" style="display:none">
+      <div class="overlay-card">
+        <div class="overlay-icon">❄️</div>
+        <h2>Freeze Who?</h2>
+        <p>Pick a player to freeze for 5 seconds.</p>
+        <div class="freeze-target-list" id="freeze-target-list"></div>
+        <button class="btn btn-ghost" onclick="Multiplayer.closeFreezeTargetPicker()">Cancel</button>
       </div>
     </div>
 

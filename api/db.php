@@ -138,6 +138,17 @@ function initDB(PDO $db): void {
             reference TEXT DEFAULT '',
             created_at INTEGER NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS room_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            room_code TEXT NOT NULL,
+            device_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            avatar TEXT NOT NULL,
+            type TEXT NOT NULL,
+            payload TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_room_events_room ON room_events(room_code, id);
     ");
     migrateSchema($db);
 }
@@ -161,6 +172,13 @@ function migrateSchema(PDO $db): void {
             'equipped_border'       => "TEXT",
             'owned_name_effects'    => "TEXT DEFAULT '[]'",
             'owned_borders'         => "TEXT DEFAULT '[]'",
+        ],
+        'players' => [
+            'streak'         => "INTEGER DEFAULT 0",
+            'best_streak'    => "INTEGER DEFAULT 0",
+            'used_powerups'  => "TEXT DEFAULT '[]'",
+            'double_q_idx'   => "INTEGER DEFAULT -1",
+            'frozen_until'   => "INTEGER DEFAULT 0",
         ],
     ];
     foreach ($columns as $table => $cols) {
@@ -201,6 +219,7 @@ function cleanStale(PDO $db): void {
     $cutoff = nowMs() - 86400000; // 24 hours
     $db->prepare("DELETE FROM answers WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM players WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
+    $db->prepare("DELETE FROM room_events WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM rooms WHERE created_at < ?")->execute([$cutoff]);
 }
 

@@ -3,8 +3,9 @@ require_once __DIR__ . '/db.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { jsonOut([]); }
 
-$code     = trim($_GET['code'] ?? $_POST['code'] ?? '');
-$deviceId = trim($_GET['device_id'] ?? $_POST['device_id'] ?? '');
+$code        = trim($_GET['code'] ?? $_POST['code'] ?? '');
+$deviceId    = trim($_GET['device_id'] ?? $_POST['device_id'] ?? '');
+$sinceEventId = (int)($_GET['since_event_id'] ?? $_POST['since_event_id'] ?? 0);
 
 if (!$code || !$deviceId) jsonOut(['success' => false, 'error' => 'Missing params'], 400);
 
@@ -133,11 +134,20 @@ if ($currentQIdx >= 0 && !empty($qIndices)) {
         $totalAnsStmt = $db->prepare("SELECT COUNT(*) FROM answers WHERE room_code = ? AND q_idx = ?");
         $totalAnsStmt->execute([$code, $currentQIdx]);
 
+        $distStmt = $db->prepare("SELECT choice_idx, COUNT(*) AS cnt FROM answers WHERE room_code = ? AND q_idx = ? GROUP BY choice_idx");
+        $distStmt->execute([$code, $currentQIdx]);
+        $distribution = [0, 0, 0, 0];
+        foreach ($distStmt->fetchAll() as $row) {
+            $idx = (int)$row['choice_idx'];
+            if ($idx >= 0 && $idx <= 3) $distribution[$idx] = (int)$row['cnt'];
+        }
+
         $answerReveal = [
             'reveal'         => true,
             'question_index' => $questionIndex,
             'correct_count'  => (int)$countCorrectStmt->fetchColumn(),
-            'total_answers'  => (int)$totalAnsStmt->fetchColumn()
+            'total_answers'  => (int)$totalAnsStmt->fetchColumn(),
+            'distribution'   => $distribution
         ];
     }
 
@@ -181,7 +191,10 @@ foreach ($players as $p) {
         'total_time'   => (float)$p['total_time'],
         'is_host'      => (bool)$p['is_host'],
         'has_answered' => $hasAnswered,
-        'is_correct'   => $isCorrectNow
+        'is_correct'   => $isCorrectNow,
+        'streak'       => (int)$p['streak'],
+        'best_streak'  => (int)$p['best_streak'],
+        'frozen'       => ((int)$p['frozen_until']) > $now
     ];
 }
 
@@ -194,6 +207,28 @@ $myWalletStmt = $db->prepare("SELECT wallet FROM profiles WHERE device_id = ?");
 $myWalletStmt->execute([$deviceId]);
 $myWalletCol = $myWalletStmt->fetchColumn();
 $myWallet = $myWalletCol === false ? null : (int)$myWalletCol;
+
+$myUsedPowerups = $myPlayer ? (json_decode($myPlayer['used_powerups'] ?: '[]', true) ?: []) : [];
+$myFrozenUntil = $myPlayer ? (int)$myPlayer['frozen_until'] : 0;
+
+// Live reactions / quick-chat / steal announcements, broadcast to everyone
+// polling this room. since_event_id=0 (a fresh join) only returns the last
+// few seconds of backlog so new joiners aren't flooded with old reactions.
+if ($sinceEventId > 0) {
+    $eventsStmt = $db->prepare("SELECT * FROM room_events WHERE room_code = ? AND id > ? ORDER BY id ASC LIMIT 20");
+    $eventsStmt->execute([$code, $sinceEventId]);
+} else {
+    $eventsStmt = $db->prepare("SELECT * FROM room_events WHERE room_code = ? AND created_at > ? ORDER BY id ASC LIMIT 20");
+    $eventsStmt->execute([$code, $now - 4000]);
+}
+$eventsOut = array_map(fn($e) => [
+    'id'        => (int)$e['id'],
+    'device_id' => $e['device_id'],
+    'name'      => $e['name'],
+    'avatar'    => $e['avatar'],
+    'type'      => $e['type'],
+    'payload'   => $e['payload']
+], $eventsStmt->fetchAll());
 
 jsonOut([
     'success' => true,
@@ -220,5 +255,8 @@ jsonOut([
     'my_answer'         => $myAnswer,
     'is_host'           => $isHost,
     'my_wallet'         => $myWallet,
+    'my_used_powerups'  => $myUsedPowerups,
+    'my_frozen_until'   => $myFrozenUntil,
+    'events'            => $eventsOut,
     'server_time'       => $now
 ]);
