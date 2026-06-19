@@ -2896,20 +2896,39 @@ const BOOK_QUESTION_DB = {
     ]
   }
 };
+// Genesis...Malachi (39 books) are the Old Testament; Matthew...Revelation
+// (27 books) are the New Testament - BIBLE_BOOKS is laid out in that order.
+const OT_BOOKS = BIBLE_BOOKS.slice(0, 39);
+const NT_BOOKS = BIBLE_BOOKS.slice(39);
+
 const BookQuestions = (function () {
-  function getPool(book, category, difficulty) {
-    const byBook = BOOK_QUESTION_DB[book];
-    const all = (byBook && byBook[category]) || [];
+  function booksInScope(testament) {
+    if (testament === 'ot') return OT_BOOKS;
+    if (testament === 'nt') return NT_BOOKS;
+    return BIBLE_BOOKS;
+  }
+
+  // book === 'ALL' pools every book within the given testament scope for
+  // that category, so a host isn't stuck with a too-small single-book pool.
+  function getPool(book, category, difficulty, testament) {
+    const books = book === 'ALL' ? booksInScope(testament) : [book];
+    let all = [];
+    books.forEach(b => {
+      const byBook = BOOK_QUESTION_DB[b];
+      if (byBook && byBook[category]) all = all.concat(byBook[category]);
+    });
     if (!difficulty || difficulty === 'any') return all;
     return all.filter(q => q.difficulty === difficulty);
   }
 
-  function getCount(book, category, difficulty) {
-    return getPool(book, category, difficulty).length;
+  function getCount(book, category, difficulty, testament) {
+    return getPool(book, category, difficulty, testament).length;
   }
 
   return {
     BIBLE_BOOKS,
+    OT_BOOKS,
+    NT_BOOKS,
     ANSWER_CATEGORIES,
     getPool,
     getCount

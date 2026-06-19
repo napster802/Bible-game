@@ -245,6 +245,14 @@
               <option value="book">By Book &amp; Category</option>
             </select>
           </div>
+          <div class="setting-row" id="host-testament-row" style="display:none;">
+            <span>Testament</span>
+            <select id="host-testament-select" class="select-input" onchange="HostGame.setTestament(this.value)">
+              <option value="all" selected>Whole Bible</option>
+              <option value="ot">Old Testament</option>
+              <option value="nt">New Testament</option>
+            </select>
+          </div>
           <div class="setting-row" id="host-book-row" style="display:none;">
             <span>Book</span>
             <select id="host-book-select" class="select-input" onchange="HostGame.setBook(this.value)"></select>

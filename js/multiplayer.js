@@ -25,6 +25,7 @@ const Multiplayer = (function () {
   let currentQuizMode = 'difficulty';
   let currentBook = null;
   let currentCategory = null;
+  let currentTestament = 'all';
   let currentDbIndex = 0;
   let currentTimeTaken = 0;
 
@@ -78,6 +79,7 @@ const Multiplayer = (function () {
     currentQuizMode = data.room.quiz_mode || 'difficulty';
     currentBook = data.room.book || null;
     currentCategory = data.room.category || null;
+    currentTestament = data.room.testament || 'all';
     const status = data.room.status;
     const qIdx = data.room.current_q_idx;
 
@@ -260,7 +262,7 @@ const Multiplayer = (function () {
 
   function lookupQuestion(qInfo) {
     if (currentQuizMode === 'book' && currentBook && currentCategory && window.BookQuestions) {
-      return BookQuestions.getPool(currentBook, currentCategory, currentDifficulty)[qInfo.db_index];
+      return BookQuestions.getPool(currentBook, currentCategory, currentDifficulty, currentTestament)[qInfo.db_index];
     }
     return QUESTION_DB[currentDifficulty][qInfo.db_index];
   }
@@ -448,8 +450,11 @@ const Multiplayer = (function () {
 
     App.goTo('results');
     try {
+      const bookLabel = currentBook === 'ALL'
+        ? (currentTestament === 'ot' ? 'Old Testament' : currentTestament === 'nt' ? 'New Testament' : 'All Books')
+        : currentBook;
       const sourceLabel = currentQuizMode === 'book' && currentBook && currentCategory
-        ? `${currentBook} • ${currentCategory}`
+        ? `${bookLabel} • ${currentCategory}`
         : currentDifficulty.toUpperCase();
       document.getElementById('results-sub').textContent =
         `${sourceLabel} • ${data.room.question_count} Questions • Multiplayer`;
@@ -512,6 +517,7 @@ const Multiplayer = (function () {
       quizMode: room.quiz_mode,
       book: room.book,
       category: room.category,
+      testament: room.testament,
       mode: isHost ? 'host' : 'join',
       questionCount: room.question_count,
       players: sorted.map(p => ({

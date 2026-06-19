@@ -13,6 +13,7 @@ const HostGame = (function () {
   let selectedDifficulty = 'easy';
   let selectedBook = null;
   let selectedCategory = null;
+  let selectedTestament = 'all';
 
   function api(path, body) {
     return fetch(API + path, {
@@ -49,6 +50,7 @@ const HostGame = (function () {
       selectedDifficulty = 'easy';
       selectedBook = null;
       selectedCategory = null;
+      selectedTestament = 'all';
       App.goTo('host-lobby');
       Multiplayer.start(roomCode, true);
     }).catch(err => App.showToast('Could not reach the host server: ' + err.message, 'error', 5000));
@@ -58,15 +60,10 @@ const HostGame = (function () {
     const modeSelect = document.getElementById('host-mode-select');
     if (modeSelect) modeSelect.value = quizMode;
 
-    const bookSelect = document.getElementById('host-book-select');
-    if (bookSelect && window.BookQuestions && !bookSelect.options.length) {
-      BookQuestions.BIBLE_BOOKS.forEach(book => {
-        const opt = document.createElement('option');
-        opt.value = book;
-        opt.textContent = book;
-        bookSelect.appendChild(opt);
-      });
-    }
+    const testamentSelect = document.getElementById('host-testament-select');
+    if (testamentSelect) testamentSelect.value = selectedTestament;
+
+    populateBookSelect();
 
     const categorySelect = document.getElementById('host-category-select');
     if (categorySelect && window.BookQuestions && !categorySelect.options.length) {
@@ -81,13 +78,50 @@ const HostGame = (function () {
     toggleBookRows();
   }
 
+  // Rebuilds the Book dropdown for the current testament scope, always
+  // offering "All Books" first so a host can pool across books when a
+  // single book's category pool is too small.
+  function populateBookSelect() {
+    const bookSelect = document.getElementById('host-book-select');
+    if (!bookSelect || !window.BookQuestions) return;
+    const prevValue = selectedBook || bookSelect.value;
+    bookSelect.innerHTML = '';
+
+    const allOpt = document.createElement('option');
+    allOpt.value = 'ALL';
+    allOpt.textContent = 'All Books';
+    bookSelect.appendChild(allOpt);
+
+    const books = selectedTestament === 'ot' ? BookQuestions.OT_BOOKS
+      : selectedTestament === 'nt' ? BookQuestions.NT_BOOKS
+      : BookQuestions.BIBLE_BOOKS;
+    books.forEach(book => {
+      const opt = document.createElement('option');
+      opt.value = book;
+      opt.textContent = book;
+      bookSelect.appendChild(opt);
+    });
+
+    bookSelect.value = (prevValue === 'ALL' || books.includes(prevValue)) ? prevValue : 'ALL';
+    selectedBook = bookSelect.value;
+  }
+
   function toggleBookRows() {
     const bookRow = document.getElementById('host-book-row');
     const categoryRow = document.getElementById('host-category-row');
+    const testamentRow = document.getElementById('host-testament-row');
     const display = quizMode === 'book' ? '' : 'none';
     if (bookRow) bookRow.style.display = display;
     if (categoryRow) categoryRow.style.display = display;
+    if (testamentRow) testamentRow.style.display = display;
     updatePoolHint();
+  }
+
+  function scopeLabel() {
+    if (selectedBook !== 'ALL') return selectedBook;
+    return selectedTestament === 'ot' ? 'Old Testament (All Books)'
+      : selectedTestament === 'nt' ? 'New Testament (All Books)'
+      : 'the whole Bible (All Books)';
   }
 
   function updatePoolHint() {
@@ -97,18 +131,19 @@ const HostGame = (function () {
       hint.style.display = 'none';
       return;
     }
-    const count = BookQuestions.getCount(selectedBook, selectedCategory, selectedDifficulty);
+    const count = BookQuestions.getCount(selectedBook, selectedCategory, selectedDifficulty, selectedTestament);
+    const label = scopeLabel();
     hint.style.display = '';
     hint.textContent = count > 0
-      ? `${count} question${count === 1 ? '' : 's'} available for ${selectedBook} • ${selectedCategory}`
-      : `No questions yet for ${selectedBook} • ${selectedCategory} at this difficulty — try another combination`;
+      ? `${count} question${count === 1 ? '' : 's'} available for ${label} • ${selectedCategory}`
+      : `No questions yet for ${label} • ${selectedCategory} at this difficulty — try another combination`;
   }
 
   function syncBookCategory() {
     if (!selectedBook || !selectedCategory) return;
-    const poolSize = window.BookQuestions ? BookQuestions.getCount(selectedBook, selectedCategory, selectedDifficulty) : 0;
+    const poolSize = window.BookQuestions ? BookQuestions.getCount(selectedBook, selectedCategory, selectedDifficulty, selectedTestament) : 0;
     updatePoolHint();
-    action('set_book_category', { book: selectedBook, category: selectedCategory, pool_size: poolSize });
+    action('set_book_category', { book: selectedBook, category: selectedCategory, pool_size: poolSize, testament: selectedTestament });
   }
 
   function setDifficulty(diff) {
@@ -126,12 +161,17 @@ const HostGame = (function () {
     action('set_quiz_mode', { value: quizMode });
     toggleBookRows();
     if (quizMode === 'book') {
-      const bookSelect = document.getElementById('host-book-select');
+      populateBookSelect();
       const categorySelect = document.getElementById('host-category-select');
-      if (!selectedBook && bookSelect) selectedBook = bookSelect.value;
       if (!selectedCategory && categorySelect) selectedCategory = categorySelect.value;
       syncBookCategory();
     }
+  }
+
+  function setTestament(value) {
+    selectedTestament = (value === 'ot' || value === 'nt') ? value : 'all';
+    populateBookSelect();
+    syncBookCategory();
   }
 
   function setBook(book) {
@@ -180,6 +220,7 @@ const HostGame = (function () {
     setDifficulty,
     setQuestionCount,
     setQuizMode,
+    setTestament,
     setBook,
     setCategory,
     startGame,

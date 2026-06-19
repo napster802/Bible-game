@@ -106,12 +106,14 @@ switch ($action) {
 
     case 'set_book_category':
         if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
-        $book     = trim($input['book'] ?? '');
-        $category = trim($input['category'] ?? '');
-        $poolSize = max(0, (int)($input['pool_size'] ?? 0));
+        $book      = trim($input['book'] ?? '');
+        $category  = trim($input['category'] ?? '');
+        $testValue = $input['testament'] ?? 'all';
+        $testament = in_array($testValue, ['all', 'ot', 'nt'], true) ? $testValue : 'all';
+        $poolSize  = max(0, (int)($input['pool_size'] ?? 0));
         if (!$book || !$category) jsonOut(['success' => false, 'error' => 'Missing book or category'], 400);
-        $db->prepare("UPDATE rooms SET book = ?, category = ?, pool_size = ?, updated_at = ? WHERE code = ?")
-           ->execute([$book, $category, $poolSize, $now, $code]);
+        $db->prepare("UPDATE rooms SET book = ?, category = ?, testament = ?, pool_size = ?, updated_at = ? WHERE code = ?")
+           ->execute([$book, $category, $testament, $poolSize, $now, $code]);
         break;
 
     default:

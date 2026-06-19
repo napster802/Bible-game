@@ -76,6 +76,7 @@ function initDB(PDO $db): void {
             quiz_mode TEXT DEFAULT 'difficulty',
             book TEXT,
             category TEXT,
+            testament TEXT DEFAULT 'all',
             pool_size INTEGER DEFAULT 50,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
@@ -131,6 +132,7 @@ function migrateSchema(PDO $db): void {
             'quiz_mode'      => "TEXT DEFAULT 'difficulty'",
             'book'           => "TEXT",
             'category'       => "TEXT",
+            'testament'      => "TEXT DEFAULT 'all'",
             'pool_size'      => "INTEGER DEFAULT 50",
         ],
         'profiles' => [

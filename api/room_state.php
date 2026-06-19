@@ -204,6 +204,7 @@ jsonOut([
         'quiz_mode'       => $room['quiz_mode'],
         'book'            => $room['book'],
         'category'        => $room['category'],
+        'testament'       => $room['testament'],
         'question_count'  => (int)$room['question_count'],
         'current_q_idx'   => $currentQIdx,
         'time_limit'      => (int)$room['time_limit'],
