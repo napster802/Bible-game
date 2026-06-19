@@ -55,6 +55,12 @@ function getDB(): PDO {
         $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
         $db->exec('PRAGMA journal_mode=WAL');
         $db->exec('PRAGMA synchronous=NORMAL');
+        // Every poll (room_state.php) and action (submit_answer.php, host_action.php)
+        // opens its own connection/transaction. Without a busy timeout, SQLite
+        // throws "database is locked" the instant two requests' writes overlap
+        // (e.g. several players submitting an answer at once) instead of
+        // waiting briefly for the other transaction to finish.
+        $db->exec('PRAGMA busy_timeout=5000');
         initDB($db);
     }
     return $db;

@@ -1046,14 +1046,14 @@ const App = (function () {
           </div>
           ${champion ? `
           <div class="hc-champion">
-            <span>${champion.avatar}</span>
+            <span>${avatarHtml(champion.avatar)}</span>
             <strong>${escHtml(champion.name)}</strong>
             <span class="hc-score">${champion.score} pts</span>
           </div>` : ''}
           <div class="hc-players">
             ${(r.players || []).map(p => `
               <span class="hc-player">
-                ${p.avatar} ${escHtml(p.name)} — ${p.score} (${p.accuracy}%)
+                ${avatarHtml(p.avatar)} ${escHtml(p.name)} — ${p.score} (${p.accuracy}%)
               </span>
             `).join('')}
           </div>
@@ -1282,6 +1282,16 @@ const App = (function () {
   function setText(id, text) {
     const el = document.getElementById(id);
     if (el) el.textContent = text;
+  }
+
+  // Multiplayer history records may store a photo avatar as a base64 data
+  // URI (see Profile photo uploads) instead of an emoji - render those as
+  // an <img>, same as the in-game leaderboard/podium do.
+  function avatarHtml(avatar) {
+    if (avatar && avatar.startsWith('data:')) {
+      return `<img src="${avatar}" style="width:1.6rem;height:1.6rem;border-radius:50%;object-fit:cover;vertical-align:middle;">`;
+    }
+    return avatar || '';
   }
 
   function escHtml(str) {
