@@ -1315,6 +1315,7 @@ const App = (function () {
     loadSettings();
     applySettings();
     if (typeof Profile !== 'undefined') Profile.init();
+    if (typeof CustomQuestions !== 'undefined') CustomQuestions.load();
 
     const nameInput = document.getElementById('player-name-input');
     if (nameInput) {

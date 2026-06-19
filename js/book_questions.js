@@ -2902,6 +2902,8 @@ const OT_BOOKS = BIBLE_BOOKS.slice(0, 39);
 const NT_BOOKS = BIBLE_BOOKS.slice(39);
 
 const BookQuestions = (function () {
+  const mergedCustomIds = new Set();
+
   function booksInScope(testament) {
     if (testament === 'ot') return OT_BOOKS;
     if (testament === 'nt') return NT_BOOKS;
@@ -2925,12 +2927,35 @@ const BookQuestions = (function () {
     return getPool(book, category, difficulty, testament).length;
   }
 
+  // Appends admin-uploaded CSV questions (api/get_custom_questions.php) into
+  // the in-memory bank. Every device merges the same server-ordered list
+  // before any question lookup, so getPool() stays identical across clients.
+  function mergeCustom(list) {
+    list.forEach(item => {
+      if (mergedCustomIds.has(item.id)) return;
+      mergedCustomIds.add(item.id);
+      if (!BOOK_QUESTION_DB[item.book]) BOOK_QUESTION_DB[item.book] = {};
+      if (!BOOK_QUESTION_DB[item.book][item.category]) BOOK_QUESTION_DB[item.book][item.category] = [];
+      const catLabel = ANSWER_CATEGORIES.find(c => c.id === item.category);
+      BOOK_QUESTION_DB[item.book][item.category].push({
+        question: item.question,
+        choices: item.choices,
+        answer: item.answer,
+        reference: item.reference || '',
+        category: catLabel ? catLabel.label : item.category,
+        difficulty: item.difficulty,
+        custom: true
+      });
+    });
+  }
+
   return {
     BIBLE_BOOKS,
     OT_BOOKS,
     NT_BOOKS,
     ANSWER_CATEGORIES,
     getPool,
-    getCount
+    getCount,
+    mergeCustom
   };
 })();

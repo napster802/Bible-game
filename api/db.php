@@ -118,6 +118,20 @@ function initDB(PDO $db): void {
             submitted_at INTEGER NOT NULL,
             PRIMARY KEY (room_code, device_id, q_idx)
         );
+        CREATE TABLE IF NOT EXISTS custom_questions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            book TEXT NOT NULL,
+            category TEXT NOT NULL,
+            difficulty TEXT NOT NULL,
+            question TEXT NOT NULL,
+            choice1 TEXT NOT NULL,
+            choice2 TEXT NOT NULL,
+            choice3 TEXT NOT NULL,
+            choice4 TEXT NOT NULL,
+            answer TEXT NOT NULL,
+            reference TEXT DEFAULT '',
+            created_at INTEGER NOT NULL
+        );
     ");
     migrateSchema($db);
 }

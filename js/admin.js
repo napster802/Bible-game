@@ -65,12 +65,19 @@ const Admin = (function () {
     sessionStorage.removeItem(SESSION_KEY);
   }
 
+  // Exposed only so the admin-only CSV question upload can authenticate its
+  // server request - same "casual gate" model as the rest of this module.
+  function getPasscode() {
+    return PASSWORD;
+  }
+
   return {
     isAuthenticated,
     requireAdmin,
     openLoginOverlay,
     closeLoginOverlay,
     attemptLogin,
-    logout
+    logout,
+    getPasscode
   };
 })();

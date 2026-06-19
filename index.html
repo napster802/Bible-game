@@ -271,6 +271,7 @@
               <option value="expert">Expert</option>
             </select>
           </div>
+          <p class="hint-text" id="host-diff-pool-hint" style="display:none;"></p>
           <div class="setting-row">
             <span>Questions</span>
             <select id="host-qcount-select" class="select-input" onchange="HostGame.setQuestionCount(parseInt(this.value))">
@@ -280,6 +281,17 @@
               <option value="50">50</option>
             </select>
           </div>
+          <button class="btn-link" id="host-clear-progress-btn" onclick="HostGame.clearAllProgress()">↺ Clear All Progress (replay used questions)</button>
+        </div>
+
+        <div class="host-csv-upload">
+          <p class="hint-text">Admin: add your own questions for any book/category/difficulty via CSV</p>
+          <div class="host-csv-buttons">
+            <button class="btn btn-secondary" onclick="HostGame.downloadCsvTemplate()">⬇ Download CSV Template</button>
+            <button class="btn btn-secondary" onclick="document.getElementById('host-csv-file-input').click()">📤 Upload Questions CSV</button>
+          </div>
+          <input type="file" id="host-csv-file-input" accept=".csv,text/csv" style="display:none" onchange="HostGame.handleCsvFileSelected(event)">
+          <p class="hint-text" id="host-csv-result"></p>
         </div>
 
         <div class="lobby-players">
@@ -670,6 +682,8 @@
 
   <script src="js/questions.js"></script>
   <script src="js/book_questions.js"></script>
+  <script src="js/question_tracker.js"></script>
+  <script src="js/custom_questions.js"></script>
   <script src="js/profile.js"></script>
   <script src="js/shop.js"></script>
   <script src="js/admin.js"></script>

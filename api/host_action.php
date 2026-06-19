@@ -39,11 +39,22 @@ switch ($action) {
         } else {
             $indices = range(0, 49);
         }
-        shuffle($indices);
-        $indices = array_slice($indices, 0, $count);
 
-        $db->prepare("UPDATE rooms SET status = 'playing', current_q_idx = 0, q_start_time = ?, q_indices = ?, time_limit = ?, updated_at = ? WHERE code = ?")
-           ->execute([$now, json_encode($indices), $tlimit, $now, $code]);
+        // Exclude indices the host's browser has already played for this exact
+        // pool (see QuestionTracker), so repeated games don't repeat questions.
+        $excludeSet = array_flip(array_map('intval', $input['exclude_indices'] ?? []));
+        $freshIndices = array_values(array_filter($indices, fn($i) => !isset($excludeSet[$i])));
+
+        if (empty($freshIndices)) {
+            jsonOut(['success' => false, 'error' => 'All questions for this selection have already been played. Try a different book, category, testament, or difficulty - or tap "Clear All Progress" to replay them.'], 400);
+        }
+
+        shuffle($freshIndices);
+        $indices = array_slice($freshIndices, 0, min($count, count($freshIndices)));
+        $actualCount = count($indices);
+
+        $db->prepare("UPDATE rooms SET status = 'playing', current_q_idx = 0, q_start_time = ?, q_indices = ?, question_count = ?, time_limit = ?, updated_at = ? WHERE code = ?")
+           ->execute([$now, json_encode($indices), $actualCount, $tlimit, $now, $code]);
         break;
 
     case 'next_question':

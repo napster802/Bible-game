@@ -44,8 +44,15 @@ const Multiplayer = (function () {
     lastQIdx = -1;
     answeredThisQuestion = false;
     stop();
-    poll();
-    pollTimer = setInterval(poll, POLL_MS);
+    const begin = () => {
+      poll();
+      pollTimer = setInterval(poll, POLL_MS);
+    };
+    // Admin-uploaded CSV questions must be merged into the book pool before
+    // any question lookup, so every device resolves the same db_index to
+    // the same question (see js/custom_questions.js).
+    if (typeof CustomQuestions !== 'undefined') CustomQuestions.ready().then(begin);
+    else begin();
   }
 
   function stop() {
@@ -152,6 +159,19 @@ const Multiplayer = (function () {
     App.goTo('question');
     const q = lookupQuestion(data.current_question);
     currentDbIndex = data.current_question.db_index;
+
+    // Only the host's browser tracks "already asked" - it's the one whose
+    // pool selections drive future games (see js/question_tracker.js).
+    if (isHost && typeof QuestionTracker !== 'undefined') {
+      const poolKey = QuestionTracker.poolKey({
+        mode: currentQuizMode,
+        testament: currentTestament,
+        book: currentBook,
+        category: currentCategory,
+        difficulty: currentDifficulty
+      });
+      QuestionTracker.markAsked(poolKey, [q.question]);
+    }
     sync = {
       serverElapsedMs: data.room.time_elapsed_ms,
       clientTimeAtSync: Date.now(),

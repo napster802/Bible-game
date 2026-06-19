@@ -726,6 +726,38 @@ label,
   gap: 0.75rem;
 }
 
+.btn-link {
+  background: transparent;
+  border: none;
+  color: var(--gold);
+  text-decoration: underline;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0.25rem 0;
+  text-align: left;
+  width: auto;
+}
+
+.host-csv-upload {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 1rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.host-csv-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.host-csv-buttons .btn {
+  width: auto;
+  flex: 1;
+}
+
 .join-form {
   background: var(--card);
   border-radius: var(--radius);
