@@ -265,7 +265,7 @@ const HostGame = (function () {
   }
 
   function setGameFormat(format) {
-    gameFormat = ['truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower'].includes(format) ? format : 'classic';
+    gameFormat = ['truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue'].includes(format) ? format : 'classic';
     action('set_game_format', { value: gameFormat });
   }
 

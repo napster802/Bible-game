@@ -221,6 +221,8 @@ const Multiplayer = (function () {
     const memoryBox = document.getElementById('memory-box');
     const twotruthsBox = document.getElementById('twotruths-box');
     const higherlowerBox = document.getElementById('higherlower-box');
+    const versefillBox = document.getElementById('versefill-box');
+    const emojiclueBox = document.getElementById('emojiclue-box');
     const hostMonitor = document.getElementById('host-monitor');
     const powerupBar = document.getElementById('powerup-bar');
 
@@ -231,13 +233,17 @@ const Multiplayer = (function () {
     if (memoryBox) memoryBox.style.display = 'none';
     if (twotruthsBox) twotruthsBox.style.display = 'none';
     if (higherlowerBox) higherlowerBox.style.display = 'none';
+    if (versefillBox) versefillBox.style.display = 'none';
+    if (emojiclueBox) emojiclueBox.style.display = 'none';
     const elimBannerReset = document.getElementById('eliminated-banner');
     if (elimBannerReset) elimBannerReset.style.display = 'none';
 
     const QTEXT_OVERRIDES = {
       memory: 'Match each name card to its verse reference card!',
       twotruths: 'Two of these are true. One is a lie. Tap the lie!',
-      higherlower: 'Tap the fact you think has the bigger number!'
+      higherlower: 'Tap the fact you think has the bigger number!',
+      versefill: 'Fill in the missing word from the verse!',
+      emojiclue: 'What Bible story or character do these emojis represent?'
     };
     document.getElementById('q-text').textContent = QTEXT_OVERRIDES[currentGameFormat] || q.question;
 
@@ -259,6 +265,20 @@ const Multiplayer = (function () {
       if (twotruthsBox) twotruthsBox.style.display = 'block';
     } else if (currentGameFormat === 'higherlower') {
       if (higherlowerBox) higherlowerBox.style.display = 'block';
+    } else if (currentGameFormat === 'versefill') {
+      const round = getVerseFillRound(data.current_question.db_index);
+      const verseEl = document.getElementById('versefill-verse');
+      if (verseEl) verseEl.textContent = round.verse;
+      const resultEl = document.getElementById('versefill-result');
+      if (resultEl) resultEl.style.display = 'none';
+      if (versefillBox) versefillBox.style.display = 'block';
+    } else if (currentGameFormat === 'emojiclue') {
+      const round = getEmojiClueRound(data.current_question.db_index);
+      const emojiEl = document.getElementById('emojiclue-emojis');
+      if (emojiEl) emojiEl.textContent = round.emojis;
+      const resultEl = document.getElementById('emojiclue-result');
+      if (resultEl) resultEl.style.display = 'none';
+      if (emojiclueBox) emojiclueBox.style.display = 'block';
     } else {
       q.choices.forEach((c, i) => { document.getElementById(`c${i}-txt`).textContent = c; });
       if (choicesGrid) choicesGrid.style.display = '';
@@ -283,6 +303,16 @@ const Multiplayer = (function () {
         // The host doesn't play - they just watch boards get submitted via the monitor below.
       } else if (currentGameFormat === 'twotruths' || currentGameFormat === 'higherlower') {
         // The host doesn't play - they just watch the monitor below.
+      } else if (currentGameFormat === 'versefill') {
+        const input = document.getElementById('versefill-input');
+        const submitBtn = document.getElementById('versefill-submit-btn');
+        if (input) input.disabled = true;
+        if (submitBtn) submitBtn.disabled = true;
+      } else if (currentGameFormat === 'emojiclue') {
+        const input = document.getElementById('emojiclue-input');
+        const submitBtn = document.getElementById('emojiclue-submit-btn');
+        if (input) input.disabled = true;
+        if (submitBtn) submitBtn.disabled = true;
       } else {
         if (choicesGrid) choicesGrid.classList.add('host-view');
         for (let i = 0; i < 4; i++) {
@@ -326,6 +356,26 @@ const Multiplayer = (function () {
       } else if (currentGameFormat === 'higherlower') {
         if (data.my_answer) answeredThisQuestion = true;
         buildHigherLowerRound(data.current_question.q_idx, data.current_question.db_index, data.my_answer);
+      } else if (currentGameFormat === 'versefill') {
+        const input = document.getElementById('versefill-input');
+        const submitBtn = document.getElementById('versefill-submit-btn');
+        if (input) { input.value = ''; input.disabled = false; }
+        const round = getVerseFillRound(data.current_question.db_index);
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.onclick = () => submitVerseFill(data.current_question.q_idx, round); }
+        if (data.my_answer) {
+          answeredThisQuestion = true;
+          lockVerseFill(data.my_answer.is_correct, round);
+        }
+      } else if (currentGameFormat === 'emojiclue') {
+        const input = document.getElementById('emojiclue-input');
+        const submitBtn = document.getElementById('emojiclue-submit-btn');
+        if (input) { input.value = ''; input.disabled = false; }
+        const round = getEmojiClueRound(data.current_question.db_index);
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.onclick = () => submitEmojiClue(data.current_question.q_idx, round); }
+        if (data.my_answer) {
+          answeredThisQuestion = true;
+          lockEmojiClue(data.my_answer.is_correct, round);
+        }
       } else {
         const myPlayer = data.players.find(p => p.device_id === deviceId);
         const eliminated = currentGameFormat === 'survival' && !!(myPlayer && myPlayer.eliminated) && !data.my_answer;
@@ -765,6 +815,114 @@ const Multiplayer = (function () {
     });
   }
 
+  // ---------------- VERSE FILL-IN-THE-BLANK ----------------
+  // Curated verses (js/versefill_data.js) with one word blanked out; no
+  // choices shown, so scoring reuses the same normalizeAnswer compare as
+  // Word Scramble - exact match required (one accepted spelling per round).
+  function getVerseFillRound(dbIndex) {
+    return VerseFillData.ROUNDS[dbIndex % VerseFillData.ROUNDS.length];
+  }
+
+  function submitVerseFill(qIdx, round) {
+    if (answeredThisQuestion) return;
+    const input = document.getElementById('versefill-input');
+    const typed = input ? input.value.trim() : '';
+    if (!typed) { App.showToast('Type the missing word first', 'error'); return; }
+
+    answeredThisQuestion = true;
+    const elapsedMs = sync.serverElapsedMs + (Date.now() - sync.clientTimeAtSync);
+    currentTimeTaken = Math.min(sync.timeLimitSec, elapsedMs / 1000);
+    const isCorrect = normalizeAnswer(typed) === normalizeAnswer(round.answer);
+
+    lockVerseFill(isCorrect, round, typed);
+
+    api('submit_answer.php', {
+      room_code: roomCode,
+      device_id: deviceId,
+      q_idx: qIdx,
+      choice_idx: 0,
+      is_correct: isCorrect,
+      time_taken: currentTimeTaken
+    }).then(res => {
+      if (res.success) {
+        playLocalFeedbackSound(isCorrect);
+        showWaitingFeedback(isCorrect, res.points, { answer: round.answer, reference: round.reference }, res.streak, res.doubled);
+      }
+    });
+  }
+
+  function lockVerseFill(isCorrect, round, typed) {
+    const input = document.getElementById('versefill-input');
+    const submitBtn = document.getElementById('versefill-submit-btn');
+    if (input) input.disabled = true;
+    if (submitBtn) submitBtn.disabled = true;
+    const resultEl = document.getElementById('versefill-result');
+    if (resultEl) {
+      resultEl.style.display = 'block';
+      resultEl.textContent = isCorrect
+        ? `✓ Correct! "${typed != null ? typed : round.answer}"`
+        : `✗ Correct answer: ${round.answer}`;
+      resultEl.className = 'versefill-result ' + (isCorrect ? 'correct' : 'wrong');
+    }
+  }
+
+  // ---------------- EMOJI STORY CLUE ----------------
+  // Curated emoji sequences (js/emojiclue_data.js); each round lists every
+  // accepted phrasing in `answers`, matched via the same normalizeAnswer
+  // compare used elsewhere so spacing/punctuation/case don't matter.
+  function getEmojiClueRound(dbIndex) {
+    return EmojiClueData.ROUNDS[dbIndex % EmojiClueData.ROUNDS.length];
+  }
+
+  function matchesAnyAnswer(typed, answers) {
+    const norm = normalizeAnswer(typed);
+    if (!norm) return false;
+    return answers.some(a => normalizeAnswer(a) === norm);
+  }
+
+  function submitEmojiClue(qIdx, round) {
+    if (answeredThisQuestion) return;
+    const input = document.getElementById('emojiclue-input');
+    const typed = input ? input.value.trim() : '';
+    if (!typed) { App.showToast('Type your guess first', 'error'); return; }
+
+    answeredThisQuestion = true;
+    const elapsedMs = sync.serverElapsedMs + (Date.now() - sync.clientTimeAtSync);
+    currentTimeTaken = Math.min(sync.timeLimitSec, elapsedMs / 1000);
+    const isCorrect = matchesAnyAnswer(typed, round.answers);
+
+    lockEmojiClue(isCorrect, round, typed);
+
+    api('submit_answer.php', {
+      room_code: roomCode,
+      device_id: deviceId,
+      q_idx: qIdx,
+      choice_idx: 0,
+      is_correct: isCorrect,
+      time_taken: currentTimeTaken
+    }).then(res => {
+      if (res.success) {
+        playLocalFeedbackSound(isCorrect);
+        showWaitingFeedback(isCorrect, res.points, { answer: round.display, reference: round.reference }, res.streak, res.doubled);
+      }
+    });
+  }
+
+  function lockEmojiClue(isCorrect, round, typed) {
+    const input = document.getElementById('emojiclue-input');
+    const submitBtn = document.getElementById('emojiclue-submit-btn');
+    if (input) input.disabled = true;
+    if (submitBtn) submitBtn.disabled = true;
+    const resultEl = document.getElementById('emojiclue-result');
+    if (resultEl) {
+      resultEl.style.display = 'block';
+      resultEl.textContent = isCorrect
+        ? `✓ Correct! "${typed != null ? typed : round.display}"`
+        : `✗ Correct answer: ${round.display}`;
+      resultEl.className = 'emojiclue-result ' + (isCorrect ? 'correct' : 'wrong');
+    }
+  }
+
   function setMpStatusBadge(data) {
     const badge = document.getElementById('mp-status-badge');
     if (!badge) return;
@@ -1163,6 +1321,14 @@ const Multiplayer = (function () {
       const sides = higherLowerSides(qIdx, pair);
       const correctSide = sides[0].value > sides[1].value ? 0 : 1;
       return { answer: `${sides[correctSide].label}: ${sides[correctSide].value.toLocaleString()}`, reference: pair.reference || '' };
+    }
+    if (currentGameFormat === 'versefill') {
+      const round = getVerseFillRound(dbIndex);
+      return { answer: round.answer, reference: round.reference || '' };
+    }
+    if (currentGameFormat === 'emojiclue') {
+      const round = getEmojiClueRound(dbIndex);
+      return { answer: round.display, reference: round.reference || '' };
     }
     return { answer: q.answer, reference: q.reference || '' };
   }

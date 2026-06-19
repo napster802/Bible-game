@@ -1169,6 +1169,62 @@ label,
 .scramble-result.correct { color: #00d68f; }
 .scramble-result.wrong { color: var(--choice-a); }
 
+/* Verse Fill-in-the-Blank */
+.versefill-box {
+  padding: 0.5rem 1rem;
+  flex: 1;
+  text-align: center;
+}
+
+.versefill-verse {
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--text);
+  margin: 0.5rem 0 1rem;
+}
+
+.versefill-box .text-input {
+  text-align: center;
+  font-size: 1.1rem;
+  margin-bottom: 0.6rem;
+}
+
+.versefill-result {
+  margin-top: 0.8rem;
+  font-weight: 700;
+}
+
+.versefill-result.correct { color: #00d68f; }
+.versefill-result.wrong { color: var(--choice-a); }
+
+/* Emoji Story Clue */
+.emojiclue-box {
+  padding: 0.5rem 1rem;
+  flex: 1;
+  text-align: center;
+}
+
+.emojiclue-emojis {
+  font-size: 3rem;
+  letter-spacing: 0.5rem;
+  margin: 0.5rem 0 1.25rem;
+}
+
+.emojiclue-box .text-input {
+  text-align: center;
+  font-size: 1.1rem;
+  margin-bottom: 0.6rem;
+}
+
+.emojiclue-result {
+  margin-top: 0.8rem;
+  font-weight: 700;
+}
+
+.emojiclue-result.correct { color: #00d68f; }
+.emojiclue-result.wrong { color: var(--choice-a); }
+
 /* ── Power-Up Bar ──────────────────────────────────────────── */
 .powerup-bar {
   display: flex;

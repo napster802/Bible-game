@@ -141,6 +141,8 @@
               <option value="memory">🧠 Memory Match</option>
               <option value="twotruths">🤥 Two Truths and a Lie</option>
               <option value="higherlower">📊 Higher or Lower</option>
+              <option value="versefill">📖 Verse Fill-in-the-Blank</option>
+              <option value="emojiclue">🌊 Emoji Story Clue</option>
             </select>
           </div>
           <div class="setting-row">
@@ -382,6 +384,24 @@
           <span class="hl-vs">VS</span>
           <button class="hl-card" id="hl-card-1"><span class="hl-label" id="hl-label-1"></span><span class="hl-value" id="hl-value-1"></span></button>
         </div>
+      </div>
+
+      <!-- Verse Fill-in-the-Blank -->
+      <div class="versefill-box" id="versefill-box" style="display:none">
+        <p class="hint-text">Type the missing word:</p>
+        <p class="versefill-verse" id="versefill-verse"></p>
+        <input type="text" id="versefill-input" class="text-input" placeholder="Type the missing word" autocomplete="off">
+        <button class="btn btn-primary btn-xl" id="versefill-submit-btn">Submit</button>
+        <p class="versefill-result" id="versefill-result" style="display:none"></p>
+      </div>
+
+      <!-- Emoji Story Clue -->
+      <div class="emojiclue-box" id="emojiclue-box" style="display:none">
+        <p class="hint-text">Guess the Bible story or character:</p>
+        <p class="emojiclue-emojis" id="emojiclue-emojis"></p>
+        <input type="text" id="emojiclue-input" class="text-input" placeholder="Type your guess" autocomplete="off">
+        <button class="btn btn-primary btn-xl" id="emojiclue-submit-btn">Submit</button>
+        <p class="emojiclue-result" id="emojiclue-result" style="display:none"></p>
       </div>
 
       <!-- Host Monitor (host does not play - just watches answers come in) -->
@@ -676,6 +696,8 @@
   <script src="js/book_questions.js"></script>
   <script src="js/twotruths_data.js"></script>
   <script src="js/higherlower_data.js"></script>
+  <script src="js/versefill_data.js"></script>
+  <script src="js/emojiclue_data.js"></script>
   <script src="js/question_tracker.js"></script>
   <script src="js/custom_questions.js"></script>
   <script src="js/profile.js"></script>
