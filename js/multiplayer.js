@@ -484,6 +484,17 @@ const Multiplayer = (function () {
     } catch (e) {
       console.error('Failed to render multiplayer results:', e);
     }
+
+    const playAgainBtn = document.getElementById('results-play-again-btn');
+    if (playAgainBtn) {
+      if (isHost) {
+        playAgainBtn.textContent = '🏠 Host Again';
+        playAgainBtn.onclick = () => App.goHostGame();
+      } else {
+        playAgainBtn.textContent = '🔑 Join Again';
+        playAgainBtn.onclick = () => App.goJoinGame();
+      }
+    }
   }
 
   function renderPodium(sorted) {
