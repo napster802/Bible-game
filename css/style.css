@@ -1255,6 +1255,51 @@ label,
   flex-shrink: 0;
 }
 
+/* Memory Match */
+.memory-box {
+  padding: 0.5rem;
+  flex: 1;
+}
+
+.memory-board {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.memory-card {
+  min-height: 70px;
+  border-radius: var(--radius-sm);
+  background: var(--card-bg, #1c2b56);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.3rem;
+  cursor: pointer;
+}
+
+.memory-card.flipped {
+  background: var(--gold);
+  color: #1a1500;
+}
+
+.memory-card.matched {
+  background: #00d68f;
+  color: #00210f;
+  opacity: 0.6;
+  cursor: default;
+}
+
+.memory-card.mismatch {
+  background: var(--choice-a);
+}
+
 /* ── Freeze Target Picker ─────────────────────────────────── */
 .freeze-target-list {
   display: flex;
@@ -1507,6 +1552,11 @@ label,
 .feedback-icon.wrong {
   background: var(--red);
   box-shadow: 0 0 30px rgba(192,57,43,0.5);
+}
+
+.feedback-icon.partial {
+  background: var(--gold);
+  box-shadow: 0 0 30px rgba(212,175,55,0.5);
 }
 
 .feedback-verdict {

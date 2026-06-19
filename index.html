@@ -138,6 +138,7 @@
               <option value="truefalse">⚡ Lightning True/False</option>
               <option value="scramble">🔤 Word Scramble</option>
               <option value="survival">💀 Sudden Death Survival</option>
+              <option value="memory">🧠 Memory Match</option>
             </select>
           </div>
           <div class="setting-row">
@@ -357,6 +358,12 @@
         <input type="text" id="scramble-input" class="text-input" placeholder="Type your answer" autocomplete="off">
         <button class="btn btn-primary btn-xl" id="scramble-submit-btn">Submit</button>
         <p class="scramble-result" id="scramble-result" style="display:none"></p>
+      </div>
+
+      <!-- Memory Match -->
+      <div class="memory-box" id="memory-box" style="display:none">
+        <p class="hint-text">Match each name to its verse reference <span id="memory-pairs-found">0/6</span></p>
+        <div class="memory-board" id="memory-board"></div>
       </div>
 
       <!-- Host Monitor (host does not play - just watches answers come in) -->

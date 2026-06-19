@@ -49,6 +49,14 @@ if ($isCorrect) {
     // +10% per streak level beyond the 2nd correct answer in a row, capped at +50%.
     $streakMultiplier = 1 + min(0.5, max(0, $newStreak - 2) * 0.1);
     $points = (int)round($basePoints * $streakMultiplier * ($doubled ? 2 : 1));
+} elseif ($room['game_format'] === 'memory') {
+    // Memory Match scores proportionally to pairs found even when the board
+    // wasn't fully cleared, instead of the all-or-nothing rule every other
+    // format uses - a half-finished board still deserves half credit.
+    $totalPairs = max(1, (int)($input['total_pairs'] ?? 6));
+    $pairsFound = max(0, min($totalPairs, $choiceIdx));
+    $ratio = max(0.0, 1.0 - ($timeTaken / $timeLimit));
+    $points = (int)round(($pairsFound / $totalPairs) * 500 * (1 + $ratio * 0.5));
 }
 $newBestStreak = max($prevBestStreak, $newStreak);
 
@@ -66,8 +74,8 @@ if ($isCorrect) {
     // Sudden Death Survival: a single wrong answer eliminates the player
     // for the rest of the match - they keep spectating but never answer again.
     $eliminate = $room['game_format'] === 'survival' ? 1 : 0;
-    $db->prepare("UPDATE players SET wrong_count = wrong_count + 1, total_time = total_time + ?, last_ping = ?, streak = 0, double_q_idx = -1, eliminated = eliminated OR ? WHERE room_code = ? AND device_id = ?")
-       ->execute([$timeTaken, $now, $eliminate, $code, $deviceId]);
+    $db->prepare("UPDATE players SET score = score + ?, wrong_count = wrong_count + 1, total_time = total_time + ?, last_ping = ?, streak = 0, double_q_idx = -1, eliminated = eliminated OR ? WHERE room_code = ? AND device_id = ?")
+       ->execute([$points, $timeTaken, $now, $eliminate, $code, $deviceId]);
 }
 
 $db->commit();

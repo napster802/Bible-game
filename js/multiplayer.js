@@ -31,6 +31,11 @@ const Multiplayer = (function () {
   let currentTestament = 'all';
   let currentDbIndex = 0;
   let currentTimeTaken = 0;
+  let memoryPairsFound = 0;
+  let memoryTotalPairs = 0;
+  let memoryFlipped = [];
+  let memoryBoardCards = [];
+  let memoryLocked = false;
 
   const POWERUP_COSTS = { fifty: 800, double: 1500, freeze: 1000, steal: 2000 };
   const POWERUP_LABELS = { fifty: '50/50', double: '2x Points', freeze: 'Freeze', steal: 'Steal' };
@@ -213,6 +218,7 @@ const Multiplayer = (function () {
     const choicesGrid = document.getElementById('choices-grid');
     const tfGrid = document.getElementById('tf-grid');
     const scrambleBox = document.getElementById('scramble-box');
+    const memoryBox = document.getElementById('memory-box');
     const hostMonitor = document.getElementById('host-monitor');
     const powerupBar = document.getElementById('powerup-bar');
 
@@ -220,10 +226,13 @@ const Multiplayer = (function () {
     if (choicesGrid) choicesGrid.style.display = 'none';
     if (tfGrid) tfGrid.style.display = 'none';
     if (scrambleBox) scrambleBox.style.display = 'none';
+    if (memoryBox) memoryBox.style.display = 'none';
     const elimBannerReset = document.getElementById('eliminated-banner');
     if (elimBannerReset) elimBannerReset.style.display = 'none';
 
-    document.getElementById('q-text').textContent = q.question;
+    document.getElementById('q-text').textContent = currentGameFormat === 'memory'
+      ? 'Match each name card to its verse reference card!'
+      : q.question;
 
     let tfState = null;
     if (currentGameFormat === 'truefalse') {
@@ -237,6 +246,8 @@ const Multiplayer = (function () {
       const resultEl = document.getElementById('scramble-result');
       if (resultEl) resultEl.style.display = 'none';
       if (scrambleBox) scrambleBox.style.display = 'block';
+    } else if (currentGameFormat === 'memory') {
+      if (memoryBox) memoryBox.style.display = 'block';
     } else {
       q.choices.forEach((c, i) => { document.getElementById(`c${i}-txt`).textContent = c; });
       if (choicesGrid) choicesGrid.style.display = '';
@@ -257,6 +268,8 @@ const Multiplayer = (function () {
         const submitBtn = document.getElementById('scramble-submit-btn');
         if (input) input.disabled = true;
         if (submitBtn) submitBtn.disabled = true;
+      } else if (currentGameFormat === 'memory') {
+        // The host doesn't play - they just watch boards get submitted via the monitor below.
       } else {
         if (choicesGrid) choicesGrid.classList.add('host-view');
         for (let i = 0; i < 4; i++) {
@@ -291,6 +304,9 @@ const Multiplayer = (function () {
           answeredThisQuestion = true;
           lockScramble(data.my_answer.is_correct, q, null);
         }
+      } else if (currentGameFormat === 'memory') {
+        if (data.my_answer) answeredThisQuestion = true;
+        buildMemoryBoard(data.current_question.q_idx, data.current_question.db_index, data.my_answer);
       } else {
         const myPlayer = data.players.find(p => p.device_id === deviceId);
         const eliminated = currentGameFormat === 'survival' && !!(myPlayer && myPlayer.eliminated) && !data.my_answer;
@@ -442,6 +458,133 @@ const Multiplayer = (function () {
     }
   }
 
+  // ---------------- MEMORY MATCH ----------------
+  // Every poll resolves the same pool the current difficulty/book/category
+  // is already using elsewhere (lookupQuestion), so a board can be built
+  // from several pool entries without any new server-side question data.
+  function getCurrentPool() {
+    if (currentQuizMode === 'book' && currentBook && currentCategory && typeof BookQuestions !== 'undefined') {
+      return BookQuestions.getPool(currentBook, currentCategory, currentDifficulty, currentTestament);
+    }
+    return QUESTION_DB[currentDifficulty];
+  }
+
+  // Builds a deterministic board (same seed everywhere) of up to 6 pairs
+  // drawn from consecutive pool entries starting at this round's db_index,
+  // so no new server storage is needed - same trick as scrambleWord/buildTrueFalseStatement.
+  function buildMemoryBoard(qIdx, dbIndex, myAnswer) {
+    const pool = getCurrentPool();
+    const totalPairs = Math.max(1, Math.min(6, pool.length));
+    memoryTotalPairs = totalPairs;
+
+    const foundEl = document.getElementById('memory-pairs-found');
+    const board = document.getElementById('memory-board');
+
+    if (myAnswer) {
+      if (foundEl) foundEl.textContent = `✓ Submitted: ${myAnswer.choice_idx}/${totalPairs} pairs found`;
+      if (board) board.innerHTML = '';
+      return;
+    }
+
+    const pairs = [];
+    for (let i = 0; i < totalPairs; i++) {
+      const entry = pool[(dbIndex + i) % pool.length];
+      pairs.push({ pairId: i, name: entry.answer, ref: entry.reference || entry.answer });
+    }
+
+    const cards = [];
+    pairs.forEach(p => {
+      cards.push({ pairId: p.pairId, text: p.name });
+      cards.push({ pairId: p.pairId, text: p.ref });
+    });
+
+    let seed = seededHash(`${roomCode}-${qIdx}-memory`);
+    function rand() { seed = (seed * 1103515245 + 12345) >>> 0; return seed / 4294967296; }
+    for (let i = cards.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [cards[i], cards[j]] = [cards[j], cards[i]];
+    }
+
+    memoryBoardCards = cards;
+    memoryFlipped = [];
+    memoryPairsFound = 0;
+    memoryLocked = false;
+    if (foundEl) foundEl.textContent = `0/${totalPairs}`;
+
+    if (board) {
+      board.innerHTML = cards.map((c, i) => `<button class="memory-card" id="mem-card-${i}"></button>`).join('');
+      cards.forEach((c, i) => {
+        const btn = document.getElementById(`mem-card-${i}`);
+        if (btn) btn.onclick = () => flipMemoryCard(i, qIdx);
+      });
+    }
+  }
+
+  function flipMemoryCard(idx, qIdx) {
+    if (memoryLocked || answeredThisQuestion) return;
+    if (memoryFlipped.includes(idx)) return;
+    if (memoryFlipped.length >= 2) return;
+
+    const card = memoryBoardCards[idx];
+    const btn = document.getElementById(`mem-card-${idx}`);
+    if (btn) { btn.classList.add('flipped'); btn.textContent = card.text; }
+    memoryFlipped.push(idx);
+
+    if (memoryFlipped.length === 2) {
+      const [i1, i2] = memoryFlipped;
+      const isMatch = memoryBoardCards[i1].pairId === memoryBoardCards[i2].pairId;
+      memoryLocked = true;
+      setTimeout(() => {
+        const b1 = document.getElementById(`mem-card-${i1}`);
+        const b2 = document.getElementById(`mem-card-${i2}`);
+        if (isMatch) {
+          [b1, b2].forEach(b => { if (b) { b.classList.remove('flipped'); b.classList.add('matched'); b.disabled = true; b.onclick = null; } });
+          memoryPairsFound++;
+          const foundEl = document.getElementById('memory-pairs-found');
+          if (foundEl) foundEl.textContent = `${memoryPairsFound}/${memoryTotalPairs}`;
+          if (memoryPairsFound >= memoryTotalPairs) submitMemoryResult(qIdx);
+        } else {
+          [b1, b2].forEach(b => { if (b) { b.classList.remove('flipped'); b.textContent = ''; } });
+        }
+        memoryFlipped = [];
+        memoryLocked = false;
+      }, 700);
+    }
+  }
+
+  // Also called from the local countdown ticker when time runs out before
+  // every pair is found, so a partial board still scores instead of nothing.
+  function submitMemoryResult(qIdx) {
+    if (answeredThisQuestion) return;
+    answeredThisQuestion = true;
+    const elapsedMs = sync.serverElapsedMs + (Date.now() - sync.clientTimeAtSync);
+    currentTimeTaken = Math.min(sync.timeLimitSec, elapsedMs / 1000);
+    const isCorrect = memoryPairsFound >= memoryTotalPairs;
+
+    document.querySelectorAll('#memory-board .memory-card').forEach(b => { b.disabled = true; b.onclick = null; });
+    const foundEl = document.getElementById('memory-pairs-found');
+    if (foundEl) {
+      foundEl.textContent = isCorrect
+        ? `✓ All ${memoryTotalPairs} pairs found!`
+        : `Time's up — ${memoryPairsFound}/${memoryTotalPairs} pairs found`;
+    }
+
+    api('submit_answer.php', {
+      room_code: roomCode,
+      device_id: deviceId,
+      q_idx: qIdx,
+      choice_idx: memoryPairsFound,
+      is_correct: isCorrect,
+      time_taken: currentTimeTaken,
+      total_pairs: memoryTotalPairs
+    }).then(res => {
+      if (res.success) {
+        playLocalFeedbackSound(isCorrect);
+        showWaitingFeedback(isCorrect, res.points, { answer: `${memoryPairsFound}/${memoryTotalPairs} pairs found`, reference: '' }, res.streak, res.doubled);
+      }
+    });
+  }
+
   function setMpStatusBadge(data) {
     const badge = document.getElementById('mp-status-badge');
     if (!badge) return;
@@ -512,9 +655,12 @@ const Multiplayer = (function () {
       else if (timeLeft <= sync.timeLimitSec / 3) arc.classList.add('warning');
     }
     if (numEl) numEl.textContent = Math.ceil(timeLeft);
-    if (timeLeft <= 0 && localTickTimer) {
-      clearInterval(localTickTimer);
-      localTickTimer = null;
+    if (timeLeft <= 0) {
+      // Memory Match scores partial credit for pairs found - submit
+      // whatever was found so far instead of letting it default to 0
+      // when the server records a silent timeout.
+      if (!isHost && currentGameFormat === 'memory' && !answeredThisQuestion) submitMemoryResult(lastQIdx);
+      if (localTickTimer) { clearInterval(localTickTimer); localTickTimer = null; }
     }
   }
 
@@ -784,10 +930,14 @@ const Multiplayer = (function () {
 
   function showWaitingFeedback(isCorrect, points, question, streak, doubled) {
     App.goTo('feedback');
-    document.getElementById('fb-icon').className = 'feedback-icon ' + (isCorrect ? 'correct' : 'wrong');
-    document.getElementById('fb-icon').textContent = isCorrect ? '✓' : '✗';
-    document.getElementById('fb-verdict').textContent = isCorrect ? 'Correct!' : 'Incorrect!';
-    document.getElementById('fb-pts').textContent = isCorrect ? `+${points}` : '0 pts';
+    // Memory Match awards partial credit for pairs found even on an
+    // incomplete board, so "wrong but scored points" needs its own label
+    // instead of looking like a flat zero-point miss.
+    const partial = !isCorrect && points > 0;
+    document.getElementById('fb-icon').className = 'feedback-icon ' + (isCorrect ? 'correct' : partial ? 'partial' : 'wrong');
+    document.getElementById('fb-icon').textContent = isCorrect ? '✓' : partial ? '½' : '✗';
+    document.getElementById('fb-verdict').textContent = isCorrect ? 'Correct!' : partial ? 'Partial Credit!' : 'Incorrect!';
+    document.getElementById('fb-pts').textContent = points > 0 ? `+${points}` : '0 pts';
     document.getElementById('fb-answer').textContent = question.answer;
     document.getElementById('fb-reference').textContent = question.reference || '';
 
