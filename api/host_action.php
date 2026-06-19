@@ -118,7 +118,7 @@ switch ($action) {
     case 'set_game_format':
         if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
         $value = $input['value'] ?? 'classic';
-        $format = in_array($value, ['classic', 'truefalse', 'scramble'], true) ? $value : 'classic';
+        $format = in_array($value, ['classic', 'truefalse', 'scramble', 'survival'], true) ? $value : 'classic';
         $db->prepare("UPDATE rooms SET game_format = ?, updated_at = ? WHERE code = ?")
            ->execute([$format, $now, $code]);
         break;

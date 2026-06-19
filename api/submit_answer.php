@@ -25,6 +25,7 @@ $playerStmt = $db->prepare("SELECT * FROM players WHERE room_code = ? AND device
 $playerStmt->execute([$code, $deviceId]);
 $playerRow = $playerStmt->fetch();
 if ($playerRow && (int)$playerRow['is_host'] === 1) jsonOut(['success' => false, 'error' => 'The host does not play'], 403);
+if ($playerRow && (int)$playerRow['eliminated'] === 1) jsonOut(['success' => false, 'error' => 'You have been eliminated'], 403);
 
 // Anti-cheat: reject duplicate answers
 $checkStmt = $db->prepare("SELECT 1 FROM answers WHERE room_code = ? AND device_id = ? AND q_idx = ?");
@@ -62,8 +63,11 @@ if ($isCorrect) {
     $db->prepare("UPDATE players SET score = score + ?, correct_count = correct_count + 1, total_time = total_time + ?, last_ping = ?, streak = ?, best_streak = ?, double_q_idx = -1 WHERE room_code = ? AND device_id = ?")
        ->execute([$points, $timeTaken, $now, $newStreak, $newBestStreak, $code, $deviceId]);
 } else {
-    $db->prepare("UPDATE players SET wrong_count = wrong_count + 1, total_time = total_time + ?, last_ping = ?, streak = 0, double_q_idx = -1 WHERE room_code = ? AND device_id = ?")
-       ->execute([$timeTaken, $now, $code, $deviceId]);
+    // Sudden Death Survival: a single wrong answer eliminates the player
+    // for the rest of the match - they keep spectating but never answer again.
+    $eliminate = $room['game_format'] === 'survival' ? 1 : 0;
+    $db->prepare("UPDATE players SET wrong_count = wrong_count + 1, total_time = total_time + ?, last_ping = ?, streak = 0, double_q_idx = -1, eliminated = eliminated OR ? WHERE room_code = ? AND device_id = ?")
+       ->execute([$timeTaken, $now, $eliminate, $code, $deviceId]);
 }
 
 $db->commit();

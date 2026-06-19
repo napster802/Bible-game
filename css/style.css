@@ -565,6 +565,11 @@ label,
   border: 2px solid var(--red);
 }
 
+.host-monitor-item.eliminated {
+  opacity: 0.4;
+  filter: grayscale(0.6);
+}
+
 .host-monitor-name {
   flex: 1;
   font-weight: 600;
@@ -1237,6 +1242,17 @@ label,
   border-radius: var(--radius-sm);
   flex-shrink: 0;
   animation: pulse-correct 1s ease infinite;
+}
+
+.eliminated-banner {
+  background: linear-gradient(90deg, #3a3a3a, #5a2d2d);
+  color: white;
+  text-align: center;
+  font-weight: 800;
+  padding: 0.6rem;
+  margin: 0 0.5rem;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
 }
 
 /* ── Freeze Target Picker ─────────────────────────────────── */

@@ -220,6 +220,8 @@ const Multiplayer = (function () {
     if (choicesGrid) choicesGrid.style.display = 'none';
     if (tfGrid) tfGrid.style.display = 'none';
     if (scrambleBox) scrambleBox.style.display = 'none';
+    const elimBannerReset = document.getElementById('eliminated-banner');
+    if (elimBannerReset) elimBannerReset.style.display = 'none';
 
     document.getElementById('q-text').textContent = q.question;
 
@@ -290,17 +292,24 @@ const Multiplayer = (function () {
           lockScramble(data.my_answer.is_correct, q, null);
         }
       } else {
+        const myPlayer = data.players.find(p => p.device_id === deviceId);
+        const eliminated = currentGameFormat === 'survival' && !!(myPlayer && myPlayer.eliminated) && !data.my_answer;
+
         if (choicesGrid) choicesGrid.classList.remove('host-view');
         for (let i = 0; i < 4; i++) {
           const btn = document.getElementById(`c${i}`);
           btn.className = `choice choice-${'abcd'[i]}`;
-          btn.disabled = false;
-          btn.onclick = () => submitAnswer(i, q);
+          btn.disabled = eliminated;
+          btn.onclick = eliminated ? null : () => submitAnswer(i, q);
         }
+        if (eliminated) answeredThisQuestion = true;
         if (data.my_answer) {
           answeredThisQuestion = true;
           lockChoices(data.my_answer.choice_idx, q);
         }
+
+        const elimBanner = document.getElementById('eliminated-banner');
+        if (elimBanner) elimBanner.style.display = eliminated ? 'block' : 'none';
       }
 
       const myPlayer = data.players.find(p => p.device_id === deviceId);
@@ -451,7 +460,10 @@ const Multiplayer = (function () {
     list.innerHTML = contestants.map(p => {
       let statusClass = '';
       let statusText = 'Waiting…';
-      if (p.has_answered) {
+      if (p.eliminated) {
+        statusClass = 'eliminated';
+        statusText = '💀 Eliminated';
+      } else if (p.has_answered) {
         statusClass = 'answered';
         statusText = '✓ Answered';
         if (p.is_correct === true) { statusClass += ' correct'; statusText = '✓ Correct'; }
@@ -522,7 +534,9 @@ const Multiplayer = (function () {
   function renderPowerupBar(data) {
     const bar = document.getElementById('powerup-bar');
     if (!bar || isHost) return;
-    if (currentGameFormat !== 'classic') { bar.style.display = 'none'; return; }
+    if (currentGameFormat !== 'classic' && currentGameFormat !== 'survival') { bar.style.display = 'none'; return; }
+    const me = data.players.find(p => p.device_id === deviceId);
+    if (currentGameFormat === 'survival' && me && me.eliminated) { bar.style.display = 'none'; return; }
     bar.style.display = 'flex';
 
     const used = data.my_used_powerups || [];
@@ -627,7 +641,7 @@ const Multiplayer = (function () {
   function applyFreezeState(data) {
     const banner = document.getElementById('freeze-banner');
     if (!banner) return;
-    if (currentGameFormat !== 'classic') { banner.style.display = 'none'; return; }
+    if (currentGameFormat !== 'classic' && currentGameFormat !== 'survival') { banner.style.display = 'none'; return; }
     const frozen = data.my_frozen_until > data.server_time;
     if (frozen) {
       const secsLeft = Math.max(0, Math.ceil((data.my_frozen_until - data.server_time) / 1000));
@@ -816,7 +830,7 @@ const Multiplayer = (function () {
         const tf = buildTrueFalseStatement(q, data.current_question.q_idx);
         const btn = document.getElementById(tf.isTrue ? 'tf-true' : 'tf-false');
         if (btn) btn.classList.add('reveal-correct');
-      } else if (currentGameFormat === 'classic') {
+      } else if (currentGameFormat === 'classic' || currentGameFormat === 'survival') {
         const correctIdx = q.choices.indexOf(q.answer);
         for (let i = 0; i < 4; i++) {
           const btn = document.getElementById(`c${i}`);
@@ -828,10 +842,12 @@ const Multiplayer = (function () {
     }
     // If I never answered (timeout), still show feedback with 0 points
     if (!document.getElementById('screen-feedback').classList.contains('active')) {
+      const myPlayer = data.players.find(p => p.device_id === deviceId);
+      const wasEliminated = currentGameFormat === 'survival' && !!(myPlayer && myPlayer.eliminated);
       App.goTo('feedback');
       document.getElementById('fb-icon').className = 'feedback-icon wrong';
-      document.getElementById('fb-icon').textContent = '✗';
-      document.getElementById('fb-verdict').textContent = 'Time\'s Up!';
+      document.getElementById('fb-icon').textContent = wasEliminated ? '💀' : '✗';
+      document.getElementById('fb-verdict').textContent = wasEliminated ? 'Spectating' : 'Time\'s Up!';
       document.getElementById('fb-pts').textContent = '0 pts';
       document.getElementById('fb-answer').textContent = q.answer;
       document.getElementById('fb-reference').textContent = q.reference || '';
@@ -846,7 +862,7 @@ const Multiplayer = (function () {
     if (waitDiv && data.answer_reveal) {
       waitDiv.innerHTML = `<p>${data.answer_reveal.total_answers}/${data.contestant_count} answered • moving to rankings…</p>`;
     }
-    const reveal = currentGameFormat === 'classic' ? data.answer_reveal : null;
+    const reveal = (currentGameFormat === 'classic' || currentGameFormat === 'survival') ? data.answer_reveal : null;
     renderDistribution('fb-distribution', reveal);
     renderDistribution('host-distribution', reveal);
   }
@@ -867,11 +883,12 @@ const Multiplayer = (function () {
         ? `<img src="${p.avatar}" style="width:1.8rem;height:1.8rem;border-radius:50%;object-fit:cover;">`
         : `<span class="lb-avatar">${p.avatar}</span>`;
       const streakBadge = p.streak >= 2 ? `<span class="lb-streak">🔥${p.streak}</span>` : '';
+      const eliminatedBadge = p.eliminated ? `<span class="lb-eliminated">💀</span>` : '';
       item.innerHTML = `
         <span class="lb-rank">${rank}</span>
         ${avatarHtml}
         <span class="lb-name">${escapeHtml(p.name)}</span>
-        ${streakBadge}
+        ${streakBadge}${eliminatedBadge}
         <span class="lb-score">${p.score}</span>
       `;
       list.appendChild(item);

@@ -265,7 +265,7 @@ const HostGame = (function () {
   }
 
   function setGameFormat(format) {
-    gameFormat = (format === 'truefalse' || format === 'scramble') ? format : 'classic';
+    gameFormat = ['truefalse', 'scramble', 'survival'].includes(format) ? format : 'classic';
     action('set_game_format', { value: gameFormat });
   }
 

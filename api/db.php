@@ -181,6 +181,7 @@ function migrateSchema(PDO $db): void {
             'used_powerups'  => "TEXT DEFAULT '[]'",
             'double_q_idx'   => "INTEGER DEFAULT -1",
             'frozen_until'   => "INTEGER DEFAULT 0",
+            'eliminated'     => "INTEGER DEFAULT 0",
         ],
     ];
     foreach ($columns as $table => $cols) {

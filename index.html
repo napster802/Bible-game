@@ -137,6 +137,7 @@
               <option value="classic" selected>Classic (4 Choices)</option>
               <option value="truefalse">⚡ Lightning True/False</option>
               <option value="scramble">🔤 Word Scramble</option>
+              <option value="survival">💀 Sudden Death Survival</option>
             </select>
           </div>
           <div class="setting-row">
@@ -310,6 +311,11 @@
       <!-- Freeze Banner (shown to a frozen contestant) -->
       <div class="freeze-banner" id="freeze-banner" style="display:none">
         ❄️ You've been frozen! <span id="freeze-countdown">5</span>s
+      </div>
+
+      <!-- Eliminated Banner (Sudden Death Survival spectator) -->
+      <div class="eliminated-banner" id="eliminated-banner" style="display:none">
+        💀 You're eliminated — spectating the rest of the game
       </div>
 
       <!-- Question Text -->

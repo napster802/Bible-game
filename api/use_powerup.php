@@ -40,6 +40,7 @@ $playerStmt = $db->prepare("SELECT * FROM players WHERE room_code = ? AND device
 $playerStmt->execute([$code, $deviceId]);
 $player = $playerStmt->fetch();
 if (!$player || (int)$player['is_host'] === 1) jsonOut(['success' => false, 'error' => 'The host does not play'], 403);
+if ((int)$player['eliminated'] === 1) jsonOut(['success' => false, 'error' => 'You have been eliminated'], 403);
 
 $used = json_decode($player['used_powerups'] ?: '[]', true) ?: [];
 if (in_array($powerup, $used, true)) jsonOut(['success' => false, 'error' => 'You already used this power-up this game'], 400);

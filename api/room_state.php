@@ -31,15 +31,21 @@ $currentQIdx = (int)$room['current_q_idx'];
 if ($status === 'playing') {
     $elapsed = $now - (int)$room['q_start_time'];
 
-    $totalStmt = $db->prepare("SELECT COUNT(*) FROM players WHERE room_code = ? AND is_host = 0");
-    $totalStmt->execute([$code]);
-    $totalPlayers = (int)$totalStmt->fetchColumn();
+    // Eliminated survivors never submit again, so the round can advance as
+    // soon as every player who is still alive has answered this question -
+    // including the instant the last alive player answers and is eliminated
+    // by that very answer (a naive "alive count > 0" guard would block that
+    // case, since the alive count is already 0 by the time we check it here).
+    $contestantStmt = $db->prepare("SELECT COUNT(*) FROM players WHERE room_code = ? AND is_host = 0");
+    $contestantStmt->execute([$code]);
+    $contestantCount = (int)$contestantStmt->fetchColumn();
 
-    $answeredStmt = $db->prepare("SELECT COUNT(*) FROM answers WHERE room_code = ? AND q_idx = ?");
-    $answeredStmt->execute([$code, $currentQIdx]);
-    $answeredCount = (int)$answeredStmt->fetchColumn();
+    $waitingStmt = $db->prepare("SELECT COUNT(*) FROM players p WHERE p.room_code = ? AND p.is_host = 0 AND p.eliminated = 0
+                                  AND NOT EXISTS (SELECT 1 FROM answers a WHERE a.room_code = p.room_code AND a.device_id = p.device_id AND a.q_idx = ?)");
+    $waitingStmt->execute([$code, $currentQIdx]);
+    $stillWaiting = (int)$waitingStmt->fetchColumn();
 
-    if ($elapsed >= $timeLimitMs + 2000 || ($totalPlayers > 0 && $answeredCount >= $totalPlayers)) {
+    if ($elapsed >= $timeLimitMs + 2000 || ($contestantCount > 0 && $stillWaiting === 0)) {
         // Record 0-point timeouts for anyone who didn't answer (contestants only - the host never plays)
         $playerStmt = $db->prepare("SELECT device_id FROM players WHERE room_code = ? AND is_host = 0");
         $playerStmt->execute([$code]);
@@ -51,14 +57,28 @@ if ($status === 'playing') {
             if (!$checkStmt->fetchColumn()) {
                 $db->prepare("INSERT OR IGNORE INTO answers (room_code, device_id, q_idx, choice_idx, is_correct, points, time_taken, submitted_at) VALUES (?, ?, ?, -1, 0, 0, ?, ?)")
                    ->execute([$code, $pid, $currentQIdx, (float)($timeLimitMs / 1000), nowMs()]);
-                $db->prepare("UPDATE players SET wrong_count = wrong_count + 1 WHERE room_code = ? AND device_id = ?")
-                   ->execute([$code, $pid]);
+                // A timeout is as final as a wrong answer in Sudden Death Survival.
+                $eliminate = $room['game_format'] === 'survival' ? 1 : 0;
+                $db->prepare("UPDATE players SET wrong_count = wrong_count + 1, streak = CASE WHEN ? = 1 THEN 0 ELSE streak END, eliminated = eliminated OR ? WHERE room_code = ? AND device_id = ?")
+                   ->execute([$eliminate, $eliminate, $code, $pid]);
             }
         }
 
-        $db->prepare("UPDATE rooms SET status = 'answer_reveal', updated_at = ? WHERE code = ?")
-           ->execute([nowMs(), $code]);
-        $status = 'answer_reveal';
+        // Sudden Death Survival ends the instant every contestant is out -
+        // no point waiting out the remaining rounds with nobody left to play.
+        $aliveStmt = $db->prepare("SELECT COUNT(*) FROM players WHERE room_code = ? AND is_host = 0 AND eliminated = 0");
+        $aliveStmt->execute([$code]);
+        $aliveCount = (int)$aliveStmt->fetchColumn();
+
+        if ($room['game_format'] === 'survival' && $aliveCount === 0 && $contestantCount > 0) {
+            $db->prepare("UPDATE rooms SET status = 'finished', updated_at = ? WHERE code = ?")
+               ->execute([nowMs(), $code]);
+            $status = 'finished';
+        } else {
+            $db->prepare("UPDATE rooms SET status = 'answer_reveal', updated_at = ? WHERE code = ?")
+               ->execute([nowMs(), $code]);
+            $status = 'answer_reveal';
+        }
         $room['updated_at'] = nowMs();
     }
 }
@@ -194,7 +214,8 @@ foreach ($players as $p) {
         'is_correct'   => $isCorrectNow,
         'streak'       => (int)$p['streak'],
         'best_streak'  => (int)$p['best_streak'],
-        'frozen'       => ((int)$p['frozen_until']) > $now
+        'frozen'       => ((int)$p['frozen_until']) > $now,
+        'eliminated'   => (bool)$p['eliminated']
     ];
 }
 
