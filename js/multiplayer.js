@@ -219,6 +219,8 @@ const Multiplayer = (function () {
     const tfGrid = document.getElementById('tf-grid');
     const scrambleBox = document.getElementById('scramble-box');
     const memoryBox = document.getElementById('memory-box');
+    const twotruthsBox = document.getElementById('twotruths-box');
+    const higherlowerBox = document.getElementById('higherlower-box');
     const hostMonitor = document.getElementById('host-monitor');
     const powerupBar = document.getElementById('powerup-bar');
 
@@ -227,12 +229,17 @@ const Multiplayer = (function () {
     if (tfGrid) tfGrid.style.display = 'none';
     if (scrambleBox) scrambleBox.style.display = 'none';
     if (memoryBox) memoryBox.style.display = 'none';
+    if (twotruthsBox) twotruthsBox.style.display = 'none';
+    if (higherlowerBox) higherlowerBox.style.display = 'none';
     const elimBannerReset = document.getElementById('eliminated-banner');
     if (elimBannerReset) elimBannerReset.style.display = 'none';
 
-    document.getElementById('q-text').textContent = currentGameFormat === 'memory'
-      ? 'Match each name card to its verse reference card!'
-      : q.question;
+    const QTEXT_OVERRIDES = {
+      memory: 'Match each name card to its verse reference card!',
+      twotruths: 'Two of these are true. One is a lie. Tap the lie!',
+      higherlower: 'Tap the fact you think has the bigger number!'
+    };
+    document.getElementById('q-text').textContent = QTEXT_OVERRIDES[currentGameFormat] || q.question;
 
     let tfState = null;
     if (currentGameFormat === 'truefalse') {
@@ -248,6 +255,10 @@ const Multiplayer = (function () {
       if (scrambleBox) scrambleBox.style.display = 'block';
     } else if (currentGameFormat === 'memory') {
       if (memoryBox) memoryBox.style.display = 'block';
+    } else if (currentGameFormat === 'twotruths') {
+      if (twotruthsBox) twotruthsBox.style.display = 'block';
+    } else if (currentGameFormat === 'higherlower') {
+      if (higherlowerBox) higherlowerBox.style.display = 'block';
     } else {
       q.choices.forEach((c, i) => { document.getElementById(`c${i}-txt`).textContent = c; });
       if (choicesGrid) choicesGrid.style.display = '';
@@ -270,6 +281,8 @@ const Multiplayer = (function () {
         if (submitBtn) submitBtn.disabled = true;
       } else if (currentGameFormat === 'memory') {
         // The host doesn't play - they just watch boards get submitted via the monitor below.
+      } else if (currentGameFormat === 'twotruths' || currentGameFormat === 'higherlower') {
+        // The host doesn't play - they just watch the monitor below.
       } else {
         if (choicesGrid) choicesGrid.classList.add('host-view');
         for (let i = 0; i < 4; i++) {
@@ -307,6 +320,12 @@ const Multiplayer = (function () {
       } else if (currentGameFormat === 'memory') {
         if (data.my_answer) answeredThisQuestion = true;
         buildMemoryBoard(data.current_question.q_idx, data.current_question.db_index, data.my_answer);
+      } else if (currentGameFormat === 'twotruths') {
+        if (data.my_answer) answeredThisQuestion = true;
+        buildTwoTruthsRound(data.current_question.q_idx, data.current_question.db_index, data.my_answer);
+      } else if (currentGameFormat === 'higherlower') {
+        if (data.my_answer) answeredThisQuestion = true;
+        buildHigherLowerRound(data.current_question.q_idx, data.current_question.db_index, data.my_answer);
       } else {
         const myPlayer = data.players.find(p => p.device_id === deviceId);
         const eliminated = currentGameFormat === 'survival' && !!(myPlayer && myPlayer.eliminated) && !data.my_answer;
@@ -581,6 +600,167 @@ const Multiplayer = (function () {
       if (res.success) {
         playLocalFeedbackSound(isCorrect);
         showWaitingFeedback(isCorrect, res.points, { answer: `${memoryPairsFound}/${memoryTotalPairs} pairs found`, reference: '' }, res.streak, res.doubled);
+      }
+    });
+  }
+
+  // ---------------- TWO TRUTHS AND A LIE ----------------
+  // Curated rounds (js/twotruths_data.js) always author the lie at index 2;
+  // shuffle the display order per room+question so the lie's position isn't
+  // predictable across rounds, same seeded-RNG trick as scrambleWord.
+  function getTwoTruthsRound(dbIndex) {
+    return TwoTruthsData.ROUNDS[dbIndex % TwoTruthsData.ROUNDS.length];
+  }
+
+  function shuffledStatementOrder(qIdx) {
+    let seed = seededHash(`${roomCode}-${qIdx}-twotruths`);
+    function rand() { seed = (seed * 1103515245 + 12345) >>> 0; return seed / 4294967296; }
+    const order = [0, 1, 2];
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    return order;
+  }
+
+  function buildTwoTruthsRound(qIdx, dbIndex, myAnswer) {
+    const round = getTwoTruthsRound(dbIndex);
+    const order = shuffledStatementOrder(qIdx);
+    const lieDisplayPos = order.indexOf(round.lieIndex);
+
+    const subjectEl = document.getElementById('twotruths-subject');
+    if (subjectEl) subjectEl.textContent = round.subject;
+
+    const list = document.getElementById('twotruths-list');
+    if (!list) return;
+    list.innerHTML = order.map((origIdx, pos) =>
+      `<button class="tt-statement" id="tt-stmt-${pos}">${round.statements[origIdx]}</button>`
+    ).join('');
+
+    if (myAnswer) {
+      order.forEach((origIdx, pos) => {
+        const btn = document.getElementById(`tt-stmt-${pos}`);
+        if (!btn) return;
+        btn.disabled = true;
+        if (pos === lieDisplayPos) btn.classList.add('correct');
+        else if (pos === myAnswer.choice_idx) btn.classList.add('wrong');
+      });
+      return;
+    }
+
+    order.forEach((origIdx, pos) => {
+      const btn = document.getElementById(`tt-stmt-${pos}`);
+      if (btn) btn.onclick = () => submitTwoTruths(qIdx, pos, lieDisplayPos, round);
+    });
+  }
+
+  function submitTwoTruths(qIdx, pickedPos, lieDisplayPos, round) {
+    if (answeredThisQuestion) return;
+    answeredThisQuestion = true;
+    const elapsedMs = sync.serverElapsedMs + (Date.now() - sync.clientTimeAtSync);
+    currentTimeTaken = Math.min(sync.timeLimitSec, elapsedMs / 1000);
+    const isCorrect = pickedPos === lieDisplayPos;
+
+    document.querySelectorAll('#twotruths-list .tt-statement').forEach((btn, pos) => {
+      btn.disabled = true;
+      btn.onclick = null;
+      if (pos === lieDisplayPos) btn.classList.add('correct');
+      else if (pos === pickedPos) btn.classList.add('wrong');
+    });
+
+    api('submit_answer.php', {
+      room_code: roomCode,
+      device_id: deviceId,
+      q_idx: qIdx,
+      choice_idx: pickedPos,
+      is_correct: isCorrect,
+      time_taken: currentTimeTaken
+    }).then(res => {
+      if (res.success) {
+        playLocalFeedbackSound(isCorrect);
+        showWaitingFeedback(isCorrect, res.points, { answer: round.statements[round.lieIndex], reference: round.reference }, res.streak, res.doubled);
+      }
+    });
+  }
+
+  // ---------------- HIGHER OR LOWER ----------------
+  // Curated numeric pairs (js/higherlower_data.js); seeded coin flip decides
+  // which side renders left/right so the bigger value isn't always in the
+  // same slot. Values stay hidden until the player answers.
+  function getHigherLowerPair(dbIndex) {
+    return HigherLowerData.PAIRS[dbIndex % HigherLowerData.PAIRS.length];
+  }
+
+  function higherLowerSides(qIdx, pair) {
+    const flip = seededHash(`${roomCode}-${qIdx}-higherlower`) % 2 === 1;
+    return flip
+      ? [{ label: pair.rightLabel, value: pair.rightValue }, { label: pair.leftLabel, value: pair.leftValue }]
+      : [{ label: pair.leftLabel, value: pair.leftValue }, { label: pair.rightLabel, value: pair.rightValue }];
+  }
+
+  function buildHigherLowerRound(qIdx, dbIndex, myAnswer) {
+    const pair = getHigherLowerPair(dbIndex);
+    const sides = higherLowerSides(qIdx, pair);
+    const correctSide = sides[0].value > sides[1].value ? 0 : 1;
+
+    [0, 1].forEach(i => {
+      const labelEl = document.getElementById(`hl-label-${i}`);
+      const valueEl = document.getElementById(`hl-value-${i}`);
+      if (labelEl) labelEl.textContent = sides[i].label;
+      if (valueEl) valueEl.textContent = '';
+      const card = document.getElementById(`hl-card-${i}`);
+      if (card) { card.classList.remove('hl-correct', 'hl-wrong'); card.disabled = false; }
+    });
+
+    if (myAnswer) {
+      [0, 1].forEach(i => {
+        const card = document.getElementById(`hl-card-${i}`);
+        const valueEl = document.getElementById(`hl-value-${i}`);
+        if (valueEl) valueEl.textContent = sides[i].value.toLocaleString();
+        if (!card) return;
+        card.disabled = true;
+        card.onclick = null;
+        if (i === correctSide) card.classList.add('hl-correct');
+        else if (i === myAnswer.choice_idx) card.classList.add('hl-wrong');
+      });
+      return;
+    }
+
+    [0, 1].forEach(i => {
+      const card = document.getElementById(`hl-card-${i}`);
+      if (card) card.onclick = () => submitHigherLower(qIdx, i, correctSide, sides, pair);
+    });
+  }
+
+  function submitHigherLower(qIdx, pickedSide, correctSide, sides, pair) {
+    if (answeredThisQuestion) return;
+    answeredThisQuestion = true;
+    const elapsedMs = sync.serverElapsedMs + (Date.now() - sync.clientTimeAtSync);
+    currentTimeTaken = Math.min(sync.timeLimitSec, elapsedMs / 1000);
+    const isCorrect = pickedSide === correctSide;
+
+    [0, 1].forEach(i => {
+      const card = document.getElementById(`hl-card-${i}`);
+      const valueEl = document.getElementById(`hl-value-${i}`);
+      if (valueEl) valueEl.textContent = sides[i].value.toLocaleString();
+      if (!card) return;
+      card.disabled = true;
+      card.onclick = null;
+      if (i === correctSide) card.classList.add('hl-correct');
+      else if (i === pickedSide) card.classList.add('hl-wrong');
+    });
+
+    api('submit_answer.php', {
+      room_code: roomCode,
+      device_id: deviceId,
+      q_idx: qIdx,
+      choice_idx: pickedSide,
+      is_correct: isCorrect,
+      time_taken: currentTimeTaken
+    }).then(res => {
+      if (res.success) {
+        playLocalFeedbackSound(isCorrect);
+        showWaitingFeedback(isCorrect, res.points, { answer: `${sides[correctSide].label}: ${sides[correctSide].value.toLocaleString()}`, reference: pair.reference }, res.streak, res.doubled);
       }
     });
   }
@@ -970,6 +1150,23 @@ const Multiplayer = (function () {
     waitDiv.innerHTML = `<p>Waiting for other players…</p>`;
   }
 
+  // Resolves the "correct answer" text shown to a player who timed out
+  // without answering. Classic/truefalse/scramble share q.answer, but
+  // Two Truths and Higher or Lower derive their content client-side.
+  function timeoutAnswerInfo(q, qIdx, dbIndex) {
+    if (currentGameFormat === 'twotruths') {
+      const round = getTwoTruthsRound(dbIndex);
+      return { answer: round.statements[round.lieIndex], reference: round.reference || '' };
+    }
+    if (currentGameFormat === 'higherlower') {
+      const pair = getHigherLowerPair(dbIndex);
+      const sides = higherLowerSides(qIdx, pair);
+      const correctSide = sides[0].value > sides[1].value ? 0 : 1;
+      return { answer: `${sides[correctSide].label}: ${sides[correctSide].value.toLocaleString()}`, reference: pair.reference || '' };
+    }
+    return { answer: q.answer, reference: q.reference || '' };
+  }
+
   // ---------------- ANSWER REVEAL ----------------
   function enterReveal(data) {
     const q = lookupQuestion(data.current_question);
@@ -999,8 +1196,9 @@ const Multiplayer = (function () {
       document.getElementById('fb-icon').textContent = wasEliminated ? '💀' : '✗';
       document.getElementById('fb-verdict').textContent = wasEliminated ? 'Spectating' : 'Time\'s Up!';
       document.getElementById('fb-pts').textContent = '0 pts';
-      document.getElementById('fb-answer').textContent = q.answer;
-      document.getElementById('fb-reference').textContent = q.reference || '';
+      const fallbackInfo = timeoutAnswerInfo(q, data.current_question.q_idx, data.current_question.db_index);
+      document.getElementById('fb-answer').textContent = fallbackInfo.answer;
+      document.getElementById('fb-reference').textContent = fallbackInfo.reference;
       document.getElementById('fb-next-player').style.display = 'none';
       document.getElementById('fb-leaderboard').style.display = 'none';
     }

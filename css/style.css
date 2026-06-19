@@ -1300,6 +1300,104 @@ label,
   background: var(--choice-a);
 }
 
+/* Two Truths and a Lie */
+.twotruths-box {
+  padding: 0.5rem 1rem;
+  flex: 1;
+  text-align: center;
+}
+
+.twotruths-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.tt-statement {
+  background: var(--card-bg, #1c2b56);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tt-statement.correct {
+  box-shadow: 0 0 0 4px #00d68f, 0 0 20px rgba(0,214,143,0.5);
+}
+
+.tt-statement.wrong {
+  opacity: 0.4;
+}
+
+.tt-statement:disabled {
+  cursor: not-allowed;
+}
+
+/* Higher or Lower */
+.higherlower-box {
+  padding: 0.5rem 1rem;
+  flex: 1;
+  text-align: center;
+}
+
+.hl-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.hl-vs {
+  font-weight: 900;
+  font-size: 1.1rem;
+  color: var(--gold);
+  flex-shrink: 0;
+}
+
+.hl-card {
+  flex: 1;
+  min-height: 130px;
+  background: var(--card-bg, #1c2b56);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  cursor: pointer;
+}
+
+.hl-label {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.hl-value {
+  font-weight: 900;
+  font-size: 1.4rem;
+  color: var(--gold);
+}
+
+.hl-card.hl-correct {
+  box-shadow: 0 0 0 4px #00d68f, 0 0 20px rgba(0,214,143,0.5);
+}
+
+.hl-card.hl-wrong {
+  opacity: 0.4;
+}
+
+.hl-card:disabled {
+  cursor: not-allowed;
+}
+
 /* ── Freeze Target Picker ─────────────────────────────────── */
 .freeze-target-list {
   display: flex;

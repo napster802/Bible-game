@@ -30,8 +30,10 @@ switch ($action) {
         $diff   = $room['difficulty'];
         $count  = (int)$room['question_count'];
         // Memory boards need real time to flip/match 6 pairs, well beyond the
-        // 15-30s trivia-answer window the other formats use.
-        $tlimit = $room['game_format'] === 'memory' ? 60 : getTimeLimitForDifficulty($diff);
+        // 15-30s trivia-answer window the other formats use. Two Truths needs
+        // time to read 3 statements; Higher or Lower is a snap binary guess.
+        $formatTimeLimits = ['memory' => 60, 'twotruths' => 20, 'higherlower' => 12];
+        $tlimit = $formatTimeLimits[$room['game_format']] ?? getTimeLimitForDifficulty($diff);
 
         if ($room['quiz_mode'] === 'book') {
             if (!$room['book'] || !$room['category']) jsonOut(['success' => false, 'error' => 'Pick a book and category first'], 400);
@@ -120,7 +122,7 @@ switch ($action) {
     case 'set_game_format':
         if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
         $value = $input['value'] ?? 'classic';
-        $format = in_array($value, ['classic', 'truefalse', 'scramble', 'survival', 'memory'], true) ? $value : 'classic';
+        $format = in_array($value, ['classic', 'truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower'], true) ? $value : 'classic';
         $db->prepare("UPDATE rooms SET game_format = ?, updated_at = ? WHERE code = ?")
            ->execute([$format, $now, $code]);
         break;

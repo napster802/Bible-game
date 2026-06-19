@@ -139,6 +139,8 @@
               <option value="scramble">🔤 Word Scramble</option>
               <option value="survival">💀 Sudden Death Survival</option>
               <option value="memory">🧠 Memory Match</option>
+              <option value="twotruths">🤥 Two Truths and a Lie</option>
+              <option value="higherlower">📊 Higher or Lower</option>
             </select>
           </div>
           <div class="setting-row">
@@ -364,6 +366,22 @@
       <div class="memory-box" id="memory-box" style="display:none">
         <p class="hint-text">Match each name to its verse reference <span id="memory-pairs-found">0/6</span></p>
         <div class="memory-board" id="memory-board"></div>
+      </div>
+
+      <!-- Two Truths and a Lie -->
+      <div class="twotruths-box" id="twotruths-box" style="display:none">
+        <p class="hint-text" id="twotruths-subject"></p>
+        <div class="twotruths-list" id="twotruths-list"></div>
+      </div>
+
+      <!-- Higher or Lower -->
+      <div class="higherlower-box" id="higherlower-box" style="display:none">
+        <p class="hint-text">Tap the one you think is BIGGER!</p>
+        <div class="hl-row">
+          <button class="hl-card" id="hl-card-0"><span class="hl-label" id="hl-label-0"></span><span class="hl-value" id="hl-value-0"></span></button>
+          <span class="hl-vs">VS</span>
+          <button class="hl-card" id="hl-card-1"><span class="hl-label" id="hl-label-1"></span><span class="hl-value" id="hl-value-1"></span></button>
+        </div>
       </div>
 
       <!-- Host Monitor (host does not play - just watches answers come in) -->
@@ -656,6 +674,8 @@
 
   <script src="js/questions.js"></script>
   <script src="js/book_questions.js"></script>
+  <script src="js/twotruths_data.js"></script>
+  <script src="js/higherlower_data.js"></script>
   <script src="js/question_tracker.js"></script>
   <script src="js/custom_questions.js"></script>
   <script src="js/profile.js"></script>
