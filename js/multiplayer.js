@@ -276,6 +276,10 @@ const Multiplayer = (function () {
       const round = getEmojiClueRound(data.current_question.db_index);
       const emojiEl = document.getElementById('emojiclue-emojis');
       if (emojiEl) emojiEl.textContent = round.emojis;
+      const hintEl = document.getElementById('emojiclue-hint');
+      if (hintEl) hintEl.textContent = round.type === 'character'
+        ? '🧍 Character — answer in ONE word'
+        : '📖 Bible Event — answer in 2-3 words';
       const resultEl = document.getElementById('emojiclue-result');
       if (resultEl) resultEl.style.display = 'none';
       if (emojiclueBox) emojiclueBox.style.display = 'block';
@@ -885,6 +889,16 @@ const Multiplayer = (function () {
     const input = document.getElementById('emojiclue-input');
     const typed = input ? input.value.trim() : '';
     if (!typed) { App.showToast('Type your guess first', 'error'); return; }
+
+    const wordCount = typed.split(/\s+/).filter(Boolean).length;
+    if (round.type === 'character' && wordCount !== 1) {
+      App.showToast('Character answers are one word only', 'error');
+      return;
+    }
+    if (round.type === 'event' && (wordCount < 2 || wordCount > 3)) {
+      App.showToast('Bible Event answers are 2-3 words', 'error');
+      return;
+    }
 
     answeredThisQuestion = true;
     const elapsedMs = sync.serverElapsedMs + (Date.now() - sync.clientTimeAtSync);
