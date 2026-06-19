@@ -318,14 +318,14 @@ const Profile = (function () {
     if (avatarWrap) {
       avatarWrap.innerHTML = avatarMarkup(profile.avatar, profile.avatarType, '');
       avatarWrap.className = 'my-profile-avatar-wrap' +
-        (profile.equippedBorder && window.Shop ? ' ' + Shop.borderClass(profile.equippedBorder) : '');
+        (profile.equippedBorder && typeof Shop !== 'undefined' ? ' ' + Shop.borderClass(profile.equippedBorder) : '');
     }
 
     const nameEl = document.getElementById('my-profile-name');
     if (nameEl) {
       nameEl.textContent = profile.name;
       nameEl.className = 'my-profile-name' +
-        (profile.equippedNameEffect && window.Shop ? ' ' + Shop.effectClass(profile.equippedNameEffect) : '');
+        (profile.equippedNameEffect && typeof Shop !== 'undefined' ? ' ' + Shop.effectClass(profile.equippedNameEffect) : '');
     }
 
     const walletEl = document.getElementById('my-profile-wallet');

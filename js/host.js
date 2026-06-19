@@ -66,7 +66,7 @@ const HostGame = (function () {
     populateBookSelect();
 
     const categorySelect = document.getElementById('host-category-select');
-    if (categorySelect && window.BookQuestions && !categorySelect.options.length) {
+    if (categorySelect && typeof BookQuestions !== 'undefined' && !categorySelect.options.length) {
       BookQuestions.ANSWER_CATEGORIES.forEach(cat => {
         const opt = document.createElement('option');
         opt.value = cat.id;
@@ -83,7 +83,7 @@ const HostGame = (function () {
   // single book's category pool is too small.
   function populateBookSelect() {
     const bookSelect = document.getElementById('host-book-select');
-    if (!bookSelect || !window.BookQuestions) return;
+    if (!bookSelect || typeof BookQuestions === 'undefined') return;
     const prevValue = selectedBook || bookSelect.value;
     bookSelect.innerHTML = '';
 
@@ -127,7 +127,7 @@ const HostGame = (function () {
   function updatePoolHint() {
     const hint = document.getElementById('host-book-pool-hint');
     if (!hint) return;
-    if (quizMode !== 'book' || !selectedBook || !selectedCategory || !window.BookQuestions) {
+    if (quizMode !== 'book' || !selectedBook || !selectedCategory || typeof BookQuestions === 'undefined') {
       hint.style.display = 'none';
       return;
     }
@@ -141,7 +141,7 @@ const HostGame = (function () {
 
   function syncBookCategory() {
     if (!selectedBook || !selectedCategory) return;
-    const poolSize = window.BookQuestions ? BookQuestions.getCount(selectedBook, selectedCategory, selectedDifficulty, selectedTestament) : 0;
+    const poolSize = typeof BookQuestions !== 'undefined' ? BookQuestions.getCount(selectedBook, selectedCategory, selectedDifficulty, selectedTestament) : 0;
     updatePoolHint();
     action('set_book_category', { book: selectedBook, category: selectedCategory, pool_size: poolSize, testament: selectedTestament });
   }

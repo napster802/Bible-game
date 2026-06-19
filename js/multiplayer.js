@@ -72,7 +72,7 @@ const Multiplayer = (function () {
     }
 
     isHost = data.is_host;
-    if (data.my_wallet !== null && data.my_wallet !== undefined && window.Profile && Profile.setWalletCache) {
+    if (data.my_wallet !== null && data.my_wallet !== undefined && typeof Profile !== 'undefined' && Profile.setWalletCache) {
       Profile.setWalletCache(data.my_wallet);
     }
     currentDifficulty = data.room.difficulty;
@@ -261,7 +261,7 @@ const Multiplayer = (function () {
   }
 
   function lookupQuestion(qInfo) {
-    if (currentQuizMode === 'book' && currentBook && currentCategory && window.BookQuestions) {
+    if (currentQuizMode === 'book' && currentBook && currentCategory && typeof BookQuestions !== 'undefined') {
       return BookQuestions.getPool(currentBook, currentCategory, currentDifficulty, currentTestament)[qInfo.db_index];
     }
     return QUESTION_DB[currentDifficulty][qInfo.db_index];
@@ -333,7 +333,7 @@ const Multiplayer = (function () {
   }
 
   function playLocalFeedbackSound(isCorrect) {
-    if (window.App && App.playSound) App.playSound(isCorrect ? 'correct' : 'wrong');
+    if (typeof App !== 'undefined' && App.playSound) App.playSound(isCorrect ? 'correct' : 'wrong');
   }
 
   function showWaitingFeedback(isCorrect, points, question) {

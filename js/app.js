@@ -227,23 +227,23 @@ const App = (function () {
   };
 
   hooks['onEnter_profile'] = function () {
-    if (window.Profile) Profile.onEnterProfileScreen();
+    if (typeof Profile !== 'undefined') Profile.onEnterProfileScreen();
   };
 
   hooks['onEnter_join-entry'] = function () {
-    if (window.JoinGame) JoinGame.onEnterJoinEntry();
+    if (typeof JoinGame !== 'undefined') JoinGame.onEnterJoinEntry();
   };
 
   hooks['onEnter_my-profile'] = function () {
-    if (window.Profile) Profile.onEnterMyProfileScreen();
+    if (typeof Profile !== 'undefined') Profile.onEnterMyProfileScreen();
   };
 
   hooks['onEnter_shop'] = function () {
-    if (window.Shop) Shop.onEnterShop();
+    if (typeof Shop !== 'undefined') Shop.onEnterShop();
   };
 
   hooks['onEnter_host-lobby'] = function () {
-    if (window.HostGame) HostGame.onEnterHostLobby();
+    if (typeof HostGame !== 'undefined') HostGame.onEnterHostLobby();
   };
 
   // ─────────────────────────────────────────────────────────────
@@ -289,7 +289,7 @@ const App = (function () {
   // ─────────────────────────────────────────────────────────────
   function goHostGame() {
     Admin.requireAdmin(function () {
-      if (window.Profile && Profile.exists()) {
+      if (typeof Profile !== 'undefined' && Profile.exists()) {
         HostGame.createRoom();
       } else {
         sessionStorage.setItem('bca_pending_action', 'host');
@@ -299,7 +299,7 @@ const App = (function () {
   }
 
   function goJoinGame() {
-    if (window.Profile && Profile.exists()) {
+    if (typeof Profile !== 'undefined' && Profile.exists()) {
       goTo('join-entry');
     } else {
       sessionStorage.setItem('bca_pending_action', 'join');
@@ -308,7 +308,7 @@ const App = (function () {
   }
 
   function goMyProfile() {
-    if (window.Profile && Profile.exists()) {
+    if (typeof Profile !== 'undefined' && Profile.exists()) {
       goTo('my-profile');
     } else {
       sessionStorage.setItem('bca_pending_action', 'my-profile');
@@ -317,7 +317,7 @@ const App = (function () {
   }
 
   function goShop() {
-    if (window.Profile && Profile.exists()) {
+    if (typeof Profile !== 'undefined' && Profile.exists()) {
       goTo('shop');
     } else {
       sessionStorage.setItem('bca_pending_action', 'shop');
@@ -1154,7 +1154,7 @@ const App = (function () {
   function applyGameOptionsLock() {
     const lockRow = document.getElementById('game-options-lock-row');
     const fields = document.getElementById('game-options-fields');
-    const unlocked = window.Admin && Admin.isAuthenticated();
+    const unlocked = typeof Admin !== 'undefined' && Admin.isAuthenticated();
     if (lockRow) lockRow.style.display = unlocked ? 'none' : 'flex';
     if (fields) fields.style.display = unlocked ? '' : 'none';
   }
@@ -1314,7 +1314,7 @@ const App = (function () {
   function init() {
     loadSettings();
     applySettings();
-    if (window.Profile) Profile.init();
+    if (typeof Profile !== 'undefined') Profile.init();
 
     const nameInput = document.getElementById('player-name-input');
     if (nameInput) {
