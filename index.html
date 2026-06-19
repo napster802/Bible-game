@@ -112,6 +112,24 @@
           <p class="hint-text">Players join with this code on the same WiFi</p>
         </div>
 
+        <div class="share-game-box">
+          <p class="hint-text">📱 Share Game — Skip the typing</p>
+          <ol class="share-instructions">
+            <li>Connect their phone to your hotspot/WiFi</li>
+            <li>Scan the QR code below, or open the link</li>
+          </ol>
+          <div class="setting-row" id="share-ip-row" style="display:none;">
+            <span>Your Hotspot IP</span>
+            <input type="text" id="share-ip-input" class="text-input" placeholder="192.168.43.1" oninput="HostGame.setShareIp(this.value)">
+          </div>
+          <p class="hint-text" id="share-ip-hint" style="display:none;">Find this under your phone's Settings → Hotspot &amp; Tethering</p>
+          <div class="share-qr-box" id="share-qr-box"></div>
+          <div class="share-link-row">
+            <input type="text" id="share-link-input" class="text-input share-link-input" readonly onclick="this.select()">
+            <button class="btn btn-secondary" onclick="HostGame.copyShareLink()">📋 Copy</button>
+          </div>
+        </div>
+
         <div class="lobby-settings">
           <div class="setting-row">
             <span>Question Source</span>
@@ -606,6 +624,7 @@
   <script src="js/profile.js"></script>
   <script src="js/shop.js"></script>
   <script src="js/admin.js"></script>
+  <script src="js/qrcode.js"></script>
   <script src="js/app.js"></script>
   <script src="js/multiplayer.js"></script>
   <script src="js/host.js"></script>

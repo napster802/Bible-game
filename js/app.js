@@ -1339,6 +1339,24 @@ const App = (function () {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     const home = document.getElementById('screen-home');
     if (home) home.classList.add('active');
+
+    handleJoinLinkParam();
+  }
+
+  // Scanning the host's QR code / opening their share link lands here with
+  // ?code=XXXXXX in the URL — route straight into the join flow instead of
+  // making the player retype the 6-digit code by hand.
+  function handleJoinLinkParam() {
+    const code = new URLSearchParams(window.location.search).get('code');
+    if (!code || !/^\d{6}$/.test(code)) return;
+    history.replaceState(null, '', window.location.pathname);
+    sessionStorage.setItem('bca_pending_join_code', code);
+    if (typeof Profile !== 'undefined' && Profile.exists()) {
+      goTo('join-entry');
+    } else {
+      sessionStorage.setItem('bca_pending_action', 'join');
+      goTo('profile');
+    }
   }
 
   document.addEventListener('DOMContentLoaded', init);

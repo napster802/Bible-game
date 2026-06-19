@@ -18,8 +18,11 @@ const JoinGame = (function () {
   function onEnterJoinEntry() {
     const input = document.getElementById('join-code-input');
     const error = document.getElementById('join-error');
-    if (input) input.value = '';
+    const pendingCode = sessionStorage.getItem('bca_pending_join_code');
+    sessionStorage.removeItem('bca_pending_join_code');
+    if (input) input.value = pendingCode || '';
     if (error) error.textContent = '';
+    if (pendingCode) attemptJoin();
   }
 
   function attemptJoin() {

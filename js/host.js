@@ -8,6 +8,7 @@
    ============================================================ */
 const HostGame = (function () {
   const API = 'api/';
+  const SHARE_IP_KEY = 'bca_hotspot_ip';
   let roomCode = null;
   let quizMode = 'difficulty';
   let selectedDifficulty = 'easy';
@@ -76,6 +77,7 @@ const HostGame = (function () {
     }
 
     toggleBookRows();
+    renderShare();
 
     // Admin-uploaded CSV questions load async; re-render once they're in so
     // pool counts/hints and the server-side pool_size reflect the full bank.
@@ -85,6 +87,73 @@ const HostGame = (function () {
         if (quizMode === 'book') syncBookCategory();
       });
     }
+  }
+
+  // Returns the host's LAN-reachable hostname when the host's own browser
+  // is already loaded from one (i.e. not localhost) — other devices on the
+  // same hotspot/WiFi can reach that same address. Falls back to null when
+  // the host loaded the app via localhost/127.0.0.1, which only resolves
+  // back to the host's own device for everyone else.
+  function detectAutoHost() {
+    const h = window.location.hostname;
+    return (h && h !== 'localhost' && h !== '127.0.0.1') ? h : null;
+  }
+
+  function buildShareLink(host) {
+    if (!host || !roomCode) return '';
+    const port = window.location.port ? ':' + window.location.port : '';
+    return window.location.protocol + '//' + host + port + window.location.pathname + '?code=' + roomCode;
+  }
+
+  function renderShare() {
+    const autoHost = detectAutoHost();
+    const ipRow = document.getElementById('share-ip-row');
+    const ipHint = document.getElementById('share-ip-hint');
+    const ipInput = document.getElementById('share-ip-input');
+
+    if (ipRow) ipRow.style.display = autoHost ? 'none' : '';
+    if (ipHint) ipHint.style.display = autoHost ? 'none' : '';
+    if (ipInput && !autoHost && !ipInput.value) {
+      ipInput.value = localStorage.getItem(SHARE_IP_KEY) || '';
+    }
+
+    const manualHost = ipInput ? ipInput.value.trim() : '';
+    const link = buildShareLink(autoHost || manualHost);
+
+    const linkInput = document.getElementById('share-link-input');
+    if (linkInput) linkInput.value = link || 'Enter your hotspot IP above to generate a link';
+
+    renderShareQr(link);
+  }
+
+  function renderShareQr(link) {
+    const box = document.getElementById('share-qr-box');
+    if (!box) return;
+    box.innerHTML = '';
+    if (!link || typeof qrcode === 'undefined') return;
+    const qr = qrcode(0, 'M');
+    qr.addData(link);
+    qr.make();
+    box.innerHTML = qr.createSvgTag(5);
+  }
+
+  function setShareIp(value) {
+    localStorage.setItem(SHARE_IP_KEY, value.trim());
+    renderShare();
+  }
+
+  function copyShareLink() {
+    const linkInput = document.getElementById('share-link-input');
+    if (!linkInput || !linkInput.value.startsWith('http')) {
+      App.showToast('Enter your hotspot IP first', 'error');
+      return;
+    }
+    navigator.clipboard.writeText(linkInput.value).then(() => {
+      App.showToast('Link copied!', 'success');
+    }).catch(() => {
+      linkInput.select();
+      App.showToast('Select and copy the link manually', 'error');
+    });
   }
 
   // Rebuilds the Book dropdown for the current testament scope, always
@@ -359,6 +428,8 @@ const HostGame = (function () {
     endGame,
     removePlayer,
     leaveLobby,
+    setShareIp,
+    copyShareLink,
     get roomCode() { return roomCode; }
   };
 })();
