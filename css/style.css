@@ -2148,6 +2148,54 @@ label,
 .history-diff-hard   { background: #e74c3c; color: white; }
 .history-diff-expert { background: #1b3270; color: var(--gold); }
 
+.leaderboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.leaderboard-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--card);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 1rem;
+  box-shadow: var(--shadow);
+}
+
+.leaderboard-rank {
+  font-weight: 800;
+  width: 1.8rem;
+  text-align: center;
+  color: var(--text2);
+  flex-shrink: 0;
+}
+
+.leaderboard-row.lb-rank-1 .leaderboard-rank { color: #d4af37; }
+.leaderboard-row.lb-rank-2 .leaderboard-rank { color: #c0c0c0; }
+.leaderboard-row.lb-rank-3 .leaderboard-rank { color: #cd7f32; }
+
+.leaderboard-avatar {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.leaderboard-name {
+  flex: 1;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboard-points {
+  font-weight: 800;
+  color: var(--gold);
+  flex-shrink: 0;
+}
+
 .history-date {
   font-size: 0.75rem;
   color: var(--text2);

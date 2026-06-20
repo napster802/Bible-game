@@ -166,6 +166,13 @@ function initDB(PDO $db): void {
             submitted_at INTEGER NOT NULL,
             PRIMARY KEY (room_code, device_id, round)
         );
+        CREATE TABLE IF NOT EXISTS leaderboard_stats (
+            device_id TEXT NOT NULL,
+            game_format TEXT NOT NULL,
+            total_points INTEGER DEFAULT 0,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY (device_id, game_format)
+        );
     ");
     migrateSchema($db);
 }

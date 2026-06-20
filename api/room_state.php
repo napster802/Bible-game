@@ -144,6 +144,11 @@ if ($status === 'finished' && (int)$room['points_awarded'] === 0) {
         $db->prepare("INSERT INTO profiles (device_id, name, avatar, wallet, updated_at) VALUES (?, '', '', ?, ?)
                       ON CONFLICT(device_id) DO UPDATE SET wallet = wallet + excluded.wallet, updated_at = excluded.updated_at")
            ->execute([$pc['device_id'], $score, nowMs()]);
+        // Lifetime leaderboard total, kept separate from the spendable wallet
+        // above so shop purchases never lower a player's Hall of Fame rank.
+        $db->prepare("INSERT INTO leaderboard_stats (device_id, game_format, total_points, updated_at) VALUES (?, ?, ?, ?)
+                      ON CONFLICT(device_id, game_format) DO UPDATE SET total_points = total_points + excluded.total_points, updated_at = excluded.updated_at")
+           ->execute([$pc['device_id'], $room['game_format'], $score, nowMs()]);
     }
     $db->prepare("UPDATE rooms SET points_awarded = 1 WHERE code = ?")->execute([$code]);
     $db->commit();

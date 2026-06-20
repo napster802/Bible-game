@@ -1083,6 +1083,60 @@ const App = (function () {
   }
 
   // ─────────────────────────────────────────────────────────────
+  // HALL OF FAME: LEADERBOARDS (Top 10 per game mode + Overall)
+  // ─────────────────────────────────────────────────────────────
+  let leaderboardData = null;
+  let leaderboardMode = 'overall';
+
+  function switchHallOfFameTab(tab, btn) {
+    document.querySelectorAll('#screen-history .shop-tab').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    const historyPanel = document.getElementById('hof-panel-history');
+    const lbPanel = document.getElementById('hof-panel-leaderboards');
+    if (historyPanel) historyPanel.style.display = tab === 'history' ? '' : 'none';
+    if (lbPanel) lbPanel.style.display = tab === 'leaderboards' ? '' : 'none';
+    if (tab === 'leaderboards') loadLeaderboards();
+  }
+
+  function loadLeaderboards() {
+    const list = document.getElementById('leaderboard-list');
+    if (list) list.innerHTML = '<p class="empty-msg">Loading...</p>';
+    fetch('api/leaderboard.php')
+      .then(r => r.json())
+      .then(res => {
+        if (!res.success) { if (list) list.innerHTML = '<p class="empty-msg">Could not load leaderboards.</p>'; return; }
+        leaderboardData = res.leaderboards;
+        renderLeaderboardList(leaderboardMode);
+      })
+      .catch(() => { if (list) list.innerHTML = '<p class="empty-msg">Could not reach the server.</p>'; });
+  }
+
+  function selectLeaderboardMode(format, btn) {
+    leaderboardMode = format;
+    document.querySelectorAll('#leaderboard-mode-bar .filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    renderLeaderboardList(format);
+  }
+
+  function renderLeaderboardList(format) {
+    const list = document.getElementById('leaderboard-list');
+    if (!list) return;
+    const rows = (leaderboardData && leaderboardData[format]) || [];
+    if (rows.length === 0) {
+      list.innerHTML = '<p class="empty-msg">No scores yet for this mode. Be the first!</p>';
+      return;
+    }
+    list.innerHTML = rows.map((r, i) => `
+      <div class="leaderboard-row lb-rank-${i + 1}">
+        <span class="leaderboard-rank">${i + 1}</span>
+        <span class="leaderboard-avatar">${avatarHtml(r.avatar)}</span>
+        <span class="leaderboard-name">${escHtml(r.name)}</span>
+        <span class="leaderboard-points">${Number(r.points).toLocaleString()} pts</span>
+      </div>
+    `).join('');
+  }
+
+  // ─────────────────────────────────────────────────────────────
   // SETTINGS
   // ─────────────────────────────────────────────────────────────
   function loadSettings() {
@@ -1400,6 +1454,9 @@ const App = (function () {
     loadHistory,
     filterHistory,
     clearHistory,
+    // Hall of Fame: Leaderboards
+    switchHallOfFameTab,
+    selectLeaderboardMode,
     // Settings
     setDarkMode,
     setSoundEnabled,
