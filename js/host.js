@@ -458,6 +458,37 @@ const HostGame = (function () {
     action('remove_player', { target_device_id: targetDeviceId });
   }
 
+  function setCustomRoomCode() {
+    const input = document.getElementById('host-custom-code-input');
+    const error = document.getElementById('host-custom-code-error');
+    const newCode = input ? input.value.trim() : '';
+    if (error) error.textContent = '';
+
+    if (!/^\d{1,6}$/.test(newCode)) {
+      if (error) error.textContent = 'Enter up to 6 digits.';
+      return;
+    }
+    if (!roomCode) return;
+
+    api('set_room_code.php', {
+      room_code: roomCode,
+      device_id: Profile.getDeviceId(),
+      new_code: newCode
+    }).then(res => {
+      if (!res.success) {
+        if (error) error.textContent = res.error || 'Could not change the room code.';
+        return;
+      }
+      roomCode = res.room_code;
+      Multiplayer.setRoomCode(roomCode);
+      if (input) input.value = '';
+      renderShare();
+      App.showToast('Room code updated!', 'success');
+    }).catch(err => {
+      if (error) error.textContent = 'Could not reach the host server: ' + err.message;
+    });
+  }
+
   function leaveLobby() {
     Multiplayer.stop();
     roomCode = null;
@@ -482,6 +513,7 @@ const HostGame = (function () {
     forceReveal,
     endGame,
     removePlayer,
+    setCustomRoomCode,
     leaveLobby,
     setShareIp,
     copyShareLink,

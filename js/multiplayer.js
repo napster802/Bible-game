@@ -199,6 +199,11 @@ const Multiplayer = (function () {
     const countEl = document.getElementById('host-player-count');
     if (countEl) countEl.textContent = `${data.player_count}/20`;
 
+    // The custom code rewrites every player row's room_code server-side, so it's
+    // only offered while the host is still alone in the lobby.
+    const customCodeRow = document.getElementById('host-custom-code-row');
+    if (customCodeRow) customCodeRow.style.display = (isHost && data.player_count <= 1) ? '' : 'none';
+
     renderPlayerList('host-player-list', data.players, true);
     renderPlayerList('join-wait-player-list', data.players, false);
 
@@ -1215,6 +1220,7 @@ const Multiplayer = (function () {
   function enterImpVote(data) {
     App.goTo('imp-vote');
     renderImpClueList('imp-vote-clue-list', data);
+    renderImpVotedAvatars(data);
 
     const elimBanner = document.getElementById('imp-vote-eliminated-banner');
     const voteList = document.getElementById('imp-vote-list');
@@ -1229,6 +1235,7 @@ const Multiplayer = (function () {
       if (hostMonitor) hostMonitor.style.display = 'block';
       if (statusBadge) statusBadge.style.display = 'none';
       renderImpActedMonitor('imp-vote-host-monitor-list', data, '✓ Vote in');
+      updateImpVoteProceedBtn(data);
       return;
     }
 
@@ -1247,6 +1254,23 @@ const Multiplayer = (function () {
     }
 
     renderImpVoteButtons(data);
+  }
+
+  // Visible to every player (not just the host monitor) so everyone can see,
+  // at a glance, who has already cast their vote this round.
+  function renderImpVotedAvatars(data) {
+    const row = document.getElementById('imp-vote-voted-avatars');
+    if (!row) return;
+    const voters = data.players.filter(p => !p.is_host && p.impostor_acted);
+    row.innerHTML = voters.map(p => `<span class="imp-voted-avatar-badge">${avatarHtmlFor(p)}</span>`).join('');
+  }
+
+  function updateImpVoteProceedBtn(data) {
+    const btn = document.getElementById('imp-vote-proceed-btn');
+    if (!btn) return;
+    const allVoted = data.impostor_vote_count >= data.impostor_alive_count;
+    btn.textContent = allVoted ? '▶ Proceed' : '⏭ Force Advance (skip stragglers)';
+    btn.className = 'btn ' + (allVoted ? 'btn-success' : 'btn-secondary');
   }
 
   function renderImpVoteButtons(data) {
@@ -1272,7 +1296,11 @@ const Multiplayer = (function () {
   function updateImpVoteProgress(data) {
     const statusBadge = document.getElementById('imp-vote-status-badge');
     if (statusBadge && !isHost) statusBadge.textContent = `👥 ${data.impostor_vote_count}/${data.impostor_alive_count} voted`;
-    if (isHost) renderImpActedMonitor('imp-vote-host-monitor-list', data, '✓ Vote in');
+    renderImpVotedAvatars(data);
+    if (isHost) {
+      renderImpActedMonitor('imp-vote-host-monitor-list', data, '✓ Vote in');
+      updateImpVoteProceedBtn(data);
+    }
   }
 
   function enterImpElim(data) {
@@ -1920,6 +1948,7 @@ const Multiplayer = (function () {
     toggleSocialPanel,
     sendReaction,
     sendChat,
+    setRoomCode(code) { roomCode = code; },
     get roomCode() { return roomCode; },
     get deviceId() { return deviceId; },
     get isHost() { return isHost; }

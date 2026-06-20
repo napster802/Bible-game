@@ -52,6 +52,7 @@
       <div class="home-content">
         <div class="logo-section">
           <div class="logo-icon">📖</div>
+          <p class="church-name">SDA Church House of Prayer</p>
           <h1 class="logo-title">Bible Challenge Arena</h1>
           <p class="logo-tagline">Test Your Knowledge of God's Word</p>
         </div>
@@ -109,7 +110,12 @@
         <div class="room-code-box">
           <p class="hint-text">Room Code</p>
           <div class="room-code" id="host-room-code">------</div>
-          <p class="hint-text">Players join with this code on the same WiFi</p>
+          <p class="hint-text">Players join with this code, or pick your room from their Join Game list</p>
+          <div class="custom-code-row" id="host-custom-code-row">
+            <input type="text" id="host-custom-code-input" class="text-input custom-code-input" placeholder="Custom code (optional)" maxlength="6" inputmode="numeric">
+            <button class="btn btn-secondary" onclick="HostGame.setCustomRoomCode()">Set</button>
+          </div>
+          <p class="error-text" id="host-custom-code-error"></p>
         </div>
 
         <div class="share-game-box">
@@ -218,16 +224,24 @@
     <!-- ==================== SCREEN: JOIN ENTRY ==================== -->
     <div class="screen" id="screen-join-entry">
       <div class="screen-header">
-        <button class="btn-back" onclick="App.goTo('home')">‹</button>
+        <button class="btn-back" onclick="JoinGame.leaveJoinEntry()">‹</button>
         <h2>Join Game</h2>
         <div class="spacer"></div>
       </div>
       <div class="screen-body">
+        <div class="room-list-section">
+          <p class="hint-text">Tap a room to join instantly</p>
+          <div class="room-list" id="join-room-list"></div>
+          <p class="hint-text" id="join-room-list-empty" style="display:none;">No open rooms right now. Ask the host to start one, or enter their code below.</p>
+        </div>
+
+        <div class="join-form-divider"><span>or</span></div>
+
         <div class="join-form">
           <p class="hint-text">Enter the 6-digit room code from the host</p>
           <input type="text" id="join-code-input" class="text-input join-code-input" placeholder="000000" maxlength="6" inputmode="numeric">
           <p class="error-text" id="join-error"></p>
-          <button class="btn btn-primary btn-xl" onclick="JoinGame.attemptJoin()">Join Room</button>
+          <button class="btn btn-secondary btn-xl" onclick="JoinGame.attemptJoin()">Join Room</button>
         </div>
       </div>
     </div>
@@ -517,12 +531,13 @@
       </div>
       <div class="screen-body">
         <div class="imp-clue-list" id="imp-vote-clue-list"></div>
+        <div class="imp-voted-avatars" id="imp-vote-voted-avatars"></div>
         <div class="eliminated-banner" id="imp-vote-eliminated-banner" style="display:none">💀 You're eliminated — spectating the rest of the game</div>
         <div class="imp-vote-list" id="imp-vote-list"></div>
         <p class="hint-text" id="imp-vote-submitted-text" style="display:none">✓ Vote locked — waiting for others…</p>
         <div class="host-monitor" id="imp-vote-host-monitor" style="display:none">
           <div class="host-monitor-list" id="imp-vote-host-monitor-list"></div>
-          <button class="btn btn-secondary" onclick="HostGame.forceAdvanceImpostor()">⏭ Force Advance (skip stragglers)</button>
+          <button class="btn btn-secondary" id="imp-vote-proceed-btn" onclick="HostGame.forceAdvanceImpostor()">⏭ Force Advance (skip stragglers)</button>
         </div>
       </div>
     </div>

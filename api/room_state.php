@@ -117,19 +117,9 @@ if ($status === 'imp_clue') {
     }
 }
 
-// === AUTO-ADVANCE: imp_vote -> imp_elim / imp_tiebreak / finished (Word Impostor, no timer) ===
-if ($status === 'imp_vote') {
-    $impRound = (int)$room['impostor_round'];
-    $aliveIds = impostorAliveContestants($db, $code);
-    if (!empty($aliveIds)) {
-        $placeholders = implode(',', array_fill(0, count($aliveIds), '?'));
-        $votedStmt = $db->prepare("SELECT COUNT(*) FROM impostor_votes WHERE room_code = ? AND round = ? AND device_id IN ($placeholders)");
-        $votedStmt->execute(array_merge([$code, $impRound], $aliveIds));
-        if ((int)$votedStmt->fetchColumn() >= count($aliveIds)) {
-            resolveImpostorVotes($db, $code, $impRound);
-        }
-    }
-}
+// Voting never auto-resolves, even once everyone has voted - the host must
+// explicitly press Proceed (host_action.php's impostor_force_advance case)
+// so everyone gets a moment to see the final vote land before moving on.
 
 // Re-fetch fresh room row after any updates
 $stmt2 = $db->prepare("SELECT * FROM rooms WHERE code = ?");
