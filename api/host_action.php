@@ -37,7 +37,7 @@ switch ($action) {
             if (count($contestants) < 3) jsonOut(['success' => false, 'error' => 'Need at least 3 players to start Word Impostor'], 400);
 
             $impostorId = $contestants[random_int(0, count($contestants) - 1)];
-            $wordPairIdx = random_int(0, 29); // js/impostor_data.js ImpostorData.PAIRS has exactly 30 entries
+            $wordPairIdx = random_int(0, 129); // js/impostor_data.js ImpostorData.PAIRS has exactly 130 entries
 
             $db->prepare("UPDATE players SET eliminated = 0 WHERE room_code = ?")->execute([$code]);
             $db->prepare("UPDATE rooms SET status = 'imp_clue', impostor_word_pair_idx = ?, impostor_id = ?, impostor_round = 1, impostor_result = NULL, impostor_last_elim_id = NULL, impostor_last_skipped = 0, updated_at = ? WHERE code = ?")
