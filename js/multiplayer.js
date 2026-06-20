@@ -22,6 +22,12 @@ const Multiplayer = (function () {
   let answeredThisQuestion = false;
   let lastEventId = 0;
   let lastData = null;
+  // A single dropped/failed poll (e.g. a momentary SQLite write-lock under
+  // concurrent submissions) used to kick the player straight to home. Now we
+  // tolerate a few consecutive failures before giving up, since the room is
+  // almost always still fine by the very next 1.5s poll.
+  let consecutiveFailures = 0;
+  const MAX_CONSECUTIVE_FAILURES = 3;
 
   let sync = { serverElapsedMs: 0, clientTimeAtSync: 0, timeLimitSec: 30 };
   let currentGameFormat = 'classic';
@@ -57,6 +63,7 @@ const Multiplayer = (function () {
     answeredThisQuestion = false;
     lastEventId = 0;
     lastData = null;
+    consecutiveFailures = 0;
     stop();
     const fab = document.getElementById('social-fab');
     if (fab) fab.style.display = 'flex';
@@ -86,17 +93,38 @@ const Multiplayer = (function () {
       .then(handleState)
       .catch(err => {
         console.error('Room sync failed:', err);
-        App.showToast('Connection lost. Retrying…', 'error', 1500);
+        giveUpOrRetry('Connection lost. Retrying…');
       });
+  }
+
+  // Bails out to home (or, for non-host players, straight back into the
+  // join flow so they can seamlessly rejoin) only after several consecutive
+  // failed polls in a row - a single dropped/locked request shouldn't end
+  // the game for someone who is still very much in the room.
+  function giveUpOrRetry(toastMsg) {
+    consecutiveFailures++;
+    if (consecutiveFailures < MAX_CONSECUTIVE_FAILURES) {
+      App.showToast(toastMsg, 'error', 1500);
+      return;
+    }
+    App.showToast('Lost connection to the host.', 'error');
+    const rejoinCode = roomCode;
+    const wasHost = isHost;
+    stop();
+    if (!wasHost && rejoinCode) {
+      sessionStorage.setItem('bca_pending_join_code', rejoinCode);
+      App.goTo('join-entry');
+    } else {
+      App.goTo('home');
+    }
   }
 
   function handleState(data) {
     if (!data || !data.success) {
-      App.showToast(data && data.error ? data.error : 'Room error', 'error');
-      stop();
-      App.goTo('home');
+      giveUpOrRetry(data && data.error ? data.error : 'Room error');
       return;
     }
+    consecutiveFailures = 0;
 
     lastData = data;
     processEvents(data.events);
@@ -1081,6 +1109,11 @@ const Multiplayer = (function () {
         if (input) input.disabled = false;
         if (submitBtn) submitBtn.disabled = false;
       }
+    }).catch(err => {
+      console.error('Clue submit failed:', err);
+      App.showToast('Could not reach the host - try again.', 'error');
+      if (input) input.disabled = false;
+      if (submitBtn) submitBtn.disabled = false;
     });
   }
 
@@ -1096,6 +1129,9 @@ const Multiplayer = (function () {
       } else {
         App.showToast(res.error || 'Could not submit vote', 'error');
       }
+    }).catch(err => {
+      console.error('Vote submit failed:', err);
+      App.showToast('Could not reach the host - try again.', 'error');
     });
   }
 

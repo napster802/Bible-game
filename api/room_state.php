@@ -15,12 +15,18 @@ $db = getDB();
 $db->prepare("UPDATE players SET last_ping = ? WHERE room_code = ? AND device_id = ?")
    ->execute([nowMs(), $code, $deviceId]);
 
-markStalePlayers($db, $code);
-
 $stmt = $db->prepare("SELECT * FROM rooms WHERE code = ?");
 $stmt->execute([$code]);
 $room = $stmt->fetch();
 if (!$room) jsonOut(['success' => false, 'error' => 'Room not found'], 404);
+
+// Dropping AFK players only makes sense while still in the lobby (people who
+// joined and wandered off before the host started). Once a match is running,
+// a player who misses pings for 30s (backgrounded tab, flaky wifi) must not
+// be permanently ejected mid-game - they should just catch up on their next poll.
+if ($room['status'] === 'lobby') {
+    markStalePlayers($db, $code);
+}
 
 $now = nowMs();
 $status = $room['status'];
