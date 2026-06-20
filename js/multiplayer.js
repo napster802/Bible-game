@@ -18,6 +18,7 @@ const Multiplayer = (function () {
 
   let lastStatus = null;
   let lastQIdx = -1;
+  let lastImpRound = -1;
   let answeredThisQuestion = false;
   let lastEventId = 0;
   let lastData = null;
@@ -129,6 +130,28 @@ const Multiplayer = (function () {
       if (lastStatus !== 'leaderboard' || lastQIdx !== qIdx) {
         enterLeaderboard(data);
       }
+    } else if (status === 'imp_clue') {
+      if (lastStatus !== 'imp_clue' || lastImpRound !== data.room.impostor_round) {
+        enterImpClue(data);
+      }
+      updateImpClueProgress(data);
+    } else if (status === 'imp_reveal') {
+      if (lastStatus !== 'imp_reveal' || lastImpRound !== data.room.impostor_round) {
+        enterImpReveal(data);
+      }
+    } else if (status === 'imp_vote') {
+      if (lastStatus !== 'imp_vote' || lastImpRound !== data.room.impostor_round) {
+        enterImpVote(data);
+      }
+      updateImpVoteProgress(data);
+    } else if (status === 'imp_elim') {
+      if (lastStatus !== 'imp_elim' || lastImpRound !== data.room.impostor_round) {
+        enterImpElim(data);
+      }
+    } else if (status === 'imp_tiebreak') {
+      if (lastStatus !== 'imp_tiebreak' || lastImpRound !== data.room.impostor_round) {
+        enterImpTiebreak(data);
+      }
     } else if (status === 'finished') {
       if (lastStatus !== 'finished') {
         enterResults(data);
@@ -137,6 +160,7 @@ const Multiplayer = (function () {
 
     lastStatus = status;
     lastQIdx = qIdx;
+    lastImpRound = data.room.impostor_round;
   }
 
   // ---------------- LOBBY ----------------
@@ -984,6 +1008,292 @@ const Multiplayer = (function () {
     if (revealBtn) revealBtn.style.display = (data.room.status === 'playing') ? '' : 'none';
   }
 
+  // ---------------- WORD IMPOSTOR ----------------
+  // No timer in this mode - every screen either auto-advances once every
+  // alive contestant has acted (tracked server-side via impostor_clue_count
+  // / impostor_vote_count) or waits on the host (HostGame.xxx calls below).
+  function lookupImpostorWord(data) {
+    const pair = ImpostorData.PAIRS[data.room.impostor_word_pair_idx];
+    if (!pair) return '—';
+    return data.am_i_impostor ? pair.wordB : pair.wordA;
+  }
+
+  function avatarHtmlFor(p) {
+    return (p.avatar && p.avatar.startsWith('data:'))
+      ? `<img src="${p.avatar}" style="width:1.8rem;height:1.8rem;border-radius:50%;object-fit:cover;">`
+      : `<span class="player-avatar-badge">${p.avatar}</span>`;
+  }
+
+  function renderImpClueList(containerId, data) {
+    const list = document.getElementById(containerId);
+    if (!list) return;
+    list.innerHTML = (data.impostor_clues || []).map(c => `
+      <div class="imp-clue-item">
+        <span class="imp-clue-name">${avatarHtmlFor(c)} ${escapeHtml(c.name)}</span>
+        <span class="imp-clue-text">"${escapeHtml(c.clue)}"</span>
+      </div>
+    `).join('');
+  }
+
+  function renderImpActedMonitor(listId, data, actedLabel) {
+    const list = document.getElementById(listId);
+    if (!list) return;
+    const contestants = data.players.filter(p => !p.is_host);
+    list.innerHTML = contestants.map(p => {
+      let statusClass = '';
+      let statusText = 'Waiting…';
+      if (p.eliminated) {
+        statusClass = 'eliminated';
+        statusText = '💀 Eliminated';
+      } else if (p.impostor_acted) {
+        statusClass = 'answered';
+        statusText = actedLabel;
+      }
+      return `
+        <div class="host-monitor-item ${statusClass}">
+          ${avatarHtmlFor(p)}
+          <span class="host-monitor-name">${escapeHtml(p.name)}</span>
+          <span class="host-monitor-status">${statusText}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function submitImpostorClue(round) {
+    const input = document.getElementById('imp-clue-input');
+    const clue = input ? input.value.trim() : '';
+    if (!clue) { App.showToast('Type a clue first', 'error'); return; }
+    const submitBtn = document.getElementById('imp-clue-submit-btn');
+    if (input) input.disabled = true;
+    if (submitBtn) submitBtn.disabled = true;
+    api('submit_impostor_clue.php', {
+      room_code: roomCode,
+      device_id: deviceId,
+      round: round,
+      clue: clue
+    }).then(res => {
+      if (res.success) {
+        const submittedText = document.getElementById('imp-clue-submitted-text');
+        if (submittedText) submittedText.style.display = 'block';
+        poll();
+      } else {
+        App.showToast(res.error || 'Could not submit clue', 'error');
+        if (input) input.disabled = false;
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    });
+  }
+
+  function submitImpostorVote(round, targetDeviceId) {
+    api('submit_impostor_vote.php', {
+      room_code: roomCode,
+      device_id: deviceId,
+      round: round,
+      target_device_id: targetDeviceId
+    }).then(res => {
+      if (res.success) {
+        poll();
+      } else {
+        App.showToast(res.error || 'Could not submit vote', 'error');
+      }
+    });
+  }
+
+  function enterImpClue(data) {
+    App.goTo('imp-clue');
+    const round = data.room.impostor_round;
+    const wordCard = document.getElementById('imp-clue-word-card');
+    const form = document.getElementById('imp-clue-form');
+    const elimBanner = document.getElementById('imp-clue-eliminated-banner');
+    const hostMonitor = document.getElementById('imp-clue-host-monitor');
+    const statusBadge = document.getElementById('imp-clue-status-badge');
+
+    if (isHost) {
+      if (wordCard) wordCard.style.display = 'none';
+      if (form) form.style.display = 'none';
+      if (elimBanner) elimBanner.style.display = 'none';
+      if (hostMonitor) hostMonitor.style.display = 'block';
+      if (statusBadge) statusBadge.style.display = 'none';
+      renderImpActedMonitor('imp-clue-host-monitor-list', data, '✓ Clue in');
+      return;
+    }
+
+    if (hostMonitor) hostMonitor.style.display = 'none';
+
+    const myPlayer = data.players.find(p => p.device_id === deviceId);
+    const eliminated = !!(myPlayer && myPlayer.eliminated);
+
+    if (wordCard) wordCard.style.display = eliminated ? 'none' : '';
+    if (elimBanner) elimBanner.style.display = eliminated ? 'block' : 'none';
+    if (form) form.style.display = eliminated ? 'none' : '';
+    if (statusBadge) statusBadge.style.display = eliminated ? 'none' : 'flex';
+
+    if (eliminated) return;
+
+    const wordEl = document.getElementById('imp-clue-word');
+    if (wordEl) wordEl.textContent = lookupImpostorWord(data);
+
+    const input = document.getElementById('imp-clue-input');
+    const submitBtn = document.getElementById('imp-clue-submit-btn');
+    const submittedText = document.getElementById('imp-clue-submitted-text');
+
+    if (data.my_impostor_clue !== null) {
+      if (input) { input.value = data.my_impostor_clue; input.disabled = true; }
+      if (submitBtn) submitBtn.disabled = true;
+      if (submittedText) submittedText.style.display = 'block';
+    } else {
+      if (input) { input.value = ''; input.disabled = false; }
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.onclick = () => submitImpostorClue(round); }
+      if (submittedText) submittedText.style.display = 'none';
+    }
+  }
+
+  function updateImpClueProgress(data) {
+    const statusBadge = document.getElementById('imp-clue-status-badge');
+    if (statusBadge && !isHost) statusBadge.textContent = `👥 ${data.impostor_clue_count}/${data.impostor_alive_count} submitted`;
+    if (isHost) renderImpActedMonitor('imp-clue-host-monitor-list', data, '✓ Clue in');
+  }
+
+  function enterImpReveal(data) {
+    App.goTo('imp-reveal');
+    const wordCard = document.getElementById('imp-reveal-word-card');
+    const hostControls = document.getElementById('imp-reveal-host-controls');
+    const waitingText = document.getElementById('imp-reveal-waiting-text');
+    const myPlayer = data.players.find(p => p.device_id === deviceId);
+    const eliminated = !!(myPlayer && myPlayer.eliminated);
+
+    if (isHost || eliminated) {
+      if (wordCard) wordCard.style.display = 'none';
+    } else {
+      if (wordCard) wordCard.style.display = '';
+      const wordEl = document.getElementById('imp-reveal-word');
+      if (wordEl) wordEl.textContent = lookupImpostorWord(data);
+    }
+
+    renderImpClueList('imp-reveal-clue-list', data);
+
+    if (hostControls) hostControls.style.display = isHost ? 'block' : 'none';
+    if (waitingText) waitingText.style.display = isHost ? 'none' : 'block';
+  }
+
+  function enterImpVote(data) {
+    App.goTo('imp-vote');
+    renderImpClueList('imp-vote-clue-list', data);
+
+    const elimBanner = document.getElementById('imp-vote-eliminated-banner');
+    const voteList = document.getElementById('imp-vote-list');
+    const submittedText = document.getElementById('imp-vote-submitted-text');
+    const hostMonitor = document.getElementById('imp-vote-host-monitor');
+    const statusBadge = document.getElementById('imp-vote-status-badge');
+
+    if (isHost) {
+      if (elimBanner) elimBanner.style.display = 'none';
+      if (voteList) voteList.style.display = 'none';
+      if (submittedText) submittedText.style.display = 'none';
+      if (hostMonitor) hostMonitor.style.display = 'block';
+      if (statusBadge) statusBadge.style.display = 'none';
+      renderImpActedMonitor('imp-vote-host-monitor-list', data, '✓ Vote in');
+      return;
+    }
+
+    if (hostMonitor) hostMonitor.style.display = 'none';
+    if (statusBadge) statusBadge.style.display = 'flex';
+
+    const myPlayer = data.players.find(p => p.device_id === deviceId);
+    const eliminated = !!(myPlayer && myPlayer.eliminated);
+
+    if (elimBanner) elimBanner.style.display = eliminated ? 'block' : 'none';
+    if (voteList) voteList.style.display = eliminated ? 'none' : 'flex';
+
+    if (eliminated) {
+      if (submittedText) submittedText.style.display = 'none';
+      return;
+    }
+
+    renderImpVoteButtons(data);
+  }
+
+  function renderImpVoteButtons(data) {
+    const voteList = document.getElementById('imp-vote-list');
+    const submittedText = document.getElementById('imp-vote-submitted-text');
+    if (!voteList) return;
+    const round = data.room.impostor_round;
+    const alreadyVoted = data.my_impostor_vote !== null;
+    const targets = data.players.filter(p => !p.is_host && !p.eliminated && p.device_id !== deviceId);
+    voteList.innerHTML = '';
+    targets.forEach(p => {
+      const isMyVote = data.my_impostor_vote === p.device_id;
+      const btn = document.createElement('button');
+      btn.className = 'imp-vote-btn' + (isMyVote ? ' voted' : '');
+      btn.innerHTML = `${avatarHtmlFor(p)}<span class="imp-vote-name">${escapeHtml(p.name)}</span>`;
+      btn.disabled = alreadyVoted;
+      if (!alreadyVoted) btn.onclick = () => submitImpostorVote(round, p.device_id);
+      voteList.appendChild(btn);
+    });
+    if (submittedText) submittedText.style.display = alreadyVoted ? 'block' : 'none';
+  }
+
+  function updateImpVoteProgress(data) {
+    const statusBadge = document.getElementById('imp-vote-status-badge');
+    if (statusBadge && !isHost) statusBadge.textContent = `👥 ${data.impostor_vote_count}/${data.impostor_alive_count} voted`;
+    if (isHost) renderImpActedMonitor('imp-vote-host-monitor-list', data, '✓ Vote in');
+  }
+
+  function enterImpElim(data) {
+    App.goTo('imp-elim');
+    const banner = document.getElementById('imp-elim-banner');
+    const hostControls = document.getElementById('imp-elim-host-controls');
+    const waitingText = document.getElementById('imp-elim-waiting-text');
+
+    if (banner) {
+      if (data.room.impostor_last_skipped) {
+        banner.textContent = '🤷 No one was eliminated this round.';
+      } else if (data.impostor_last_elim) {
+        banner.textContent = `💀 ${data.impostor_last_elim.name} was voted out. The Impostor is still among you!`;
+      } else {
+        banner.textContent = '';
+      }
+    }
+
+    if (hostControls) hostControls.style.display = isHost ? 'block' : 'none';
+    if (waitingText) waitingText.style.display = isHost ? 'none' : 'block';
+  }
+
+  function enterImpTiebreak(data) {
+    App.goTo('imp-tiebreak');
+    const list = document.getElementById('imp-tiebreak-list');
+    const hostControls = document.getElementById('imp-tiebreak-host-controls');
+    const waitingText = document.getElementById('imp-tiebreak-waiting-text');
+
+    if (list) {
+      list.innerHTML = '';
+      (data.impostor_vote_tally || []).forEach(t => {
+        const el = document.createElement(isHost ? 'button' : 'div');
+        el.className = 'imp-vote-btn';
+        el.innerHTML = `${avatarHtmlFor(t)}<span class="imp-vote-name">${escapeHtml(t.name)}</span><span class="imp-vote-count">${t.cnt} votes</span>`;
+        if (isHost) el.onclick = () => HostGame.resolveImpostorTiebreak(t.target_device_id);
+        list.appendChild(el);
+      });
+    }
+
+    if (hostControls) hostControls.style.display = isHost ? 'block' : 'none';
+    if (waitingText) waitingText.style.display = isHost ? 'none' : 'block';
+  }
+
+  function renderImpostorResultBanner(data) {
+    const banner = document.getElementById('results-imp-banner');
+    if (!banner) return;
+    if (data.room.game_format !== 'impostor' || !data.impostor_reveal) {
+      banner.style.display = 'none';
+      return;
+    }
+    const reveal = data.impostor_reveal;
+    banner.textContent = data.room.impostor_result === 'crew_win'
+      ? `🎉 The Crew Wins! ${reveal.name} was the Impostor and got caught.`
+      : `🕵️ The Impostor Wins! ${reveal.name} survived undetected.`;
+    banner.style.display = 'block';
+  }
+
   function lookupQuestion(qInfo) {
     if (currentQuizMode === 'book' && currentBook && currentCategory && typeof BookQuestions !== 'undefined') {
       return BookQuestions.getPool(currentBook, currentCategory, currentDifficulty, currentTestament)[qInfo.db_index];
@@ -1458,14 +1768,19 @@ const Multiplayer = (function () {
 
     App.goTo('results');
     try {
-      const bookLabel = currentBook === 'ALL'
-        ? (currentTestament === 'ot' ? 'Old Testament' : currentTestament === 'nt' ? 'New Testament' : 'All Books')
-        : currentBook;
-      const sourceLabel = currentQuizMode === 'book' && currentBook && currentCategory
-        ? `${bookLabel} • ${currentCategory}`
-        : currentDifficulty.toUpperCase();
-      document.getElementById('results-sub').textContent =
-        `${sourceLabel} • ${data.room.question_count} Questions • Multiplayer`;
+      if (currentGameFormat === 'impostor') {
+        document.getElementById('results-sub').textContent = `🕵️ Word Impostor • ${data.room.impostor_round} Round${data.room.impostor_round > 1 ? 's' : ''} • Multiplayer`;
+      } else {
+        const bookLabel = currentBook === 'ALL'
+          ? (currentTestament === 'ot' ? 'Old Testament' : currentTestament === 'nt' ? 'New Testament' : 'All Books')
+          : currentBook;
+        const sourceLabel = currentQuizMode === 'book' && currentBook && currentCategory
+          ? `${bookLabel} • ${currentCategory}`
+          : currentDifficulty.toUpperCase();
+        document.getElementById('results-sub').textContent =
+          `${sourceLabel} • ${data.room.question_count} Questions • Multiplayer`;
+      }
+      renderImpostorResultBanner(data);
       renderPodium(sorted);
       renderResultsTable(sorted, data.room.question_count);
       if (sorted[0] && sorted[0].score > 0 && App.startConfetti) App.startConfetti();

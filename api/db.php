@@ -150,6 +150,22 @@ function initDB(PDO $db): void {
             created_at INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_room_events_room ON room_events(room_code, id);
+        CREATE TABLE IF NOT EXISTS impostor_clues (
+            room_code TEXT NOT NULL,
+            device_id TEXT NOT NULL,
+            round INTEGER NOT NULL,
+            clue TEXT NOT NULL,
+            submitted_at INTEGER NOT NULL,
+            PRIMARY KEY (room_code, device_id, round)
+        );
+        CREATE TABLE IF NOT EXISTS impostor_votes (
+            room_code TEXT NOT NULL,
+            device_id TEXT NOT NULL,
+            round INTEGER NOT NULL,
+            target_device_id TEXT NOT NULL,
+            submitted_at INTEGER NOT NULL,
+            PRIMARY KEY (room_code, device_id, round)
+        );
     ");
     migrateSchema($db);
 }
@@ -167,6 +183,12 @@ function migrateSchema(PDO $db): void {
             'testament'      => "TEXT DEFAULT 'all'",
             'pool_size'      => "INTEGER DEFAULT 50",
             'game_format'    => "TEXT DEFAULT 'classic'",
+            'impostor_word_pair_idx'   => "INTEGER DEFAULT -1",
+            'impostor_id'              => "TEXT",
+            'impostor_round'           => "INTEGER DEFAULT 1",
+            'impostor_result'          => "TEXT",
+            'impostor_last_elim_id'    => "TEXT",
+            'impostor_last_skipped'    => "INTEGER DEFAULT 0",
         ],
         'profiles' => [
             'wallet'                => "INTEGER DEFAULT 0",
@@ -223,6 +245,8 @@ function cleanStale(PDO $db): void {
     $db->prepare("DELETE FROM answers WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM players WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM room_events WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
+    $db->prepare("DELETE FROM impostor_clues WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
+    $db->prepare("DELETE FROM impostor_votes WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM rooms WHERE created_at < ?")->execute([$cutoff]);
 }
 
@@ -239,5 +263,87 @@ function getTimeLimitForDifficulty(string $diff): int {
         case 'hard': return 20;
         case 'expert': return 15;
         default: return 30;
+    }
+}
+
+/* ------------------------------------------------------------
+   WORD IMPOSTOR - shared helpers
+   No timer in this format: every round either auto-advances once
+   every alive contestant has acted, or waits on an explicit host
+   action (host_action.php's impostor_* cases). Both room_state.php
+   (auto-advance) and host_action.php (tiebreak resolution / force
+   advance) call into this same elimination logic so a round only
+   ever ends one way, however it got triggered.
+   ------------------------------------------------------------ */
+const IMPOSTOR_CREW_WIN_POINTS = 100;
+const IMPOSTOR_VOTE_BONUS = 50;
+const IMPOSTOR_WIN_POINTS = 250;
+
+function impostorAliveContestants(PDO $db, string $code): array {
+    $stmt = $db->prepare("SELECT device_id FROM players WHERE room_code = ? AND is_host = 0 AND eliminated = 0");
+    $stmt->execute([$code]);
+    return $stmt->fetchAll(PDO::FETCH_COLUMN);
+}
+
+// Eliminates $eliminatedId (or, if null, records a skipped round - the
+// tiebreak host chose not to eliminate anyone) then checks both win
+// conditions: the crew catching the impostor, or the impostor surviving
+// down to the last 2 players. Falls through to the next round otherwise.
+function applyImpostorElimination(PDO $db, string $code, ?string $eliminatedId): void {
+    $now = nowMs();
+    $roomStmt = $db->prepare("SELECT * FROM rooms WHERE code = ?");
+    $roomStmt->execute([$code]);
+    $room = $roomStmt->fetch();
+    if (!$room) return;
+    $impostorId = $room['impostor_id'];
+    $round = (int)$room['impostor_round'];
+
+    if ($eliminatedId !== null) {
+        $db->prepare("UPDATE players SET eliminated = 1 WHERE room_code = ? AND device_id = ?")->execute([$code, $eliminatedId]);
+        $db->prepare("UPDATE rooms SET impostor_last_elim_id = ?, impostor_last_skipped = 0 WHERE code = ?")->execute([$eliminatedId, $code]);
+    } else {
+        $db->prepare("UPDATE rooms SET impostor_last_elim_id = NULL, impostor_last_skipped = 1 WHERE code = ?")->execute([$code]);
+    }
+
+    $aliveIds = impostorAliveContestants($db, $code);
+    $crewWin = ($eliminatedId !== null && $eliminatedId === $impostorId);
+    $impostorWin = (!$crewWin && count($aliveIds) <= 2);
+
+    if ($crewWin) {
+        foreach ($aliveIds as $pid) {
+            $voteStmt = $db->prepare("SELECT target_device_id FROM impostor_votes WHERE room_code = ? AND device_id = ? AND round = ?");
+            $voteStmt->execute([$code, $pid, $round]);
+            $votedForImpostor = $voteStmt->fetchColumn() === $impostorId;
+            $points = IMPOSTOR_CREW_WIN_POINTS + ($votedForImpostor ? IMPOSTOR_VOTE_BONUS : 0);
+            $db->prepare("UPDATE players SET score = score + ? WHERE room_code = ? AND device_id = ?")
+               ->execute([$points, $code, $pid]);
+        }
+        $db->prepare("UPDATE rooms SET status = 'finished', impostor_result = 'crew_win', updated_at = ? WHERE code = ?")->execute([$now, $code]);
+    } elseif ($impostorWin) {
+        $db->prepare("UPDATE players SET score = score + ? WHERE room_code = ? AND device_id = ?")
+           ->execute([IMPOSTOR_WIN_POINTS, $code, $impostorId]);
+        $db->prepare("UPDATE rooms SET status = 'finished', impostor_result = 'impostor_win', updated_at = ? WHERE code = ?")->execute([$now, $code]);
+    } else {
+        $db->prepare("UPDATE rooms SET status = 'imp_elim', updated_at = ? WHERE code = ?")->execute([$now, $code]);
+    }
+}
+
+// Tallies this round's votes and either eliminates the sole top-voted
+// player, or - on a tie for most votes - hands the decision to the host
+// via the imp_tiebreak state instead of guessing.
+function resolveImpostorVotes(PDO $db, string $code, int $round): void {
+    $tallyStmt = $db->prepare("SELECT target_device_id, COUNT(*) AS cnt FROM impostor_votes WHERE room_code = ? AND round = ? GROUP BY target_device_id");
+    $tallyStmt->execute([$code, $round]);
+    $rows = $tallyStmt->fetchAll();
+    if (empty($rows)) {
+        applyImpostorElimination($db, $code, null);
+        return;
+    }
+    $maxCount = max(array_map(fn($r) => (int)$r['cnt'], $rows));
+    $topRows = array_values(array_filter($rows, fn($r) => (int)$r['cnt'] === $maxCount));
+    if (count($topRows) === 1) {
+        applyImpostorElimination($db, $code, $topRows[0]['target_device_id']);
+    } else {
+        $db->prepare("UPDATE rooms SET status = 'imp_tiebreak', updated_at = ? WHERE code = ?")->execute([nowMs(), $code]);
     }
 }

@@ -83,6 +83,7 @@ const HostGame = (function () {
     }
 
     toggleBookRows();
+    toggleLobbySettingsForFormat();
     renderShare();
 
     // Admin-uploaded CSV questions load async; re-render once they're in so
@@ -266,9 +267,23 @@ const HostGame = (function () {
   }
 
   function setGameFormat(format) {
-    gameFormat = ['truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue'].includes(format) ? format : 'classic';
+    gameFormat = ['truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor'].includes(format) ? format : 'classic';
     if (typeof GameInstructions !== 'undefined') GameInstructions.render(gameFormat, 'host-instructions-box');
+    toggleLobbySettingsForFormat();
     action('set_game_format', { value: gameFormat });
+  }
+
+  // Word Impostor has no question pool/difficulty/timer settings at all, so
+  // the trivia-only lobby controls (source/difficulty/count/CSV upload) hide
+  // as a single block instead of being shown but meaningless.
+  function toggleLobbySettingsForFormat() {
+    const isImpostor = gameFormat === 'impostor';
+    const triviaSettings = document.getElementById('host-trivia-settings');
+    const csvBox = document.getElementById('host-csv-upload-box');
+    const impHint = document.getElementById('host-impostor-hint');
+    if (triviaSettings) triviaSettings.style.display = isImpostor ? 'none' : '';
+    if (csvBox) csvBox.style.display = isImpostor ? 'none' : '';
+    if (impHint) impHint.style.display = isImpostor ? '' : 'none';
   }
 
   function setDifficulty(diff) {
@@ -326,6 +341,14 @@ const HostGame = (function () {
   }
 
   function startGame() {
+    // Word Impostor has no question pool to track "already played" against,
+    // so it skips straight past the CSV-ready/exclude-indices dance entirely.
+    if (gameFormat === 'impostor') {
+      action('start_game', {}).then(res => {
+        if (!res.success) App.showToast(res.error || 'Could not start game', 'error', 5000);
+      });
+      return;
+    }
     const run = () => {
       action('start_game', { exclude_indices: computeExcludeIndices() }).then(res => {
         if (!res.success) App.showToast(res.error || 'Could not start game', 'error', 5000);
@@ -333,6 +356,25 @@ const HostGame = (function () {
     };
     if (typeof CustomQuestions !== 'undefined') CustomQuestions.ready().then(run);
     else run();
+  }
+
+  // ---- Word Impostor host controls (no timer - every transition here is explicit) ----
+  function startImpostorVoting() {
+    action('impostor_start_voting');
+  }
+
+  function nextImpostorRound() {
+    action('impostor_next_round');
+  }
+
+  function forceAdvanceImpostor() {
+    action('impostor_force_advance').then(res => {
+      if (!res.success) App.showToast(res.error || 'Nothing to advance', 'error');
+    });
+  }
+
+  function resolveImpostorTiebreak(targetDeviceId) {
+    action('impostor_resolve_tiebreak', { target_device_id: targetDeviceId || '' });
   }
 
   function clearAllProgress() {
@@ -443,6 +485,10 @@ const HostGame = (function () {
     leaveLobby,
     setShareIp,
     copyShareLink,
+    startImpostorVoting,
+    nextImpostorRound,
+    forceAdvanceImpostor,
+    resolveImpostorTiebreak,
     get roomCode() { return roomCode; }
   };
 })();

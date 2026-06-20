@@ -93,6 +93,38 @@ if ($status === 'answer_reveal') {
     }
 }
 
+// === AUTO-ADVANCE: imp_clue -> imp_reveal (Word Impostor, no timer) ===
+// Every other format falls back to a time limit; Word Impostor has none,
+// so this round only ever ends once every alive contestant has submitted
+// a clue - the host's force_advance action is the only other way past it.
+if ($status === 'imp_clue') {
+    $impRound = (int)$room['impostor_round'];
+    $aliveIds = impostorAliveContestants($db, $code);
+    if (!empty($aliveIds)) {
+        $placeholders = implode(',', array_fill(0, count($aliveIds), '?'));
+        $cluedStmt = $db->prepare("SELECT COUNT(*) FROM impostor_clues WHERE room_code = ? AND round = ? AND device_id IN ($placeholders)");
+        $cluedStmt->execute(array_merge([$code, $impRound], $aliveIds));
+        if ((int)$cluedStmt->fetchColumn() >= count($aliveIds)) {
+            $db->prepare("UPDATE rooms SET status = 'imp_reveal', updated_at = ? WHERE code = ?")->execute([nowMs(), $code]);
+            $status = 'imp_reveal';
+        }
+    }
+}
+
+// === AUTO-ADVANCE: imp_vote -> imp_elim / imp_tiebreak / finished (Word Impostor, no timer) ===
+if ($status === 'imp_vote') {
+    $impRound = (int)$room['impostor_round'];
+    $aliveIds = impostorAliveContestants($db, $code);
+    if (!empty($aliveIds)) {
+        $placeholders = implode(',', array_fill(0, count($aliveIds), '?'));
+        $votedStmt = $db->prepare("SELECT COUNT(*) FROM impostor_votes WHERE room_code = ? AND round = ? AND device_id IN ($placeholders)");
+        $votedStmt->execute(array_merge([$code, $impRound], $aliveIds));
+        if ((int)$votedStmt->fetchColumn() >= count($aliveIds)) {
+            resolveImpostorVotes($db, $code, $impRound);
+        }
+    }
+}
+
 // Re-fetch fresh room row after any updates
 $stmt2 = $db->prepare("SELECT * FROM rooms WHERE code = ?");
 $stmt2->execute([$code]);
@@ -189,6 +221,7 @@ $answeredNowStmt->execute([$code, $currentQIdx]);
 $answeredCount = (int)$answeredNowStmt->fetchColumn();
 
 $revealedNow = in_array($status, ['answer_reveal', 'leaderboard', 'finished'], true);
+$impRound = (int)$room['impostor_round'];
 
 $playersOut = [];
 foreach ($players as $p) {
@@ -201,6 +234,22 @@ foreach ($players as $p) {
         $hasAnswered = (bool)$ansRow;
         if ($ansRow && $revealedNow) $isCorrectNow = (bool)$ansRow['is_correct'];
     }
+
+    // Word Impostor reuses the host-monitor "has acted this round" concept
+    // for clue submission / voting, instead of the answers table.
+    $impostorActed = false;
+    if ($room['game_format'] === 'impostor') {
+        if ($status === 'imp_clue') {
+            $actedStmt = $db->prepare("SELECT 1 FROM impostor_clues WHERE room_code = ? AND device_id = ? AND round = ?");
+            $actedStmt->execute([$code, $p['device_id'], $impRound]);
+            $impostorActed = (bool)$actedStmt->fetchColumn();
+        } elseif ($status === 'imp_vote') {
+            $actedStmt = $db->prepare("SELECT 1 FROM impostor_votes WHERE room_code = ? AND device_id = ? AND round = ?");
+            $actedStmt->execute([$code, $p['device_id'], $impRound]);
+            $impostorActed = (bool)$actedStmt->fetchColumn();
+        }
+    }
+
     $playersOut[] = [
         'device_id'    => $p['device_id'],
         'name'         => $p['name'],
@@ -215,14 +264,102 @@ foreach ($players as $p) {
         'streak'       => (int)$p['streak'],
         'best_streak'  => (int)$p['best_streak'],
         'frozen'       => ((int)$p['frozen_until']) > $now,
-        'eliminated'   => (bool)$p['eliminated']
+        'eliminated'   => (bool)$p['eliminated'],
+        'impostor_acted' => $impostorActed
     ];
 }
 
 $contestantCount = 0;
 foreach ($playersOut as $p) { if (!$p['is_host']) $contestantCount++; }
 
+$impostorAliveCount = 0;
+foreach ($playersOut as $p) { if (!$p['is_host'] && !$p['eliminated']) $impostorAliveCount++; }
+
 $timeElapsedMs = $status === 'playing' ? max(0, $now - (int)$room['q_start_time']) : 0;
+
+// === WORD IMPOSTOR: per-device role + reveal-gated clues/votes ===
+$amIImpostor = false;
+$impostorClueCount = 0;
+$impostorVoteCount = 0;
+$impostorClues = [];
+$impostorVoteTally = [];
+$impostorLastElim = null;
+$impostorReveal = null;
+$myImpostorClue = null;
+$myImpostorVote = null;
+
+if ($room['game_format'] === 'impostor') {
+    $amIImpostor = $room['impostor_id'] !== null && $room['impostor_id'] === $deviceId;
+
+    $clueCountStmt = $db->prepare("SELECT COUNT(*) FROM impostor_clues WHERE room_code = ? AND round = ?");
+    $clueCountStmt->execute([$code, $impRound]);
+    $impostorClueCount = (int)$clueCountStmt->fetchColumn();
+
+    $voteCountStmt = $db->prepare("SELECT COUNT(*) FROM impostor_votes WHERE room_code = ? AND round = ?");
+    $voteCountStmt->execute([$code, $impRound]);
+    $impostorVoteCount = (int)$voteCountStmt->fetchColumn();
+
+    $myClueStmt = $db->prepare("SELECT clue FROM impostor_clues WHERE room_code = ? AND device_id = ? AND round = ?");
+    $myClueStmt->execute([$code, $deviceId, $impRound]);
+    $myClueVal = $myClueStmt->fetchColumn();
+    $myImpostorClue = $myClueVal !== false ? $myClueVal : null;
+
+    $myVoteStmt = $db->prepare("SELECT target_device_id FROM impostor_votes WHERE room_code = ? AND device_id = ? AND round = ?");
+    $myVoteStmt->execute([$code, $deviceId, $impRound]);
+    $myVoteVal = $myVoteStmt->fetchColumn();
+    $myImpostorVote = $myVoteVal !== false ? $myVoteVal : null;
+
+    // Clues stay hidden from everyone until every alive contestant has
+    // submitted one (imp_reveal), then stay visible through voting/elimination
+    // so players can keep re-reading them while they discuss/vote.
+    if (in_array($status, ['imp_reveal', 'imp_vote', 'imp_tiebreak', 'imp_elim', 'finished'], true)) {
+        $cluesStmt = $db->prepare("SELECT ic.device_id, p.name, p.avatar, ic.clue FROM impostor_clues ic
+                                    JOIN players p ON p.room_code = ic.room_code AND p.device_id = ic.device_id
+                                    WHERE ic.room_code = ? AND ic.round = ? ORDER BY ic.submitted_at ASC");
+        $cluesStmt->execute([$code, $impRound]);
+        $impostorClues = $cluesStmt->fetchAll();
+    }
+
+    // Vote tallies stay hidden during voting itself (no live bias) and only
+    // surface once a round has actually resolved.
+    if (in_array($status, ['imp_tiebreak', 'imp_elim', 'finished'], true)) {
+        $tallyStmt = $db->prepare("SELECT iv.target_device_id, p.name, p.avatar, COUNT(*) AS cnt FROM impostor_votes iv
+                                    JOIN players p ON p.room_code = iv.room_code AND p.device_id = iv.target_device_id
+                                    WHERE iv.room_code = ? AND iv.round = ? GROUP BY iv.target_device_id ORDER BY cnt DESC");
+        $tallyStmt->execute([$code, $impRound]);
+        $impostorVoteTally = $tallyStmt->fetchAll();
+    }
+
+    if (in_array($status, ['imp_elim', 'finished'], true) && $room['impostor_last_elim_id']) {
+        $lastElimStmt = $db->prepare("SELECT device_id, name, avatar FROM players WHERE room_code = ? AND device_id = ?");
+        $lastElimStmt->execute([$code, $room['impostor_last_elim_id']]);
+        $lastElimRow = $lastElimStmt->fetch();
+        if ($lastElimRow) {
+            $impostorLastElim = [
+                'device_id'    => $lastElimRow['device_id'],
+                'name'         => $lastElimRow['name'],
+                'avatar'       => $lastElimRow['avatar'],
+                'was_impostor' => $lastElimRow['device_id'] === $room['impostor_id']
+            ];
+        }
+    }
+
+    // The game has ended either way by 'finished' - safe to reveal who the
+    // impostor actually was, even if they survived uncaught (in which case
+    // impostor_last_elim above points at an innocent crew member instead).
+    if ($status === 'finished' && $room['impostor_id']) {
+        $revealStmt = $db->prepare("SELECT device_id, name, avatar FROM players WHERE room_code = ? AND device_id = ?");
+        $revealStmt->execute([$code, $room['impostor_id']]);
+        $revealRow = $revealStmt->fetch();
+        if ($revealRow) {
+            $impostorReveal = [
+                'device_id' => $revealRow['device_id'],
+                'name'      => $revealRow['name'],
+                'avatar'    => $revealRow['avatar']
+            ];
+        }
+    }
+}
 
 $myWalletStmt = $db->prepare("SELECT wallet FROM profiles WHERE device_id = ?");
 $myWalletStmt->execute([$deviceId]);
@@ -266,11 +403,16 @@ jsonOut([
         'current_q_idx'   => $currentQIdx,
         'time_limit'      => (int)$room['time_limit'],
         'time_elapsed_ms' => $timeElapsedMs,
-        'q_indices_count' => count($qIndices)
+        'q_indices_count' => count($qIndices),
+        'impostor_round'          => $impRound,
+        'impostor_word_pair_idx'  => (int)$room['impostor_word_pair_idx'],
+        'impostor_result'        => $room['impostor_result'],
+        'impostor_last_skipped'  => (bool)$room['impostor_last_skipped']
     ],
     'players'           => $playersOut,
     'player_count'      => count($playersOut),
     'contestant_count'  => $contestantCount,
+    'impostor_alive_count' => $impostorAliveCount,
     'answered_count'    => $answeredCount,
     'current_question'  => $qData,
     'answer_reveal'     => $answerReveal,
@@ -279,6 +421,15 @@ jsonOut([
     'my_wallet'         => $myWallet,
     'my_used_powerups'  => $myUsedPowerups,
     'my_frozen_until'   => $myFrozenUntil,
+    'am_i_impostor'     => $amIImpostor,
+    'impostor_clue_count' => $impostorClueCount,
+    'impostor_vote_count' => $impostorVoteCount,
+    'impostor_clues'      => $impostorClues,
+    'impostor_vote_tally' => $impostorVoteTally,
+    'impostor_last_elim'  => $impostorLastElim,
+    'impostor_reveal'     => $impostorReveal,
+    'my_impostor_clue'    => $myImpostorClue,
+    'my_impostor_vote'    => $myImpostorVote,
     'events'            => $eventsOut,
     'server_time'       => $now
 ]);

@@ -41,6 +41,10 @@ const GameInstructions = (function () {
     emojiclue: {
       title: '🌊 Emoji Story Clue',
       text: 'An emoji sequence hints at a Bible character or event. A hint tells you whether to answer with a Character (one word) or a Bible Event (2-3 words).'
+    },
+    impostor: {
+      title: '🕵️ Word Impostor',
+      text: 'Everyone gets the same secret word except one Impostor, who gets a sneaky related word instead. Give a one-word clue, discuss out loud, then vote out who you think is the Impostor. No timer - rounds advance once everyone has acted. Needs 3+ players.'
     }
   };
 

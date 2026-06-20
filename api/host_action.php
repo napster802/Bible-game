@@ -27,6 +27,24 @@ switch ($action) {
     case 'start_game':
         if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game already started'], 400);
 
+        // Word Impostor has its own no-timer flow (imp_clue/imp_reveal/imp_vote/
+        // imp_elim/imp_tiebreak) - nothing below this branch (question pools,
+        // time limits) applies to it, so it short-circuits before that logic.
+        if ($room['game_format'] === 'impostor') {
+            $contestantStmt = $db->prepare("SELECT device_id FROM players WHERE room_code = ? AND is_host = 0");
+            $contestantStmt->execute([$code]);
+            $contestants = $contestantStmt->fetchAll(PDO::FETCH_COLUMN);
+            if (count($contestants) < 3) jsonOut(['success' => false, 'error' => 'Need at least 3 players to start Word Impostor'], 400);
+
+            $impostorId = $contestants[random_int(0, count($contestants) - 1)];
+            $wordPairIdx = random_int(0, 29); // js/impostor_data.js ImpostorData.PAIRS has exactly 30 entries
+
+            $db->prepare("UPDATE players SET eliminated = 0 WHERE room_code = ?")->execute([$code]);
+            $db->prepare("UPDATE rooms SET status = 'imp_clue', impostor_word_pair_idx = ?, impostor_id = ?, impostor_round = 1, impostor_result = NULL, impostor_last_elim_id = NULL, impostor_last_skipped = 0, updated_at = ? WHERE code = ?")
+               ->execute([$wordPairIdx, $impostorId, $now, $code]);
+            break;
+        }
+
         $diff   = $room['difficulty'];
         $count  = (int)$room['question_count'];
         // Memory boards need real time to flip/match 6 pairs, well beyond the
@@ -122,9 +140,50 @@ switch ($action) {
     case 'set_game_format':
         if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
         $value = $input['value'] ?? 'classic';
-        $format = in_array($value, ['classic', 'truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue'], true) ? $value : 'classic';
+        $format = in_array($value, ['classic', 'truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor'], true) ? $value : 'classic';
         $db->prepare("UPDATE rooms SET game_format = ?, updated_at = ? WHERE code = ?")
            ->execute([$format, $now, $code]);
+        break;
+
+    // ---- Word Impostor: host-driven transitions (no timer fallback) ----
+    case 'impostor_start_voting':
+        if ($room['status'] !== 'imp_reveal') jsonOut(['success' => false, 'error' => 'Not in reveal state'], 400);
+        $db->prepare("UPDATE rooms SET status = 'imp_vote', updated_at = ? WHERE code = ?")->execute([$now, $code]);
+        break;
+
+    case 'impostor_next_round':
+        if ($room['status'] !== 'imp_elim') jsonOut(['success' => false, 'error' => 'Not in elimination state'], 400);
+        $nextRound = (int)$room['impostor_round'] + 1;
+        $db->prepare("UPDATE rooms SET status = 'imp_clue', impostor_round = ?, updated_at = ? WHERE code = ?")
+           ->execute([$nextRound, $now, $code]);
+        break;
+
+    case 'impostor_resolve_tiebreak':
+        if ($room['status'] !== 'imp_tiebreak') jsonOut(['success' => false, 'error' => 'Not in tiebreak state'], 400);
+        $tieTargetId = trim($input['target_device_id'] ?? '');
+        applyImpostorElimination($db, $code, $tieTargetId !== '' ? $tieTargetId : null);
+        break;
+
+    case 'impostor_force_advance':
+        // No-timer escape hatch: every other format falls back to a time
+        // limit if a player stalls; Word Impostor has none, so this is the
+        // host's only way to rescue a round stuck on an AFK player.
+        if ($room['status'] === 'imp_clue') {
+            $aliveIds = impostorAliveContestants($db, $code);
+            foreach ($aliveIds as $pid) {
+                $clueCheck = $db->prepare("SELECT 1 FROM impostor_clues WHERE room_code = ? AND device_id = ? AND round = ?");
+                $clueCheck->execute([$code, $pid, (int)$room['impostor_round']]);
+                if (!$clueCheck->fetchColumn()) {
+                    $db->prepare("INSERT OR IGNORE INTO impostor_clues (room_code, device_id, round, clue, submitted_at) VALUES (?, ?, ?, '(no clue)', ?)")
+                       ->execute([$code, $pid, (int)$room['impostor_round'], $now]);
+                }
+            }
+            $db->prepare("UPDATE rooms SET status = 'imp_reveal', updated_at = ? WHERE code = ?")->execute([$now, $code]);
+        } elseif ($room['status'] === 'imp_vote') {
+            resolveImpostorVotes($db, $code, (int)$room['impostor_round']);
+        } else {
+            jsonOut(['success' => false, 'error' => 'Nothing to force-advance'], 400);
+        }
         break;
 
     case 'set_book_category':

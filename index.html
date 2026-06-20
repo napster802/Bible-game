@@ -143,9 +143,11 @@
               <option value="higherlower">📊 Higher or Lower</option>
               <option value="versefill">📖 Verse Fill-in-the-Blank</option>
               <option value="emojiclue">🌊 Emoji Story Clue</option>
+              <option value="impostor">🕵️ Word Impostor</option>
             </select>
           </div>
           <div class="instructions-box" id="host-instructions-box"></div>
+          <div id="host-trivia-settings">
           <div class="setting-row">
             <span>Question Source</span>
             <select id="host-mode-select" class="select-input" onchange="HostGame.setQuizMode(this.value)">
@@ -190,9 +192,11 @@
             </select>
           </div>
           <button class="btn-link" id="host-clear-progress-btn" onclick="HostGame.clearAllProgress()">↺ Clear All Progress (replay used questions)</button>
+          </div>
+          <p class="hint-text" id="host-impostor-hint" style="display:none;">🕵️ Word Impostor needs at least 3 players. No timer - rounds advance once everyone has acted.</p>
         </div>
 
-        <div class="host-csv-upload">
+        <div class="host-csv-upload" id="host-csv-upload-box">
           <p class="hint-text">Admin: add your own questions for any book/category/difficulty via CSV</p>
           <div class="host-csv-buttons">
             <button class="btn btn-secondary" onclick="HostGame.downloadCsvTemplate()">⬇ Download CSV Template</button>
@@ -461,11 +465,103 @@
       </div>
     </div>
 
+    <!-- ==================== SCREEN: IMPOSTOR CLUE ==================== -->
+    <div class="screen" id="screen-imp-clue">
+      <div class="screen-header">
+        <h2>🕵️ Word Impostor</h2>
+        <span class="mp-status-badge" id="imp-clue-status-badge"></span>
+      </div>
+      <div class="screen-body">
+        <div class="imp-word-card" id="imp-clue-word-card">
+          <p class="hint-text">Your Secret Word</p>
+          <div class="imp-word" id="imp-clue-word">—</div>
+        </div>
+        <p class="hint-text">Give ONE word or short phrase that hints at your word — without saying it outright. Every clue is revealed together once everyone has submitted.</p>
+        <div class="eliminated-banner" id="imp-clue-eliminated-banner" style="display:none">💀 You're eliminated — spectating the rest of the game</div>
+        <div id="imp-clue-form" style="display:none">
+          <input type="text" id="imp-clue-input" class="text-input" placeholder="Your one-word clue..." maxlength="40">
+          <button class="btn btn-primary btn-xl" id="imp-clue-submit-btn">Submit Clue</button>
+          <p class="hint-text" id="imp-clue-submitted-text" style="display:none">✓ Clue submitted — waiting for others…</p>
+        </div>
+        <div class="host-monitor" id="imp-clue-host-monitor" style="display:none">
+          <div class="host-monitor-list" id="imp-clue-host-monitor-list"></div>
+          <button class="btn btn-secondary" onclick="HostGame.forceAdvanceImpostor()">⏭ Force Advance (skip stragglers)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: IMPOSTOR REVEAL ==================== -->
+    <div class="screen" id="screen-imp-reveal">
+      <div class="screen-header">
+        <h2>🕵️ Clues Revealed</h2>
+      </div>
+      <div class="screen-body">
+        <div class="imp-word-card" id="imp-reveal-word-card">
+          <p class="hint-text">Your Secret Word</p>
+          <div class="imp-word" id="imp-reveal-word">—</div>
+        </div>
+        <p class="hint-text">Discuss out loud, then the host opens voting.</p>
+        <div class="imp-clue-list" id="imp-reveal-clue-list"></div>
+        <div id="imp-reveal-host-controls" style="display:none">
+          <button class="btn btn-primary btn-xl" onclick="HostGame.startImpostorVoting()">🗳️ Start Voting →</button>
+        </div>
+        <p class="hint-text" id="imp-reveal-waiting-text" style="display:none">Waiting for the host to open voting…</p>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: IMPOSTOR VOTE ==================== -->
+    <div class="screen" id="screen-imp-vote">
+      <div class="screen-header">
+        <h2>🗳️ Vote Out the Impostor</h2>
+        <span class="mp-status-badge" id="imp-vote-status-badge"></span>
+      </div>
+      <div class="screen-body">
+        <div class="imp-clue-list" id="imp-vote-clue-list"></div>
+        <div class="eliminated-banner" id="imp-vote-eliminated-banner" style="display:none">💀 You're eliminated — spectating the rest of the game</div>
+        <div class="imp-vote-list" id="imp-vote-list"></div>
+        <p class="hint-text" id="imp-vote-submitted-text" style="display:none">✓ Vote locked — waiting for others…</p>
+        <div class="host-monitor" id="imp-vote-host-monitor" style="display:none">
+          <div class="host-monitor-list" id="imp-vote-host-monitor-list"></div>
+          <button class="btn btn-secondary" onclick="HostGame.forceAdvanceImpostor()">⏭ Force Advance (skip stragglers)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: IMPOSTOR ELIMINATION ==================== -->
+    <div class="screen" id="screen-imp-elim">
+      <div class="screen-header">
+        <h2>Round Result</h2>
+      </div>
+      <div class="screen-body">
+        <div class="imp-elim-banner" id="imp-elim-banner"></div>
+        <div id="imp-elim-host-controls" style="display:none">
+          <button class="btn btn-primary btn-xl" onclick="HostGame.nextImpostorRound()">Next Round →</button>
+        </div>
+        <p class="hint-text" id="imp-elim-waiting-text" style="display:none">Waiting for the host to continue…</p>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: IMPOSTOR TIEBREAK ==================== -->
+    <div class="screen" id="screen-imp-tiebreak">
+      <div class="screen-header">
+        <h2>🤝 It's a Tie!</h2>
+      </div>
+      <div class="screen-body">
+        <p class="hint-text">Votes were tied. The host will break the tie.</p>
+        <div class="imp-vote-list" id="imp-tiebreak-list"></div>
+        <div id="imp-tiebreak-host-controls" style="display:none">
+          <button class="btn btn-secondary btn-xl" onclick="HostGame.resolveImpostorTiebreak(null)">Skip Elimination This Round</button>
+        </div>
+        <p class="hint-text" id="imp-tiebreak-waiting-text" style="display:none">Waiting for the host to decide…</p>
+      </div>
+    </div>
+
     <!-- ==================== SCREEN: RESULTS ==================== -->
     <div class="screen" id="screen-results">
       <div class="results-top">
         <h2 class="results-title">Game Over!</h2>
         <p class="results-sub" id="results-sub"></p>
+        <div class="imp-elim-banner" id="results-imp-banner" style="display:none"></div>
       </div>
       <div class="podium" id="podium"></div>
       <div class="results-table-wrap">
@@ -701,6 +797,7 @@
   <script src="js/higherlower_data.js"></script>
   <script src="js/versefill_data.js"></script>
   <script src="js/emojiclue_data.js"></script>
+  <script src="js/impostor_data.js"></script>
   <script src="js/game_instructions.js"></script>
   <script src="js/question_tracker.js"></script>
   <script src="js/custom_questions.js"></script>

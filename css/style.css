@@ -2375,6 +2375,99 @@ label,
   padding: 0.6rem 0.5rem;
 }
 
+/* ── Word Impostor ────────────────────────────────────────── */
+.imp-word-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1rem;
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.imp-word {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--gold);
+  margin-top: 0.25rem;
+}
+
+.imp-clue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.imp-clue-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--card);
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+
+.imp-clue-item .imp-clue-name {
+  flex: 1;
+  font-weight: 600;
+}
+
+.imp-clue-item .imp-clue-text {
+  color: var(--text2);
+  font-style: italic;
+}
+
+.imp-vote-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.imp-vote-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  background: var(--card);
+  border: 2px solid var(--bg3);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.imp-vote-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.imp-vote-btn.voted {
+  border-color: var(--gold);
+}
+
+.imp-vote-btn .imp-vote-name {
+  flex: 1;
+  font-weight: 600;
+  text-align: left;
+}
+
+.imp-vote-btn .imp-vote-count {
+  font-weight: 800;
+  color: var(--gold);
+}
+
+.imp-elim-banner {
+  background: linear-gradient(135deg, #4a3800, #7a5f00);
+  border: 2px solid var(--gold);
+  border-radius: var(--radius);
+  padding: 1rem;
+  text-align: center;
+  font-weight: 700;
+}
+
 /* ── Print / PDF Export ───────────────────────────────────── */
 @media print {
   body {
