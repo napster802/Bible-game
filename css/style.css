@@ -2762,6 +2762,25 @@ label,
   cursor: default;
 }
 
+.draw-color-picker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.draw-color-picker input[type="color"] {
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0;
+  border: 2px solid var(--bg3);
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+}
+
 .draw-canvas-wrap {
   background: #fff;
   border-radius: var(--radius);
@@ -2775,7 +2794,7 @@ label,
 #draw-canvas, #draw-reveal-canvas {
   width: 100%;
   max-width: 600px;
-  aspect-ratio: 600 / 400;
+  aspect-ratio: 600 / 600;
   background: #fff;
   border-radius: var(--radius-sm);
   touch-action: none;

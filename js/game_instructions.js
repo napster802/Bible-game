@@ -40,7 +40,7 @@ const GameInstructions = (function () {
     },
     emojiclue: {
       title: '🌊 Emoji Story Clue',
-      text: 'An emoji sequence hints at a Bible character or event. A hint tells you whether to answer with a Character (one word) or a Bible Event (2-3 words).'
+      text: 'An emoji sequence hints at a Bible character, thing, place, or animal. Type your answer in ONE word - a hint badge tells you which category to expect.'
     },
     impostor: {
       title: '🕵️ Word Impostor',

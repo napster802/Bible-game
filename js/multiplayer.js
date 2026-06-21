@@ -24,6 +24,7 @@ const Multiplayer = (function () {
   let drawCanDraw = false;
   let drawPointerBound = false;
   let drawDrawing = false;
+  let drawColor = '#1a1a1a';
   let answeredThisQuestion = false;
   let lastEventId = 0;
   let lastData = null;
@@ -398,9 +399,8 @@ const Multiplayer = (function () {
       const emojiEl = document.getElementById('emojiclue-emojis');
       if (emojiEl) emojiEl.textContent = round.emojis;
       const hintEl = document.getElementById('emojiclue-hint');
-      if (hintEl) hintEl.textContent = round.type === 'character'
-        ? '🧍 Character — answer in ONE word'
-        : '📖 Bible Event — answer in 2-3 words';
+      const EMOJI_HINT_LABELS = { character: '🧍 Character', thing: '📦 Thing', place: '🗺️ Place', animal: '🐾 Animal' };
+      if (hintEl) hintEl.textContent = `${EMOJI_HINT_LABELS[round.type] || '🧍 Character'} — answer in ONE word`;
       const resultEl = document.getElementById('emojiclue-result');
       if (resultEl) resultEl.style.display = 'none';
       if (emojiclueBox) emojiclueBox.style.display = 'block';
@@ -1046,12 +1046,8 @@ const Multiplayer = (function () {
     if (!typed) { App.showToast('Type your guess first', 'error'); return; }
 
     const wordCount = typed.split(/\s+/).filter(Boolean).length;
-    if (round.type === 'character' && wordCount !== 1) {
-      App.showToast('Character answers are one word only', 'error');
-      return;
-    }
-    if (round.type === 'event' && (wordCount < 2 || wordCount > 3)) {
-      App.showToast('Bible Event answers are 2-3 words', 'error');
+    if (wordCount !== 1) {
+      App.showToast('Answers are one word only', 'error');
       return;
     }
 
@@ -1554,6 +1550,11 @@ const Multiplayer = (function () {
     if (drawPointerBound) return;
     drawPointerBound = true;
     const canvas = document.getElementById('draw-canvas');
+    const colorInput = document.getElementById('draw-color-input');
+    if (colorInput) {
+      drawColor = colorInput.value;
+      colorInput.addEventListener('input', () => { drawColor = colorInput.value; });
+    }
     if (!canvas) return;
     let currentStroke = null;
 
@@ -1569,7 +1570,7 @@ const Multiplayer = (function () {
       const prev = currentStroke[currentStroke.length - 1];
       currentStroke.push(pt);
       const ctx = canvas.getContext('2d');
-      ctx.strokeStyle = '#1a1a1a';
+      ctx.strokeStyle = drawColor;
       ctx.lineWidth = 5;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
@@ -1612,7 +1613,7 @@ const Multiplayer = (function () {
       device_id: deviceId,
       round: lastDrawRound,
       points: points,
-      color: '#1a1a1a',
+      color: drawColor,
       line_width: 5
     }).catch(err => console.error('Stroke submit failed:', err));
   }
@@ -1722,11 +1723,13 @@ const Multiplayer = (function () {
     const correctText = document.getElementById('draw-guess-correct-text');
     const guessInput = document.getElementById('draw-guess-input');
     const guessBtn = document.getElementById('draw-guess-submit-btn');
+    const colorPicker = document.getElementById('draw-color-picker');
 
     if (turnBadge) turnBadge.textContent = `Turn ${data.draw_turn_number}/${data.draw_total_turns}`;
     if (correctText) correctText.style.display = 'none';
     if (guessInput) { guessInput.value = ''; guessInput.disabled = false; }
     if (guessBtn) { guessBtn.disabled = false; guessBtn.onclick = submitDrawingGuess; }
+    if (colorPicker) colorPicker.style.display = data.am_i_drawer ? 'flex' : 'none';
 
     if (data.am_i_drawer) {
       if (title) title.textContent = `🎨 Draw: ${drawWordText(data.draw_word_idx)}`;
