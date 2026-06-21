@@ -18,7 +18,8 @@ const JoinGame = (function () {
     higherlower: { icon: '📊', label: 'Higher or Lower' },
     versefill:   { icon: '📖', label: 'Verse Fill-in-the-Blank' },
     emojiclue:   { icon: '🌊', label: 'Emoji Story Clue' },
-    impostor:    { icon: '🕵️', label: 'Word Impostor' }
+    impostor:    { icon: '🕵️', label: 'Word Impostor' },
+    draw:        { icon: '🎨', label: 'Sketch & Guess' }
   };
 
   let roomListTimer = null;

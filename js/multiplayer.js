@@ -19,6 +19,11 @@ const Multiplayer = (function () {
   let lastStatus = null;
   let lastQIdx = -1;
   let lastImpRound = -1;
+  let lastDrawRound = -1;
+  let lastStrokeId = 0;
+  let drawCanDraw = false;
+  let drawPointerBound = false;
+  let drawDrawing = false;
   let answeredThisQuestion = false;
   let lastEventId = 0;
   let lastData = null;
@@ -98,6 +103,8 @@ const Multiplayer = (function () {
     isHost = !!host;
     lastStatus = null;
     lastQIdx = -1;
+    lastDrawRound = -1;
+    lastStrokeId = 0;
     answeredThisQuestion = false;
     lastEventId = 0;
     lastData = null;
@@ -127,7 +134,7 @@ const Multiplayer = (function () {
 
   function poll() {
     if (!roomCode || !deviceId) return;
-    api(`room_state.php?code=${roomCode}&device_id=${deviceId}&since_event_id=${lastEventId}`)
+    api(`room_state.php?code=${roomCode}&device_id=${deviceId}&since_event_id=${lastEventId}&since_stroke_id=${lastStrokeId}`)
       .then(handleState)
       .catch(err => {
         console.error('Room sync failed:', err);
@@ -218,6 +225,20 @@ const Multiplayer = (function () {
       if (lastStatus !== 'imp_tiebreak' || lastImpRound !== data.room.impostor_round) {
         enterImpTiebreak(data);
       }
+    } else if (status === 'draw_choose') {
+      if (lastStatus !== 'draw_choose' || lastDrawRound !== data.room.draw_round) {
+        enterDrawChoose(data);
+      }
+    } else if (status === 'draw_active') {
+      if (lastStatus !== 'draw_active' || lastDrawRound !== data.room.draw_round) {
+        enterDrawActive(data);
+      } else {
+        updateDrawActive(data);
+      }
+    } else if (status === 'draw_reveal') {
+      if (lastStatus !== 'draw_reveal' || lastDrawRound !== data.room.draw_round) {
+        enterDrawReveal(data);
+      }
     } else if (status === 'finished') {
       if (lastStatus !== 'finished') {
         enterResults(data);
@@ -227,6 +248,7 @@ const Multiplayer = (function () {
     lastStatus = status;
     lastQIdx = qIdx;
     lastImpRound = data.room.impostor_round;
+    lastDrawRound = data.room.draw_round;
   }
 
   // ---------------- LOBBY ----------------
@@ -1490,6 +1512,289 @@ const Multiplayer = (function () {
     banner.style.display = 'block';
   }
 
+  // ---------------- SKETCH & GUESS ----------------
+  const DRAW_GUESS_POINTS = [300, 200, 100];
+
+  function drawWordText(idx) {
+    const entry = typeof DrawingWords !== 'undefined' ? DrawingWords.WORDS[idx] : null;
+    return entry ? entry.word : '—';
+  }
+
+  function clearDrawCanvas(canvas) {
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function drawStrokeOnCanvas(canvas, stroke) {
+    if (!canvas || !stroke.points || stroke.points.length < 2) return;
+    const ctx = canvas.getContext('2d');
+    ctx.strokeStyle = stroke.color || '#000000';
+    ctx.lineWidth = stroke.line_width || 4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+    for (let i = 1; i < stroke.points.length; i++) ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+    ctx.stroke();
+  }
+
+  function canvasPointFromEvent(canvas, evt) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return { x: (evt.clientX - rect.left) * scaleX, y: (evt.clientY - rect.top) * scaleY };
+  }
+
+  // Pointer handlers stay bound to #draw-canvas for the lifetime of the page;
+  // drawCanDraw (re-set every time enterDrawActive/enterDrawChoose runs) is
+  // what actually gates whether this device's pointer input does anything,
+  // since who's allowed to draw changes every turn.
+  function bindDrawCanvasPointerEvents() {
+    if (drawPointerBound) return;
+    drawPointerBound = true;
+    const canvas = document.getElementById('draw-canvas');
+    if (!canvas) return;
+    let currentStroke = null;
+
+    canvas.addEventListener('pointerdown', (evt) => {
+      if (!drawCanDraw) return;
+      drawDrawing = true;
+      currentStroke = [canvasPointFromEvent(canvas, evt)];
+      canvas.setPointerCapture(evt.pointerId);
+    });
+    canvas.addEventListener('pointermove', (evt) => {
+      if (!drawCanDraw || !drawDrawing || !currentStroke) return;
+      const pt = canvasPointFromEvent(canvas, evt);
+      const prev = currentStroke[currentStroke.length - 1];
+      currentStroke.push(pt);
+      const ctx = canvas.getContext('2d');
+      ctx.strokeStyle = '#1a1a1a';
+      ctx.lineWidth = 5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(prev.x, prev.y);
+      ctx.lineTo(pt.x, pt.y);
+      ctx.stroke();
+    });
+    const finishStroke = () => {
+      if (!drawDrawing) return;
+      drawDrawing = false;
+      if (currentStroke && currentStroke.length >= 2) {
+        submitDrawingStroke(currentStroke);
+      }
+      currentStroke = null;
+    };
+    canvas.addEventListener('pointerup', finishStroke);
+    canvas.addEventListener('pointercancel', finishStroke);
+    canvas.addEventListener('pointerleave', finishStroke);
+  }
+
+  function submitDrawWordChoice(round, choiceIdx) {
+    api('submit_draw_word_choice.php', {
+      room_code: roomCode,
+      device_id: deviceId,
+      round: round,
+      choice_idx: choiceIdx
+    }).then(res => {
+      if (res.success) poll();
+      else App.showToast(res.error || 'Could not pick that word', 'error');
+    }).catch(err => {
+      console.error('Word choice failed:', err);
+      App.showToast('Could not reach the host - try again.', 'error');
+    });
+  }
+
+  function submitDrawingStroke(points) {
+    api('submit_drawing_stroke.php', {
+      room_code: roomCode,
+      device_id: deviceId,
+      round: lastDrawRound,
+      points: points,
+      color: '#1a1a1a',
+      line_width: 5
+    }).catch(err => console.error('Stroke submit failed:', err));
+  }
+
+  function submitDrawingGuess() {
+    const input = document.getElementById('draw-guess-input');
+    const guess = input ? input.value.trim() : '';
+    if (!guess) return;
+    const isCorrect = typeof DrawingWords !== 'undefined' && lastData && lastData.draw_word_idx !== null
+      ? DrawingWords.matchesGuess(lastData.draw_word_idx, guess)
+      : false;
+    api('submit_drawing_guess.php', {
+      room_code: roomCode,
+      device_id: deviceId,
+      round: lastDrawRound,
+      guess_text: guess,
+      is_correct: isCorrect
+    }).then(res => {
+      if (!res.success) { App.showToast(res.error || 'Could not submit guess', 'error'); return; }
+      if (input) input.value = '';
+      if (res.is_correct) {
+        const correctText = document.getElementById('draw-guess-correct-text');
+        if (correctText) correctText.style.display = 'block';
+        const form = document.getElementById('draw-guess-form');
+        if (form) form.querySelectorAll('input, button').forEach(el => el.disabled = true);
+        App.showToast(`✓ Correct! +${res.points || 0} points`, 'success');
+      } else {
+        App.showToast('Not quite — try again!', 'error', 1200);
+      }
+      poll();
+    }).catch(err => {
+      console.error('Guess submit failed:', err);
+      App.showToast('Could not reach the host - try again.', 'error');
+    });
+  }
+
+  function renderDrawCorrectAvatars(containerId, guesses, withRank) {
+    const row = document.getElementById(containerId);
+    if (!row) return;
+    row.innerHTML = guesses.map(g => `
+      <span class="draw-correct-avatar-badge">${avatarHtmlFor(g)}${withRank ? `<span class="draw-rank-tag">${g.rank}</span>` : ''}</span>
+    `).join('');
+  }
+
+  function enterDrawChoose(data) {
+    App.goTo('draw-choose');
+    lastStrokeId = 0;
+    const turnBadge = document.getElementById('draw-choose-turn-badge');
+    if (turnBadge) turnBadge.textContent = `Turn ${data.draw_turn_number}/${data.draw_total_turns}`;
+
+    const drawerBox = document.getElementById('draw-choose-drawer-box');
+    const waitingBox = document.getElementById('draw-choose-waiting-box');
+    const hostMonitor = document.getElementById('draw-choose-host-monitor');
+    const drawerName = data.draw_current_drawer ? data.draw_current_drawer.name : 'someone';
+
+    if (data.am_i_drawer) {
+      if (drawerBox) drawerBox.style.display = '';
+      if (waitingBox) waitingBox.style.display = 'none';
+      if (hostMonitor) hostMonitor.style.display = 'none';
+      const choicesBox = document.getElementById('draw-word-choices');
+      if (choicesBox) {
+        choicesBox.innerHTML = '';
+        (data.my_draw_word_choices || []).forEach(idx => {
+          const btn = document.createElement('button');
+          btn.className = 'draw-word-choice-btn';
+          btn.textContent = drawWordText(idx);
+          btn.onclick = () => {
+            choicesBox.querySelectorAll('button').forEach(b => b.disabled = true);
+            submitDrawWordChoice(data.room.draw_round, idx);
+          };
+          choicesBox.appendChild(btn);
+        });
+      }
+    } else if (isHost) {
+      if (drawerBox) drawerBox.style.display = 'none';
+      if (waitingBox) waitingBox.style.display = 'none';
+      if (hostMonitor) hostMonitor.style.display = 'block';
+      const hostText = document.getElementById('draw-choose-host-text');
+      if (hostText) hostText.textContent = `Waiting for ${drawerName} to pick a word…`;
+    } else {
+      if (drawerBox) drawerBox.style.display = 'none';
+      if (hostMonitor) hostMonitor.style.display = 'none';
+      if (waitingBox) waitingBox.style.display = 'block';
+      const waitingText = document.getElementById('draw-choose-waiting-text');
+      if (waitingText) waitingText.textContent = `${drawerName} is picking a word to draw…`;
+    }
+  }
+
+  function enterDrawActive(data) {
+    App.goTo('draw-active');
+    lastStrokeId = 0;
+    drawCanDraw = !!data.am_i_drawer;
+    bindDrawCanvasPointerEvents();
+
+    const canvas = document.getElementById('draw-canvas');
+    clearDrawCanvas(canvas);
+    (data.draw_strokes || []).forEach(s => {
+      drawStrokeOnCanvas(canvas, s);
+      lastStrokeId = Math.max(lastStrokeId, s.id);
+    });
+
+    const title = document.getElementById('draw-active-title');
+    const turnBadge = document.getElementById('draw-active-turn-badge');
+    const hostWord = document.getElementById('draw-active-host-word');
+    const hostMonitor = document.getElementById('draw-active-host-monitor');
+    const guessForm = document.getElementById('draw-guess-form');
+    const correctText = document.getElementById('draw-guess-correct-text');
+    const guessInput = document.getElementById('draw-guess-input');
+    const guessBtn = document.getElementById('draw-guess-submit-btn');
+
+    if (turnBadge) turnBadge.textContent = `Turn ${data.draw_turn_number}/${data.draw_total_turns}`;
+    if (correctText) correctText.style.display = 'none';
+    if (guessInput) { guessInput.value = ''; guessInput.disabled = false; }
+    if (guessBtn) { guessBtn.disabled = false; guessBtn.onclick = submitDrawingGuess; }
+
+    if (data.am_i_drawer) {
+      if (title) title.textContent = `🎨 Draw: ${drawWordText(data.draw_word_idx)}`;
+      if (guessForm) guessForm.style.display = 'none';
+      if (hostWord) hostWord.style.display = 'none';
+      if (hostMonitor) hostMonitor.style.display = 'none';
+    } else if (isHost) {
+      if (title) title.textContent = '🎨 Sketch & Guess';
+      if (guessForm) guessForm.style.display = 'none';
+      if (hostWord) { hostWord.style.display = 'block'; hostWord.textContent = `Secret word: ${drawWordText(data.draw_word_idx)}`; }
+      if (hostMonitor) hostMonitor.style.display = 'block';
+    } else {
+      if (title) title.textContent = '🎨 Sketch & Guess';
+      if (hostWord) hostWord.style.display = 'none';
+      if (hostMonitor) hostMonitor.style.display = 'none';
+      if (guessForm) guessForm.style.display = '';
+      if (data.draw_my_guessed_correctly) {
+        if (correctText) correctText.style.display = 'block';
+        if (guessInput) guessInput.disabled = true;
+        if (guessBtn) guessBtn.disabled = true;
+      }
+    }
+
+    renderDrawCorrectAvatars('draw-correct-avatars', data.draw_guesses || [], true);
+  }
+
+  function updateDrawActive(data) {
+    const canvas = document.getElementById('draw-canvas');
+    (data.draw_strokes || []).forEach(s => {
+      if (s.id > lastStrokeId) {
+        drawStrokeOnCanvas(canvas, s);
+        lastStrokeId = Math.max(lastStrokeId, s.id);
+      }
+    });
+    renderDrawCorrectAvatars('draw-correct-avatars', data.draw_guesses || [], true);
+    if (!isHost && !data.am_i_drawer && data.draw_my_guessed_correctly) {
+      const correctText = document.getElementById('draw-guess-correct-text');
+      const guessInput = document.getElementById('draw-guess-input');
+      const guessBtn = document.getElementById('draw-guess-submit-btn');
+      if (correctText) correctText.style.display = 'block';
+      if (guessInput) guessInput.disabled = true;
+      if (guessBtn) guessBtn.disabled = true;
+    }
+  }
+
+  function enterDrawReveal(data) {
+    App.goTo('draw-reveal');
+    const canvas = document.getElementById('draw-reveal-canvas');
+    clearDrawCanvas(canvas);
+    (data.draw_strokes || []).forEach(s => drawStrokeOnCanvas(canvas, s));
+
+    const wordText = document.getElementById('draw-reveal-word-text');
+    if (wordText) wordText.textContent = `The word was: ${drawWordText(data.draw_word_idx)}`;
+
+    const list = document.getElementById('draw-reveal-correct-list');
+    if (list) {
+      const guesses = data.draw_guesses || [];
+      list.innerHTML = guesses.length ? guesses.map(g => `
+        <span class="draw-correct-avatar-badge">${avatarHtmlFor(g)}<span class="draw-rank-tag">+${DRAW_GUESS_POINTS[g.rank - 1] || 0}</span></span>
+      `).join('') : '<p class="hint-text">No one guessed it this round.</p>';
+    }
+
+    const hostControls = document.getElementById('draw-reveal-host-controls');
+    const waitingText = document.getElementById('draw-reveal-waiting-text');
+    if (hostControls) hostControls.style.display = isHost ? 'block' : 'none';
+    if (waitingText) waitingText.style.display = isHost ? 'none' : 'block';
+  }
+
   function lookupQuestion(qInfo) {
     if (currentQuizMode === 'book' && currentBook && currentCategory && typeof BookQuestions !== 'undefined') {
       return BookQuestions.getPool(currentBook, currentCategory, currentDifficulty, currentTestament)[qInfo.db_index];
@@ -1971,6 +2276,8 @@ const Multiplayer = (function () {
     try {
       if (currentGameFormat === 'impostor') {
         document.getElementById('results-sub').textContent = `🕵️ Word Impostor • ${data.room.impostor_round} Round${data.room.impostor_round > 1 ? 's' : ''} • Multiplayer`;
+      } else if (currentGameFormat === 'draw') {
+        document.getElementById('results-sub').textContent = `🎨 Sketch & Guess • ${data.room.draw_round} Turn${data.room.draw_round > 1 ? 's' : ''} • Multiplayer`;
       } else {
         const bookLabel = currentBook === 'ALL'
           ? (currentTestament === 'ot' ? 'Old Testament' : currentTestament === 'nt' ? 'New Testament' : 'All Books')

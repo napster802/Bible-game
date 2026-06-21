@@ -45,6 +45,10 @@ const GameInstructions = (function () {
     impostor: {
       title: '🕵️ Word Impostor',
       text: 'Everyone gets the same secret word except one Impostor, who gets a sneaky related word instead. Give a one-word clue, discuss out loud, then vote out who you think is the Impostor. No timer - rounds advance once everyone has acted. Needs 3+ players.'
+    },
+    draw: {
+      title: '🎨 Sketch & Guess',
+      text: 'Players take turns drawing, in join order. The drawer picks one of 4 secret words and sketches it while everyone else types guesses. The first 3 correct guessers score points, and the drawer earns a bonus for each. Needs 2+ players.'
     }
   };
 

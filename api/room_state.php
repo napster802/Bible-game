@@ -6,6 +6,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { jsonOut([]); }
 $code        = trim($_GET['code'] ?? $_POST['code'] ?? '');
 $deviceId    = trim($_GET['device_id'] ?? $_POST['device_id'] ?? '');
 $sinceEventId = (int)($_GET['since_event_id'] ?? $_POST['since_event_id'] ?? 0);
+$sinceStrokeId = (int)($_GET['since_stroke_id'] ?? $_POST['since_stroke_id'] ?? 0);
 
 if (!$code || !$deviceId) jsonOut(['success' => false, 'error' => 'Missing params'], 400);
 
@@ -120,6 +121,21 @@ if ($status === 'imp_clue') {
 // Voting never auto-resolves, even once everyone has voted - the host must
 // explicitly press Proceed (host_action.php's impostor_force_advance case)
 // so everyone gets a moment to see the final vote land before moving on.
+
+// === AUTO-ADVANCE: draw_active -> draw_reveal (Sketch & Guess) ===
+// Ends as soon as either the round timer runs out or the first 3 correct
+// guessers have already been recorded - no point dragging out a round
+// everyone capable of scoring has already finished.
+if ($status === 'draw_active') {
+    $drawElapsed = $now - (int)$room['draw_round_start_time'];
+    $correctStmt = $db->prepare("SELECT COUNT(*) FROM drawing_guesses WHERE room_code = ? AND round = ? AND is_correct = 1");
+    $correctStmt->execute([$code, (int)$room['draw_round']]);
+    $correctCount = (int)$correctStmt->fetchColumn();
+    if ($drawElapsed >= DRAW_ROUND_TIME_LIMIT * 1000 || $correctCount >= 3) {
+        finishDrawRound($db, $code);
+        $status = 'draw_reveal';
+    }
+}
 
 // Re-fetch fresh room row after any updates
 $stmt2 = $db->prepare("SELECT * FROM rooms WHERE code = ?");
@@ -374,6 +390,85 @@ if ($room['game_format'] === 'impostor') {
     }
 }
 
+// === SKETCH & GUESS: per-device drawer/word visibility + live guesses/strokes ===
+$drawCurrentDrawer = null;
+$amIDrawer = false;
+$myDrawWordChoices = null;
+$drawWordIdx = null;
+$drawGuesses = [];
+$drawMyGuessedCorrectly = false;
+$drawTurnNumber = 0;
+$drawTotalTurns = 0;
+$drawStrokes = [];
+
+if ($room['game_format'] === 'draw') {
+    $drawRound = (int)$room['draw_round'];
+    $turnOrder = drawTurnOrderOf($room);
+    $drawerId = currentDrawerId($room);
+    $amIDrawer = $drawerId !== null && $drawerId === $deviceId;
+    $drawTurnNumber = $drawRound;
+    $drawTotalTurns = count($turnOrder) * max(1, (int)$room['draw_rounds_total']);
+
+    if ($drawerId) {
+        foreach ($playersOut as $p) {
+            if ($p['device_id'] === $drawerId) {
+                $drawCurrentDrawer = ['device_id' => $p['device_id'], 'name' => $p['name'], 'avatar' => $p['avatar']];
+                break;
+            }
+        }
+    }
+
+    if ($status === 'draw_choose' && $amIDrawer) {
+        $myDrawWordChoices = json_decode($room['draw_word_choice_indices'], true) ?: [];
+    }
+
+    // The word index is only meaningful (and worth sending) to the drawer
+    // while choosing/drawing, and to everyone once it's actually revealed -
+    // mid-round guessers must not see it early just because they polled the host.
+    if ((int)$room['draw_word_idx'] >= 0 && ($amIDrawer || $isHost || $status === 'draw_reveal')) {
+        $drawWordIdx = (int)$room['draw_word_idx'];
+    }
+
+    if (in_array($status, ['draw_active', 'draw_reveal'], true)) {
+        $guessStmt = $db->prepare("SELECT dg.device_id, p.name, p.avatar, dg.rank FROM drawing_guesses dg
+                                    JOIN players p ON p.room_code = dg.room_code AND p.device_id = dg.device_id
+                                    WHERE dg.room_code = ? AND dg.round = ? AND dg.is_correct = 1 ORDER BY dg.rank ASC");
+        $guessStmt->execute([$code, $drawRound]);
+        $drawGuesses = $guessStmt->fetchAll();
+        foreach ($drawGuesses as $g) {
+            if ($g['device_id'] === $deviceId) { $drawMyGuessedCorrectly = true; break; }
+        }
+    }
+
+    if ($status === 'draw_active') {
+        if ($sinceStrokeId > 0) {
+            $strokeStmt = $db->prepare("SELECT * FROM drawing_strokes WHERE room_code = ? AND round = ? AND id > ? ORDER BY id ASC LIMIT 200");
+            $strokeStmt->execute([$code, $drawRound, $sinceStrokeId]);
+        } else {
+            $strokeStmt = $db->prepare("SELECT * FROM drawing_strokes WHERE room_code = ? AND round = ? ORDER BY id ASC LIMIT 500");
+            $strokeStmt->execute([$code, $drawRound]);
+        }
+        $drawStrokes = array_map(fn($s) => [
+            'id'         => (int)$s['id'],
+            'points'     => json_decode($s['points'], true) ?: [],
+            'color'      => $s['color'],
+            'line_width' => (int)$s['line_width']
+        ], $strokeStmt->fetchAll());
+    } elseif ($status === 'draw_reveal') {
+        // The reveal screen needs the complete picture in one shot rather than
+        // a cursor-based trickle, since by now the round is over and there's
+        // no "new since last poll" framing left - every client just fetches it once.
+        $strokeStmt = $db->prepare("SELECT * FROM drawing_strokes WHERE room_code = ? AND round = ? ORDER BY id ASC LIMIT 500");
+        $strokeStmt->execute([$code, $drawRound]);
+        $drawStrokes = array_map(fn($s) => [
+            'id'         => (int)$s['id'],
+            'points'     => json_decode($s['points'], true) ?: [],
+            'color'      => $s['color'],
+            'line_width' => (int)$s['line_width']
+        ], $strokeStmt->fetchAll());
+    }
+}
+
 $myWalletStmt = $db->prepare("SELECT wallet FROM profiles WHERE device_id = ?");
 $myWalletStmt->execute([$deviceId]);
 $myWalletCol = $myWalletStmt->fetchColumn();
@@ -420,7 +515,9 @@ jsonOut([
         'impostor_round'          => $impRound,
         'impostor_word_pair_idx'  => (int)$room['impostor_word_pair_idx'],
         'impostor_result'        => $room['impostor_result'],
-        'impostor_last_skipped'  => (bool)$room['impostor_last_skipped']
+        'impostor_last_skipped'  => (bool)$room['impostor_last_skipped'],
+        'draw_round'        => (int)$room['draw_round'],
+        'draw_rounds_total' => (int)$room['draw_rounds_total']
     ],
     'players'           => $playersOut,
     'player_count'      => count($playersOut),
@@ -445,6 +542,15 @@ jsonOut([
     'my_impostor_vote'    => $myImpostorVote,
     'impostor_crew_list'      => $impostorCrewList,
     'impostor_impostor_list'  => $impostorImpostorList,
+    'draw_current_drawer'  => $drawCurrentDrawer,
+    'am_i_drawer'           => $amIDrawer,
+    'my_draw_word_choices'  => $myDrawWordChoices,
+    'draw_word_idx'         => $drawWordIdx,
+    'draw_guesses'          => $drawGuesses,
+    'draw_my_guessed_correctly' => $drawMyGuessedCorrectly,
+    'draw_turn_number'      => $drawTurnNumber,
+    'draw_total_turns'      => $drawTotalTurns,
+    'draw_strokes'          => $drawStrokes,
     'events'            => $eventsOut,
     'server_time'       => $now
 ]);

@@ -30,6 +30,18 @@ switch ($action) {
         // Word Impostor has its own no-timer flow (imp_clue/imp_reveal/imp_vote/
         // imp_elim/imp_tiebreak) - nothing below this branch (question pools,
         // time limits) applies to it, so it short-circuits before that logic.
+        if ($room['game_format'] === 'draw') {
+            $contestantStmt = $db->prepare("SELECT device_id FROM players WHERE room_code = ? AND is_host = 0 ORDER BY joined_at ASC");
+            $contestantStmt->execute([$code]);
+            $turnOrder = $contestantStmt->fetchAll(PDO::FETCH_COLUMN);
+            if (count($turnOrder) < 2) jsonOut(['success' => false, 'error' => 'Need at least 2 players to start Sketch & Guess'], 400);
+
+            $choiceIndices = pickDrawWordChoices();
+            $db->prepare("UPDATE rooms SET status = 'draw_choose', draw_turn_order = ?, draw_round = 1, draw_word_choice_indices = ?, draw_word_idx = -1, updated_at = ? WHERE code = ?")
+               ->execute([json_encode($turnOrder), json_encode($choiceIndices), $now, $code]);
+            break;
+        }
+
         if ($room['game_format'] === 'impostor') {
             $contestantStmt = $db->prepare("SELECT device_id FROM players WHERE room_code = ? AND is_host = 0");
             $contestantStmt->execute([$code]);
@@ -146,9 +158,17 @@ switch ($action) {
     case 'set_game_format':
         if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
         $value = $input['value'] ?? 'classic';
-        $format = in_array($value, ['classic', 'truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor'], true) ? $value : 'classic';
+        $format = in_array($value, ['classic', 'truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor', 'draw'], true) ? $value : 'classic';
         $db->prepare("UPDATE rooms SET game_format = ?, updated_at = ? WHERE code = ?")
            ->execute([$format, $now, $code]);
+        break;
+
+    case 'set_draw_rounds':
+        if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
+        $value = (int)($input['value'] ?? 1);
+        $rounds = in_array($value, [1, 2], true) ? $value : 1;
+        $db->prepare("UPDATE rooms SET draw_rounds_total = ?, updated_at = ? WHERE code = ?")
+           ->execute([$rounds, $now, $code]);
         break;
 
     // ---- Word Impostor: host-driven transitions (no timer fallback) ----
@@ -187,6 +207,30 @@ switch ($action) {
             $db->prepare("UPDATE rooms SET status = 'imp_reveal', updated_at = ? WHERE code = ?")->execute([$now, $code]);
         } elseif ($room['status'] === 'imp_vote') {
             resolveImpostorVotes($db, $code, (int)$room['impostor_round']);
+        } else {
+            jsonOut(['success' => false, 'error' => 'Nothing to force-advance'], 400);
+        }
+        break;
+
+    // ---- Sketch & Guess: host-driven transitions ----
+    case 'draw_next_turn':
+        if ($room['status'] !== 'draw_reveal') jsonOut(['success' => false, 'error' => 'Not in reveal state'], 400);
+        advanceDrawTurn($db, $code);
+        break;
+
+    case 'draw_force_advance':
+        // No-timer-on-choosing escape hatch (mirrors impostor_force_advance):
+        // if the drawer stalls on draw_choose, auto-pick their first offered
+        // word so the round isn't stuck forever; if a round is already
+        // drawing, just cut it short and reveal early.
+        if ($room['status'] === 'draw_choose') {
+            $choices = json_decode($room['draw_word_choice_indices'], true) ?: [];
+            if (!empty($choices)) {
+                $db->prepare("UPDATE rooms SET status = 'draw_active', draw_word_idx = ?, draw_round_start_time = ?, updated_at = ? WHERE code = ?")
+                   ->execute([$choices[0], $now, $now, $code]);
+            }
+        } elseif ($room['status'] === 'draw_active') {
+            finishDrawRound($db, $code);
         } else {
             jsonOut(['success' => false, 'error' => 'Nothing to force-advance'], 400);
         }

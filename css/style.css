@@ -2738,6 +2738,88 @@ label,
   margin-left: auto;
 }
 
+/* ── Sketch & Guess ───────────────────────────────────── */
+.draw-word-choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.draw-word-choice-btn {
+  background: var(--card);
+  border: 2px solid var(--bg3);
+  border-radius: var(--radius-sm);
+  padding: 1rem 0.5rem;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.draw-word-choice-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.draw-canvas-wrap {
+  background: #fff;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.4rem;
+  margin-bottom: 0.5rem;
+  display: flex;
+  justify-content: center;
+}
+
+#draw-canvas, #draw-reveal-canvas {
+  width: 100%;
+  max-width: 600px;
+  aspect-ratio: 600 / 400;
+  background: #fff;
+  border-radius: var(--radius-sm);
+  touch-action: none;
+}
+
+.draw-correct-avatars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  min-height: 2.2rem;
+}
+
+.draw-correct-avatar-badge {
+  position: relative;
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.draw-correct-avatar-badge img {
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.draw-correct-avatar-badge .draw-rank-tag {
+  position: absolute;
+  bottom: -0.2rem;
+  right: -0.4rem;
+  background: var(--gold);
+  color: #1a1a1a;
+  font-size: 0.6rem;
+  font-weight: 900;
+  min-width: 0.95rem;
+  height: 0.95rem;
+  padding: 0 0.15rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* ── Print / PDF Export ───────────────────────────────────── */
 @media print {
   body {

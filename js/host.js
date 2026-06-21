@@ -267,23 +267,32 @@ const HostGame = (function () {
   }
 
   function setGameFormat(format) {
-    gameFormat = ['truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor'].includes(format) ? format : 'classic';
+    gameFormat = ['truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor', 'draw'].includes(format) ? format : 'classic';
     if (typeof GameInstructions !== 'undefined') GameInstructions.render(gameFormat, 'host-instructions-box');
     toggleLobbySettingsForFormat();
     action('set_game_format', { value: gameFormat });
   }
 
-  // Word Impostor has no question pool/difficulty/timer settings at all, so
-  // the trivia-only lobby controls (source/difficulty/count/CSV upload) hide
-  // as a single block instead of being shown but meaningless.
+  // Word Impostor and Sketch & Guess have no question pool/difficulty/timer
+  // settings at all, so the trivia-only lobby controls (source/difficulty/
+  // count/CSV upload) hide as a single block instead of being shown but meaningless.
   function toggleLobbySettingsForFormat() {
     const isImpostor = gameFormat === 'impostor';
+    const isDraw = gameFormat === 'draw';
     const triviaSettings = document.getElementById('host-trivia-settings');
     const csvBox = document.getElementById('host-csv-upload-box');
     const impHint = document.getElementById('host-impostor-hint');
-    if (triviaSettings) triviaSettings.style.display = isImpostor ? 'none' : '';
-    if (csvBox) csvBox.style.display = isImpostor ? 'none' : '';
+    const drawHint = document.getElementById('host-draw-hint');
+    const drawRoundsRow = document.getElementById('host-draw-rounds-row');
+    if (triviaSettings) triviaSettings.style.display = (isImpostor || isDraw) ? 'none' : '';
+    if (csvBox) csvBox.style.display = (isImpostor || isDraw) ? 'none' : '';
     if (impHint) impHint.style.display = isImpostor ? '' : 'none';
+    if (drawHint) drawHint.style.display = isDraw ? '' : 'none';
+    if (drawRoundsRow) drawRoundsRow.style.display = isDraw ? '' : 'none';
+  }
+
+  function setDrawRounds(rounds) {
+    action('set_draw_rounds', { value: parseInt(rounds, 10) === 2 ? 2 : 1 });
   }
 
   function setDifficulty(diff) {
@@ -341,9 +350,10 @@ const HostGame = (function () {
   }
 
   function startGame() {
-    // Word Impostor has no question pool to track "already played" against,
-    // so it skips straight past the CSV-ready/exclude-indices dance entirely.
-    if (gameFormat === 'impostor') {
+    // Word Impostor and Sketch & Guess have no question pool to track
+    // "already played" against, so they skip straight past the
+    // CSV-ready/exclude-indices dance entirely.
+    if (gameFormat === 'impostor' || gameFormat === 'draw') {
       action('start_game', {}).then(res => {
         if (!res.success) App.showToast(res.error || 'Could not start game', 'error', 5000);
       });
@@ -375,6 +385,19 @@ const HostGame = (function () {
 
   function resolveImpostorTiebreak(targetDeviceId) {
     action('impostor_resolve_tiebreak', { target_device_id: targetDeviceId || '' });
+  }
+
+  // ---- Sketch & Guess host controls ----
+  function nextDrawTurn() {
+    action('draw_next_turn').then(res => {
+      if (!res.success) App.showToast(res.error || 'Could not advance', 'error');
+    });
+  }
+
+  function forceAdvanceDraw() {
+    action('draw_force_advance').then(res => {
+      if (!res.success) App.showToast(res.error || 'Nothing to advance', 'error');
+    });
   }
 
   function clearAllProgress() {
@@ -521,6 +544,9 @@ const HostGame = (function () {
     nextImpostorRound,
     forceAdvanceImpostor,
     resolveImpostorTiebreak,
+    setDrawRounds,
+    nextDrawTurn,
+    forceAdvanceDraw,
     get roomCode() { return roomCode; }
   };
 })();

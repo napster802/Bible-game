@@ -173,6 +173,27 @@ function initDB(PDO $db): void {
             updated_at INTEGER NOT NULL,
             PRIMARY KEY (device_id, game_format)
         );
+        CREATE TABLE IF NOT EXISTS drawing_strokes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            room_code TEXT NOT NULL,
+            round INTEGER NOT NULL,
+            drawer_device_id TEXT NOT NULL,
+            points TEXT NOT NULL,
+            color TEXT NOT NULL,
+            line_width INTEGER NOT NULL,
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_drawing_strokes_room ON drawing_strokes(room_code, round, id);
+        CREATE TABLE IF NOT EXISTS drawing_guesses (
+            room_code TEXT NOT NULL,
+            device_id TEXT NOT NULL,
+            round INTEGER NOT NULL,
+            guess_text TEXT NOT NULL,
+            is_correct INTEGER NOT NULL,
+            rank INTEGER,
+            submitted_at INTEGER NOT NULL,
+            PRIMARY KEY (room_code, device_id, round)
+        );
     ");
     migrateSchema($db);
 }
@@ -197,6 +218,12 @@ function migrateSchema(PDO $db): void {
             'impostor_result'          => "TEXT",
             'impostor_last_elim_id'    => "TEXT",
             'impostor_last_skipped'    => "INTEGER DEFAULT 0",
+            'draw_turn_order'          => "TEXT DEFAULT '[]'",
+            'draw_round'               => "INTEGER DEFAULT 1",
+            'draw_rounds_total'        => "INTEGER DEFAULT 1",
+            'draw_word_choice_indices' => "TEXT DEFAULT '[]'",
+            'draw_word_idx'            => "INTEGER DEFAULT -1",
+            'draw_round_start_time'    => "INTEGER DEFAULT 0",
         ],
         'profiles' => [
             'wallet'                => "INTEGER DEFAULT 0",
@@ -255,6 +282,8 @@ function cleanStale(PDO $db): void {
     $db->prepare("DELETE FROM room_events WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM impostor_clues WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM impostor_votes WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
+    $db->prepare("DELETE FROM drawing_strokes WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
+    $db->prepare("DELETE FROM drawing_guesses WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM rooms WHERE created_at < ?")->execute([$cutoff]);
 }
 
@@ -367,4 +396,68 @@ function resolveImpostorVotes(PDO $db, string $code, int $round): void {
     } else {
         $db->prepare("UPDATE rooms SET status = 'imp_tiebreak', updated_at = ? WHERE code = ?")->execute([nowMs(), $code]);
     }
+}
+
+/* ------------------------------------------------------------
+   SKETCH & GUESS - shared helpers
+   Turn order is the join order of contestants, fixed at start_game
+   and never re-shuffled per round. The current drawer is derived
+   from draw_round (1-based, monotonic across the whole game) rather
+   than storing a separate turn-index column - draw_round also
+   doubles as the score-feed/round number shown to players.
+   Like submit_answer.php's is_correct flag, guess correctness is
+   judged client-side (against js/drawing_words.js, which every
+   client already has) and the server simply trusts and records it -
+   the word index is never secret in a way that matters since the
+   full word bank ships to every client regardless of role.
+   ------------------------------------------------------------ */
+const DRAW_GUESS_POINTS = [300, 200, 100]; // rank 1/2/3; rank 4+ gets nothing
+const DRAW_DRAWER_BONUS = 50; // per correct guesser, capped at the first 3
+const DRAW_ROUND_TIME_LIMIT = 75; // seconds for draw_active before auto-reveal
+
+function drawTurnOrderOf(array $room): array {
+    return json_decode($room['draw_turn_order'] ?? '[]', true) ?: [];
+}
+
+function currentDrawerId(array $room): ?string {
+    $order = drawTurnOrderOf($room);
+    if (empty($order)) return null;
+    $idx = ((int)$room['draw_round'] - 1) % count($order);
+    return $order[$idx];
+}
+
+// Ends the current drawing round (called once draw_active should advance to
+// draw_reveal, whether triggered by the timer, by 3 correct guesses already
+// recorded, or by the host's force-advance) and decides whether the whole
+// game is finished or there's another turn to take.
+function finishDrawRound(PDO $db, string $code): void {
+    $db->prepare("UPDATE rooms SET status = 'draw_reveal', updated_at = ? WHERE code = ?")->execute([nowMs(), $code]);
+}
+
+function advanceDrawTurn(PDO $db, string $code): void {
+    $now = nowMs();
+    $roomStmt = $db->prepare("SELECT * FROM rooms WHERE code = ?");
+    $roomStmt->execute([$code]);
+    $room = $roomStmt->fetch();
+    if (!$room) return;
+    $order = drawTurnOrderOf($room);
+    $nextRound = (int)$room['draw_round'] + 1;
+    $totalTurns = count($order) * max(1, (int)$room['draw_rounds_total']);
+    if (empty($order) || $nextRound > $totalTurns) {
+        $db->prepare("UPDATE rooms SET status = 'finished', updated_at = ? WHERE code = ?")->execute([$now, $code]);
+        return;
+    }
+    $choiceIndices = pickDrawWordChoices();
+    $db->prepare("UPDATE rooms SET status = 'draw_choose', draw_round = ?, draw_word_choice_indices = ?, draw_word_idx = -1, updated_at = ? WHERE code = ?")
+       ->execute([$nextRound, json_encode($choiceIndices), $now, $code]);
+}
+
+// js/drawing_words.js DrawingWords.WORDS currently has 40 entries; kept in
+// sync manually since the server never needs the word text, only the count.
+const DRAW_WORD_BANK_SIZE = 40;
+
+function pickDrawWordChoices(): array {
+    $pool = range(0, DRAW_WORD_BANK_SIZE - 1);
+    shuffle($pool);
+    return array_slice($pool, 0, 4);
 }

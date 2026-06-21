@@ -150,9 +150,17 @@
               <option value="versefill">📖 Verse Fill-in-the-Blank</option>
               <option value="emojiclue">🌊 Emoji Story Clue</option>
               <option value="impostor">🕵️ Word Impostor</option>
+              <option value="draw">🎨 Sketch &amp; Guess</option>
             </select>
           </div>
           <div class="instructions-box" id="host-instructions-box"></div>
+          <div class="setting-row" id="host-draw-rounds-row" style="display:none;">
+            <span>Rounds per Player</span>
+            <select id="host-draw-rounds-select" class="select-input" onchange="HostGame.setDrawRounds(this.value)">
+              <option value="1" selected>1x</option>
+              <option value="2">2x</option>
+            </select>
+          </div>
           <div id="host-trivia-settings">
           <div class="setting-row">
             <span>Question Source</span>
@@ -200,6 +208,7 @@
           <button class="btn-link" id="host-clear-progress-btn" onclick="HostGame.clearAllProgress()">↺ Clear All Progress (replay used questions)</button>
           </div>
           <p class="hint-text" id="host-impostor-hint" style="display:none;">🕵️ Word Impostor needs at least 3 players. No timer - rounds advance once everyone has acted.</p>
+          <p class="hint-text" id="host-draw-hint" style="display:none;">🎨 Sketch &amp; Guess needs at least 2 players. Each player takes a turn drawing while everyone else guesses.</p>
         </div>
 
         <div class="host-csv-upload" id="host-csv-upload-box">
@@ -578,6 +587,68 @@
       </div>
     </div>
 
+    <!-- ==================== SCREEN: SKETCH & GUESS - CHOOSE WORD ==================== -->
+    <div class="screen" id="screen-draw-choose">
+      <div class="screen-header">
+        <h2>🎨 Sketch &amp; Guess</h2>
+        <span class="mp-status-badge" id="draw-choose-turn-badge"></span>
+      </div>
+      <div class="screen-body">
+        <div id="draw-choose-drawer-box">
+          <p class="hint-text">Pick a word to draw!</p>
+          <div class="draw-word-choices" id="draw-word-choices"></div>
+        </div>
+        <div id="draw-choose-waiting-box" style="display:none">
+          <p class="hint-text" id="draw-choose-waiting-text"></p>
+        </div>
+        <div class="host-monitor" id="draw-choose-host-monitor" style="display:none">
+          <p class="hint-text" id="draw-choose-host-text"></p>
+          <button class="btn btn-secondary" onclick="HostGame.forceAdvanceDraw()">⏭ Force Advance (skip stalled drawer)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: SKETCH & GUESS - DRAWING ==================== -->
+    <div class="screen" id="screen-draw-active">
+      <div class="screen-header">
+        <h2 id="draw-active-title">🎨 Sketch &amp; Guess</h2>
+        <span class="mp-status-badge" id="draw-active-turn-badge"></span>
+      </div>
+      <div class="screen-body">
+        <div class="draw-canvas-wrap">
+          <canvas id="draw-canvas" width="600" height="400"></canvas>
+        </div>
+        <div class="draw-correct-avatars" id="draw-correct-avatars"></div>
+        <p class="hint-text" id="draw-active-host-word" style="display:none"></p>
+        <div id="draw-guess-form">
+          <input type="text" id="draw-guess-input" class="text-input" placeholder="Type your guess..." maxlength="40">
+          <button class="btn btn-primary btn-xl" id="draw-guess-submit-btn">Guess</button>
+          <p class="hint-text" id="draw-guess-correct-text" style="display:none">✓ Correct! Waiting for the round to end…</p>
+        </div>
+        <div class="host-monitor" id="draw-active-host-monitor" style="display:none">
+          <button class="btn btn-secondary" onclick="HostGame.forceAdvanceDraw()">⏭ Reveal Now</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: SKETCH & GUESS - REVEAL ==================== -->
+    <div class="screen" id="screen-draw-reveal">
+      <div class="screen-header">
+        <h2>🖼️ Round Reveal</h2>
+      </div>
+      <div class="screen-body">
+        <div class="draw-canvas-wrap">
+          <canvas id="draw-reveal-canvas" width="600" height="400"></canvas>
+        </div>
+        <p class="hint-text" id="draw-reveal-word-text"></p>
+        <div class="draw-correct-avatars" id="draw-reveal-correct-list"></div>
+        <div id="draw-reveal-host-controls" style="display:none">
+          <button class="btn btn-primary btn-xl" onclick="HostGame.nextDrawTurn()">Next Turn →</button>
+        </div>
+        <p class="hint-text" id="draw-reveal-waiting-text" style="display:none">Waiting for the host to continue…</p>
+      </div>
+    </div>
+
     <!-- ==================== SCREEN: RESULTS ==================== -->
     <div class="screen" id="screen-results">
       <div class="results-top">
@@ -847,6 +918,7 @@
   <script src="js/versefill_data.js"></script>
   <script src="js/emojiclue_data.js"></script>
   <script src="js/impostor_data.js"></script>
+  <script src="js/drawing_words.js"></script>
   <script src="js/game_instructions.js"></script>
   <script src="js/question_tracker.js"></script>
   <script src="js/custom_questions.js"></script>
