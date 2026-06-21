@@ -40,6 +40,12 @@ if ($checkStmt->fetchColumn()) jsonOut(['success' => false, 'error' => 'You alre
 $guessText = mb_substr($guessText, 0, 40);
 $now = nowMs();
 
+// Every attempt (right or wrong) is logged so the round's guess feed can
+// show it - drawing_guesses (below) only ever holds the one correct row per
+// player per round, which isn't enough to reconstruct a full chat-style log.
+$db->prepare("INSERT INTO drawing_guess_log (room_code, device_id, round, guess_text, is_correct, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+   ->execute([$code, $deviceId, $round, $guessText, $isCorrect ? 1 : 0, $now]);
+
 if (!$isCorrect) {
     jsonOut(['success' => true, 'is_correct' => false]);
 }

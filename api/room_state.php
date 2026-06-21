@@ -396,6 +396,7 @@ $amIDrawer = false;
 $myDrawWordChoices = null;
 $drawWordIdx = null;
 $drawGuesses = [];
+$drawGuessLog = [];
 $drawMyGuessedCorrectly = false;
 $drawTurnNumber = 0;
 $drawTotalTurns = 0;
@@ -441,6 +442,25 @@ if ($room['game_format'] === 'draw') {
     }
 
     if ($status === 'draw_active') {
+        // Chat-style feed of every guess attempt this round. Correct guesses
+        // are masked with asterisks server-side - even though the guesser who
+        // submitted it already knows the word, broadcasting it in the clear
+        // to everyone else still guessing would spoil the round for them.
+        $logStmt = $db->prepare("SELECT dgl.guess_text, dgl.is_correct, p.device_id, p.name, p.avatar FROM drawing_guess_log dgl
+                                  JOIN players p ON p.room_code = dgl.room_code AND p.device_id = dgl.device_id
+                                  WHERE dgl.room_code = ? AND dgl.round = ? ORDER BY dgl.id ASC LIMIT 200");
+        $logStmt->execute([$code, $drawRound]);
+        $drawGuessLog = array_map(function ($g) {
+            $isCorrectGuess = (int)$g['is_correct'] === 1;
+            return [
+                'device_id'  => $g['device_id'],
+                'name'       => $g['name'],
+                'avatar'     => $g['avatar'],
+                'is_correct' => $isCorrectGuess,
+                'text'       => $isCorrectGuess ? str_repeat('*', max(3, mb_strlen($g['guess_text']))) : $g['guess_text'],
+            ];
+        }, $logStmt->fetchAll());
+
         if ($sinceStrokeId > 0) {
             $strokeStmt = $db->prepare("SELECT * FROM drawing_strokes WHERE room_code = ? AND round = ? AND id > ? ORDER BY id ASC LIMIT 200");
             $strokeStmt->execute([$code, $drawRound, $sinceStrokeId]);
@@ -547,6 +567,7 @@ jsonOut([
     'my_draw_word_choices'  => $myDrawWordChoices,
     'draw_word_idx'         => $drawWordIdx,
     'draw_guesses'          => $drawGuesses,
+    'draw_guess_log'        => $drawGuessLog,
     'draw_my_guessed_correctly' => $drawMyGuessedCorrectly,
     'draw_turn_number'      => $drawTurnNumber,
     'draw_total_turns'      => $drawTotalTurns,

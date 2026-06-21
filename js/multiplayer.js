@@ -1592,7 +1592,7 @@ const Multiplayer = (function () {
     canvas.addEventListener('pointerleave', finishStroke);
   }
 
-  function submitDrawWordChoice(round, choiceIdx) {
+  function submitDrawWordChoice(round, choiceIdx, onFail) {
     api('submit_draw_word_choice.php', {
       room_code: roomCode,
       device_id: deviceId,
@@ -1600,10 +1600,11 @@ const Multiplayer = (function () {
       choice_idx: choiceIdx
     }).then(res => {
       if (res.success) poll();
-      else App.showToast(res.error || 'Could not pick that word', 'error');
+      else { App.showToast(res.error || 'Could not pick that word', 'error'); if (onFail) onFail(); }
     }).catch(err => {
       console.error('Word choice failed:', err);
       App.showToast('Could not reach the host - try again.', 'error');
+      if (onFail) onFail();
     });
   }
 
@@ -1649,6 +1650,21 @@ const Multiplayer = (function () {
     });
   }
 
+  function renderDrawGuessLog(data) {
+    const log = document.getElementById('draw-guess-log');
+    if (!log) return;
+    const entries = data.draw_guess_log || [];
+    const wasAtBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 4;
+    log.innerHTML = entries.map(g => `
+      <div class="draw-guess-log-row${g.is_correct ? ' correct' : ''}">
+        ${avatarHtmlFor(g)}
+        <span class="draw-guess-log-name">${escapeHtml(g.name)}:</span>
+        <span class="draw-guess-log-text">${g.is_correct ? `${escapeHtml(g.text)} ✓` : escapeHtml(g.text)}</span>
+      </div>
+    `).join('') || '<p class="hint-text">No guesses yet…</p>';
+    if (wasAtBottom) log.scrollTop = log.scrollHeight;
+  }
+
   function renderDrawCorrectAvatars(containerId, guesses, withRank) {
     const row = document.getElementById(containerId);
     if (!row) return;
@@ -1681,7 +1697,11 @@ const Multiplayer = (function () {
           btn.textContent = drawWordText(idx);
           btn.onclick = () => {
             choicesBox.querySelectorAll('button').forEach(b => b.disabled = true);
-            submitDrawWordChoice(data.room.draw_round, idx);
+            submitDrawWordChoice(data.room.draw_round, idx, () => {
+              // Submission failed (e.g. a transient server error) - re-enable
+              // so the drawer isn't left stuck looking at unclickable buttons.
+              choicesBox.querySelectorAll('button').forEach(b => b.disabled = false);
+            });
           };
           choicesBox.appendChild(btn);
         });
@@ -1753,6 +1773,7 @@ const Multiplayer = (function () {
     }
 
     renderDrawCorrectAvatars('draw-correct-avatars', data.draw_guesses || [], true);
+    renderDrawGuessLog(data);
   }
 
   function updateDrawActive(data) {
@@ -1764,6 +1785,7 @@ const Multiplayer = (function () {
       }
     });
     renderDrawCorrectAvatars('draw-correct-avatars', data.draw_guesses || [], true);
+    renderDrawGuessLog(data);
     if (!isHost && !data.am_i_drawer && data.draw_my_guessed_correctly) {
       const correctText = document.getElementById('draw-guess-correct-text');
       const guessInput = document.getElementById('draw-guess-input');

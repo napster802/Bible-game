@@ -33,6 +33,11 @@ register_shutdown_function(function () {
 
 define('DB_PATH', __DIR__ . '/../data/game.db');
 
+// Bump whenever migrateSchema()'s $columns table gains/changes entries, so
+// existing deployments pick up the new columns exactly once instead of never
+// (see the PRAGMA user_version guard around migrateSchema() in initDB()).
+define('SCHEMA_VERSION', 2);
+
 function getDB(): PDO {
     static $db = null;
     if ($db === null) {
@@ -194,8 +199,29 @@ function initDB(PDO $db): void {
             submitted_at INTEGER NOT NULL,
             PRIMARY KEY (room_code, device_id, round)
         );
+        CREATE TABLE IF NOT EXISTS drawing_guess_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            room_code TEXT NOT NULL,
+            device_id TEXT NOT NULL,
+            round INTEGER NOT NULL,
+            guess_text TEXT NOT NULL,
+            is_correct INTEGER NOT NULL,
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_drawing_guess_log_room ON drawing_guess_log(room_code, round, id);
     ");
-    migrateSchema($db);
+    // ALTER TABLE attempts (in migrateSchema) momentarily need a stronger lock
+    // than plain reads/writes, even when the column already exists and the
+    // attempt is a no-op. Running ~25 of them on every single request (every
+    // poll, from every player) made "database is locked" far more likely
+    // whenever requests overlapped - e.g. the burst of host + player polls
+    // right as Start Game is pressed. A schema version pragma lets every
+    // request after the first-ever run skip migrateSchema() entirely.
+    $version = (int)$db->query('PRAGMA user_version')->fetchColumn();
+    if ($version < SCHEMA_VERSION) {
+        migrateSchema($db);
+        $db->exec('PRAGMA user_version = ' . SCHEMA_VERSION);
+    }
 }
 
 // SQLite has no "ADD COLUMN IF NOT EXISTS"; safely retrofit columns onto
