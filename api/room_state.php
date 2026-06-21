@@ -288,9 +288,23 @@ $impostorLastElim = null;
 $impostorReveal = null;
 $myImpostorClue = null;
 $myImpostorVote = null;
+$impostorCrewList = null;
+$impostorImpostorList = null;
 
 if ($room['game_format'] === 'impostor') {
-    $amIImpostor = $room['impostor_id'] !== null && $room['impostor_id'] === $deviceId;
+    $impostorIds = impostorIdsOf($room);
+    $amIImpostor = in_array($deviceId, $impostorIds, true);
+
+    if ($isHost) {
+        $impostorCrewList = [];
+        $impostorImpostorList = [];
+        foreach ($playersOut as $p) {
+            if ($p['is_host']) continue;
+            $entry = ['device_id' => $p['device_id'], 'name' => $p['name'], 'avatar' => $p['avatar'], 'eliminated' => $p['eliminated']];
+            if (in_array($p['device_id'], $impostorIds, true)) $impostorImpostorList[] = $entry;
+            else $impostorCrewList[] = $entry;
+        }
+    }
 
     $clueCountStmt = $db->prepare("SELECT COUNT(*) FROM impostor_clues WHERE room_code = ? AND round = ?");
     $clueCountStmt->execute([$code, $impRound]);
@@ -340,25 +354,23 @@ if ($room['game_format'] === 'impostor') {
                 'device_id'    => $lastElimRow['device_id'],
                 'name'         => $lastElimRow['name'],
                 'avatar'       => $lastElimRow['avatar'],
-                'was_impostor' => $lastElimRow['device_id'] === $room['impostor_id']
+                'was_impostor' => in_array($lastElimRow['device_id'], $impostorIds, true)
             ];
         }
     }
 
     // The game has ended either way by 'finished' - safe to reveal who the
-    // impostor actually was, even if they survived uncaught (in which case
-    // impostor_last_elim above points at an innocent crew member instead).
-    if ($status === 'finished' && $room['impostor_id']) {
-        $revealStmt = $db->prepare("SELECT device_id, name, avatar FROM players WHERE room_code = ? AND device_id = ?");
-        $revealStmt->execute([$code, $room['impostor_id']]);
-        $revealRow = $revealStmt->fetch();
-        if ($revealRow) {
-            $impostorReveal = [
-                'device_id' => $revealRow['device_id'],
-                'name'      => $revealRow['name'],
-                'avatar'    => $revealRow['avatar']
-            ];
-        }
+    // impostor(s) actually were, even if one survived uncaught (in which
+    // case impostor_last_elim above points at an innocent crew member instead).
+    if ($status === 'finished' && !empty($impostorIds)) {
+        $placeholders = implode(',', array_fill(0, count($impostorIds), '?'));
+        $revealStmt = $db->prepare("SELECT device_id, name, avatar FROM players WHERE room_code = ? AND device_id IN ($placeholders)");
+        $revealStmt->execute(array_merge([$code], $impostorIds));
+        $impostorReveal = array_map(fn($r) => [
+            'device_id' => $r['device_id'],
+            'name'      => $r['name'],
+            'avatar'    => $r['avatar']
+        ], $revealStmt->fetchAll());
     }
 }
 
@@ -431,6 +443,8 @@ jsonOut([
     'impostor_reveal'     => $impostorReveal,
     'my_impostor_clue'    => $myImpostorClue,
     'my_impostor_vote'    => $myImpostorVote,
+    'impostor_crew_list'      => $impostorCrewList,
+    'impostor_impostor_list'  => $impostorImpostorList,
     'events'            => $eventsOut,
     'server_time'       => $now
 ]);

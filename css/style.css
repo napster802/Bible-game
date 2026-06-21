@@ -2652,6 +2652,92 @@ label,
   font-weight: 700;
 }
 
+.imp-role-badge {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
+.imp-role-badge.crew {
+  background: rgba(46, 204, 113, 0.15);
+  color: var(--green, #2ecc71);
+}
+
+.imp-role-badge.impostor {
+  background: rgba(231, 76, 60, 0.15);
+  color: var(--red, #e74c3c);
+}
+
+.imp-answerkey {
+  background: var(--card);
+  border: 2px solid var(--gold);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.imp-answerkey-words {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.imp-answerkey-words > div {
+  flex: 1;
+  text-align: center;
+  background: var(--bg3);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem;
+}
+
+.imp-answerkey-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text2);
+}
+
+.imp-answerkey-word {
+  display: block;
+  font-weight: 800;
+  color: var(--gold);
+  font-size: 1.1rem;
+}
+
+.imp-answerkey-lists {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.imp-answerkey-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.imp-answerkey-col-title {
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 0.3rem;
+}
+
+.imp-answerkey-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0;
+  font-size: 0.85rem;
+}
+
+.imp-answerkey-row.eliminated {
+  opacity: 0.5;
+}
+
+.imp-answerkey-elim-tag {
+  margin-left: auto;
+}
+
 /* ── Print / PDF Export ───────────────────────────────────── */
 @media print {
   body {

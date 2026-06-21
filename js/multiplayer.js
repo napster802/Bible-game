@@ -1136,6 +1136,48 @@ const Multiplayer = (function () {
       : `<span class="player-avatar-badge">${p.avatar}</span>`;
   }
 
+  // Tells a contestant which side they're on - the word card alone only
+  // implies it (crew get wordA, the impostor gets wordB).
+  function renderImpRoleBadge(elId, data) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.textContent = data.am_i_impostor ? '🕵️ You are the IMPOSTOR' : '👥 You are CREW';
+    el.className = 'imp-role-badge' + (data.am_i_impostor ? ' impostor' : ' crew');
+  }
+
+  // Host-only answer key: both secret words plus the full crew/impostor
+  // breakdown - room_state.php only populates impostor_crew_list /
+  // impostor_impostor_list for the host, so this is safe to call unconditionally.
+  function renderImpHostAnswerKey(elId, data) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const pair = ImpostorData.PAIRS[data.room.impostor_word_pair_idx];
+    const crewWord = pair ? pair.wordA : '—';
+    const impostorWord = pair ? pair.wordB : '—';
+    const crewList = data.impostor_crew_list || [];
+    const impostorList = data.impostor_impostor_list || [];
+    const rowHtml = p => `
+      <div class="imp-answerkey-row${p.eliminated ? ' eliminated' : ''}">
+        ${avatarHtmlFor(p)}<span>${escapeHtml(p.name)}</span>${p.eliminated ? '<span class="imp-answerkey-elim-tag">💀</span>' : ''}
+      </div>`;
+    el.innerHTML = `
+      <div class="imp-answerkey-words">
+        <div><span class="imp-answerkey-label">👥 Crew Word</span><span class="imp-answerkey-word">${escapeHtml(crewWord)}</span></div>
+        <div><span class="imp-answerkey-label">🕵️ Impostor Word</span><span class="imp-answerkey-word">${escapeHtml(impostorWord)}</span></div>
+      </div>
+      <div class="imp-answerkey-lists">
+        <div class="imp-answerkey-col">
+          <p class="imp-answerkey-col-title">👥 Crew (${crewList.length})</p>
+          ${crewList.map(rowHtml).join('') || '<p class="hint-text">—</p>'}
+        </div>
+        <div class="imp-answerkey-col">
+          <p class="imp-answerkey-col-title">🕵️ Impostor${impostorList.length > 1 ? 's' : ''} (${impostorList.length})</p>
+          ${impostorList.map(rowHtml).join('') || '<p class="hint-text">—</p>'}
+        </div>
+      </div>
+    `;
+  }
+
   function renderImpClueList(containerId, data) {
     const list = document.getElementById(containerId);
     if (!list) return;
@@ -1234,6 +1276,7 @@ const Multiplayer = (function () {
       if (elimBanner) elimBanner.style.display = 'none';
       if (hostMonitor) hostMonitor.style.display = 'block';
       if (statusBadge) statusBadge.style.display = 'none';
+      renderImpHostAnswerKey('imp-clue-answerkey', data);
       renderImpActedMonitor('imp-clue-host-monitor-list', data, '✓ Clue in');
       return;
     }
@@ -1252,6 +1295,7 @@ const Multiplayer = (function () {
 
     const wordEl = document.getElementById('imp-clue-word');
     if (wordEl) wordEl.textContent = lookupImpostorWord(data);
+    renderImpRoleBadge('imp-clue-role-badge', data);
 
     const input = document.getElementById('imp-clue-input');
     const submitBtn = document.getElementById('imp-clue-submit-btn');
@@ -1288,10 +1332,12 @@ const Multiplayer = (function () {
       if (wordCard) wordCard.style.display = '';
       const wordEl = document.getElementById('imp-reveal-word');
       if (wordEl) wordEl.textContent = lookupImpostorWord(data);
+      renderImpRoleBadge('imp-reveal-role-badge', data);
     }
 
     renderImpClueList('imp-reveal-clue-list', data);
 
+    if (isHost) renderImpHostAnswerKey('imp-reveal-answerkey', data);
     if (hostControls) hostControls.style.display = isHost ? 'block' : 'none';
     if (waitingText) waitingText.style.display = isHost ? 'none' : 'block';
   }
@@ -1313,6 +1359,7 @@ const Multiplayer = (function () {
       if (submittedText) submittedText.style.display = 'none';
       if (hostMonitor) hostMonitor.style.display = 'block';
       if (statusBadge) statusBadge.style.display = 'none';
+      renderImpHostAnswerKey('imp-vote-answerkey', data);
       renderImpActedMonitor('imp-vote-host-monitor-list', data, '✓ Vote in');
       updateImpVoteProceedBtn(data);
       return;
@@ -1392,12 +1439,15 @@ const Multiplayer = (function () {
       if (data.room.impostor_last_skipped) {
         banner.textContent = '🤷 No one was eliminated this round.';
       } else if (data.impostor_last_elim) {
-        banner.textContent = `💀 ${data.impostor_last_elim.name} was voted out. The Impostor is still among you!`;
+        banner.textContent = data.impostor_last_elim.was_impostor
+          ? `💀 ${data.impostor_last_elim.name} was voted out — they were an Impostor! Keep watch for the rest.`
+          : `💀 ${data.impostor_last_elim.name} was voted out. The Impostor is still among you!`;
       } else {
         banner.textContent = '';
       }
     }
 
+    if (isHost) renderImpHostAnswerKey('imp-elim-answerkey', data);
     if (hostControls) hostControls.style.display = isHost ? 'block' : 'none';
     if (waitingText) waitingText.style.display = isHost ? 'none' : 'block';
   }
@@ -1419,6 +1469,7 @@ const Multiplayer = (function () {
       });
     }
 
+    if (isHost) renderImpHostAnswerKey('imp-tiebreak-answerkey', data);
     if (hostControls) hostControls.style.display = isHost ? 'block' : 'none';
     if (waitingText) waitingText.style.display = isHost ? 'none' : 'block';
   }
@@ -1426,14 +1477,16 @@ const Multiplayer = (function () {
   function renderImpostorResultBanner(data) {
     const banner = document.getElementById('results-imp-banner');
     if (!banner) return;
-    if (data.room.game_format !== 'impostor' || !data.impostor_reveal) {
+    const reveals = data.impostor_reveal;
+    if (data.room.game_format !== 'impostor' || !reveals || !reveals.length) {
       banner.style.display = 'none';
       return;
     }
-    const reveal = data.impostor_reveal;
+    const plural = reveals.length > 1;
+    const names = reveals.map(r => r.name).join(' & ');
     banner.textContent = data.room.impostor_result === 'crew_win'
-      ? `🎉 The Crew Wins! ${reveal.name} was the Impostor and got caught.`
-      : `🕵️ The Impostor Wins! ${reveal.name} survived undetected.`;
+      ? `🎉 The Crew Wins! The Impostor${plural ? 's were' : ' was'} ${names} and got caught.`
+      : `🕵️ The Impostor${plural ? 's' : ''} Win${plural ? '' : 's'}! ${names} survived undetected.`;
     banner.style.display = 'block';
   }
 

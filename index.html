@@ -489,6 +489,7 @@
         <div class="imp-word-card" id="imp-clue-word-card">
           <p class="hint-text">Your Secret Word</p>
           <div class="imp-word" id="imp-clue-word">—</div>
+          <div class="imp-role-badge" id="imp-clue-role-badge"></div>
         </div>
         <p class="hint-text">Give ONE word or short phrase that hints at your word — without saying it outright. Every clue is revealed together once everyone has submitted.</p>
         <div class="eliminated-banner" id="imp-clue-eliminated-banner" style="display:none">💀 You're eliminated — spectating the rest of the game</div>
@@ -498,6 +499,7 @@
           <p class="hint-text" id="imp-clue-submitted-text" style="display:none">✓ Clue submitted — waiting for others…</p>
         </div>
         <div class="host-monitor" id="imp-clue-host-monitor" style="display:none">
+          <div class="imp-answerkey" id="imp-clue-answerkey"></div>
           <div class="host-monitor-list" id="imp-clue-host-monitor-list"></div>
           <button class="btn btn-secondary" onclick="HostGame.forceAdvanceImpostor()">⏭ Force Advance (skip stragglers)</button>
         </div>
@@ -513,10 +515,12 @@
         <div class="imp-word-card" id="imp-reveal-word-card">
           <p class="hint-text">Your Secret Word</p>
           <div class="imp-word" id="imp-reveal-word">—</div>
+          <div class="imp-role-badge" id="imp-reveal-role-badge"></div>
         </div>
         <p class="hint-text">Discuss out loud, then the host opens voting.</p>
         <div class="imp-clue-list" id="imp-reveal-clue-list"></div>
         <div id="imp-reveal-host-controls" style="display:none">
+          <div class="imp-answerkey" id="imp-reveal-answerkey"></div>
           <button class="btn btn-primary btn-xl" onclick="HostGame.startImpostorVoting()">🗳️ Start Voting →</button>
         </div>
         <p class="hint-text" id="imp-reveal-waiting-text" style="display:none">Waiting for the host to open voting…</p>
@@ -536,6 +540,7 @@
         <div class="imp-vote-list" id="imp-vote-list"></div>
         <p class="hint-text" id="imp-vote-submitted-text" style="display:none">✓ Vote locked — waiting for others…</p>
         <div class="host-monitor" id="imp-vote-host-monitor" style="display:none">
+          <div class="imp-answerkey" id="imp-vote-answerkey"></div>
           <div class="host-monitor-list" id="imp-vote-host-monitor-list"></div>
           <button class="btn btn-secondary" id="imp-vote-proceed-btn" onclick="HostGame.forceAdvanceImpostor()">⏭ Force Advance (skip stragglers)</button>
         </div>
@@ -550,6 +555,7 @@
       <div class="screen-body">
         <div class="imp-elim-banner" id="imp-elim-banner"></div>
         <div id="imp-elim-host-controls" style="display:none">
+          <div class="imp-answerkey" id="imp-elim-answerkey"></div>
           <button class="btn btn-primary btn-xl" onclick="HostGame.nextImpostorRound()">Next Round →</button>
         </div>
         <p class="hint-text" id="imp-elim-waiting-text" style="display:none">Waiting for the host to continue…</p>
@@ -565,6 +571,7 @@
         <p class="hint-text">Votes were tied. The host will break the tie.</p>
         <div class="imp-vote-list" id="imp-tiebreak-list"></div>
         <div id="imp-tiebreak-host-controls" style="display:none">
+          <div class="imp-answerkey" id="imp-tiebreak-answerkey"></div>
           <button class="btn btn-secondary btn-xl" onclick="HostGame.resolveImpostorTiebreak(null)">Skip Elimination This Round</button>
         </div>
         <p class="hint-text" id="imp-tiebreak-waiting-text" style="display:none">Waiting for the host to decide…</p>

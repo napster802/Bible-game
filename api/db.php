@@ -192,6 +192,7 @@ function migrateSchema(PDO $db): void {
             'game_format'    => "TEXT DEFAULT 'classic'",
             'impostor_word_pair_idx'   => "INTEGER DEFAULT -1",
             'impostor_id'              => "TEXT",
+            'impostor_id_2'            => "TEXT",
             'impostor_round'           => "INTEGER DEFAULT 1",
             'impostor_result'          => "TEXT",
             'impostor_last_elim_id'    => "TEXT",
@@ -292,17 +293,27 @@ function impostorAliveContestants(PDO $db, string $code): array {
     return $stmt->fetchAll(PDO::FETCH_COLUMN);
 }
 
+// Returns the 1 or 2 impostor device_ids for a room (impostor_id_2 is only
+// set for 8+ player games - see host_action.php's start_game).
+function impostorIdsOf(array $room): array {
+    $ids = [];
+    if (!empty($room['impostor_id'])) $ids[] = $room['impostor_id'];
+    if (!empty($room['impostor_id_2'])) $ids[] = $room['impostor_id_2'];
+    return $ids;
+}
+
 // Eliminates $eliminatedId (or, if null, records a skipped round - the
 // tiebreak host chose not to eliminate anyone) then checks both win
-// conditions: the crew catching the impostor, or the impostor surviving
-// down to the last 2 players. Falls through to the next round otherwise.
+// conditions: the crew catching every impostor, or the impostor side
+// surviving down to a headcount where they outnumber/match the crew
+// (alive <= alive impostors + 1). Falls through to the next round otherwise.
 function applyImpostorElimination(PDO $db, string $code, ?string $eliminatedId): void {
     $now = nowMs();
     $roomStmt = $db->prepare("SELECT * FROM rooms WHERE code = ?");
     $roomStmt->execute([$code]);
     $room = $roomStmt->fetch();
     if (!$room) return;
-    $impostorId = $room['impostor_id'];
+    $impostorIds = impostorIdsOf($room);
     $round = (int)$room['impostor_round'];
 
     if ($eliminatedId !== null) {
@@ -313,22 +324,25 @@ function applyImpostorElimination(PDO $db, string $code, ?string $eliminatedId):
     }
 
     $aliveIds = impostorAliveContestants($db, $code);
-    $crewWin = ($eliminatedId !== null && $eliminatedId === $impostorId);
-    $impostorWin = (!$crewWin && count($aliveIds) <= 2);
+    $aliveImpostorIds = array_values(array_intersect($impostorIds, $aliveIds));
+    $crewWin = ($eliminatedId !== null && in_array($eliminatedId, $impostorIds, true) && empty($aliveImpostorIds));
+    $impostorWin = (!$crewWin && !empty($aliveImpostorIds) && count($aliveIds) <= count($aliveImpostorIds) + 1);
 
     if ($crewWin) {
         foreach ($aliveIds as $pid) {
             $voteStmt = $db->prepare("SELECT target_device_id FROM impostor_votes WHERE room_code = ? AND device_id = ? AND round = ?");
             $voteStmt->execute([$code, $pid, $round]);
-            $votedForImpostor = $voteStmt->fetchColumn() === $impostorId;
+            $votedForImpostor = in_array($voteStmt->fetchColumn(), $impostorIds, true);
             $points = IMPOSTOR_CREW_WIN_POINTS + ($votedForImpostor ? IMPOSTOR_VOTE_BONUS : 0);
             $db->prepare("UPDATE players SET score = score + ? WHERE room_code = ? AND device_id = ?")
                ->execute([$points, $code, $pid]);
         }
         $db->prepare("UPDATE rooms SET status = 'finished', impostor_result = 'crew_win', updated_at = ? WHERE code = ?")->execute([$now, $code]);
     } elseif ($impostorWin) {
-        $db->prepare("UPDATE players SET score = score + ? WHERE room_code = ? AND device_id = ?")
-           ->execute([IMPOSTOR_WIN_POINTS, $code, $impostorId]);
+        foreach ($aliveImpostorIds as $pid) {
+            $db->prepare("UPDATE players SET score = score + ? WHERE room_code = ? AND device_id = ?")
+               ->execute([IMPOSTOR_WIN_POINTS, $code, $pid]);
+        }
         $db->prepare("UPDATE rooms SET status = 'finished', impostor_result = 'impostor_win', updated_at = ? WHERE code = ?")->execute([$now, $code]);
     } else {
         $db->prepare("UPDATE rooms SET status = 'imp_elim', updated_at = ? WHERE code = ?")->execute([$now, $code]);

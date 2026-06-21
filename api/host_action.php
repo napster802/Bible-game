@@ -36,12 +36,18 @@ switch ($action) {
             $contestants = $contestantStmt->fetchAll(PDO::FETCH_COLUMN);
             if (count($contestants) < 3) jsonOut(['success' => false, 'error' => 'Need at least 3 players to start Word Impostor'], 400);
 
-            $impostorId = $contestants[random_int(0, count($contestants) - 1)];
+            // 8+ player lobbies get 2 impostors instead of 1, so a single
+            // crew majority isn't overwhelming once the lobby gets large.
+            $impostorCount = count($contestants) >= 8 ? 2 : 1;
+            $pool = $contestants;
+            $impostorId = $pool[random_int(0, count($pool) - 1)];
+            $pool = array_values(array_diff($pool, [$impostorId]));
+            $impostorId2 = $impostorCount === 2 ? $pool[random_int(0, count($pool) - 1)] : null;
             $wordPairIdx = random_int(0, 129); // js/impostor_data.js ImpostorData.PAIRS has exactly 130 entries
 
             $db->prepare("UPDATE players SET eliminated = 0 WHERE room_code = ?")->execute([$code]);
-            $db->prepare("UPDATE rooms SET status = 'imp_clue', impostor_word_pair_idx = ?, impostor_id = ?, impostor_round = 1, impostor_result = NULL, impostor_last_elim_id = NULL, impostor_last_skipped = 0, updated_at = ? WHERE code = ?")
-               ->execute([$wordPairIdx, $impostorId, $now, $code]);
+            $db->prepare("UPDATE rooms SET status = 'imp_clue', impostor_word_pair_idx = ?, impostor_id = ?, impostor_id_2 = ?, impostor_round = 1, impostor_result = NULL, impostor_last_elim_id = NULL, impostor_last_skipped = 0, updated_at = ? WHERE code = ?")
+               ->execute([$wordPairIdx, $impostorId, $impostorId2, $now, $code]);
             break;
         }
 
