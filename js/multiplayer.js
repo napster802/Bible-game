@@ -1622,15 +1622,14 @@ const Multiplayer = (function () {
     const input = document.getElementById('draw-guess-input');
     const guess = input ? input.value.trim() : '';
     if (!guess) return;
-    const isCorrect = typeof DrawingWords !== 'undefined' && lastData && lastData.draw_word_idx !== null
-      ? DrawingWords.matchesGuess(lastData.draw_word_idx, guess)
-      : false;
+    // draw_word_idx is hidden from guessers while drawing is active, so
+    // correctness can't be judged here - the server checks it against
+    // api/drawing_words.php and returns the verdict in res.is_correct.
     api('submit_drawing_guess.php', {
       room_code: roomCode,
       device_id: deviceId,
       round: lastDrawRound,
-      guess_text: guess,
-      is_correct: isCorrect
+      guess_text: guess
     }).then(res => {
       if (!res.success) { App.showToast(res.error || 'Could not submit guess', 'error'); return; }
       if (input) input.value = '';

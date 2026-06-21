@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/drawing_words.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { jsonOut([]); }
 
@@ -8,10 +9,6 @@ $code      = trim($input['room_code'] ?? '');
 $deviceId  = trim($input['device_id'] ?? '');
 $round     = (int)($input['round'] ?? -1);
 $guessText = trim($input['guess_text'] ?? '');
-// Like submit_answer.php's is_correct, correctness is judged client-side
-// against js/drawing_words.js (every client already has the full word bank)
-// and the server simply trusts and records it.
-$isCorrect = (bool)($input['is_correct'] ?? false);
 
 if (!$code || !$deviceId || $round < 0 || $guessText === '') jsonOut(['success' => false, 'error' => 'Missing params'], 400);
 
@@ -22,6 +19,12 @@ $stmt->execute([$code]);
 $room = $stmt->fetch();
 if (!$room || $room['status'] !== 'draw_active') jsonOut(['success' => false, 'error' => 'Not guessing right now'], 400);
 if ((int)$room['draw_round'] !== $round) jsonOut(['success' => false, 'error' => 'Wrong round'], 400);
+
+// Unlike submit_answer.php's trivia formats (which ship the full question/answer
+// to every client), draw_word_idx is deliberately withheld from guessers while
+// drawing is active, so correctness must be judged here using the server's own
+// copy of the room state rather than trusting a client-supplied flag.
+$isCorrect = drawWordMatches((int)$room['draw_word_idx'], $guessText);
 
 $playerStmt = $db->prepare("SELECT * FROM players WHERE room_code = ? AND device_id = ?");
 $playerStmt->execute([$code, $deviceId]);

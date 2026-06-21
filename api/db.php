@@ -452,9 +452,9 @@ function advanceDrawTurn(PDO $db, string $code): void {
        ->execute([$nextRound, json_encode($choiceIndices), $now, $code]);
 }
 
-// js/drawing_words.js DrawingWords.WORDS currently has 40 entries; kept in
-// sync manually since the server never needs the word text, only the count.
-const DRAW_WORD_BANK_SIZE = 40;
+// js/drawing_words.js DrawingWords.WORDS currently has 240 entries; kept in
+// sync manually with that file and api/drawing_words.php's DRAW_WORDS mirror.
+const DRAW_WORD_BANK_SIZE = 240;
 
 function pickDrawWordChoices(): array {
     $pool = range(0, DRAW_WORD_BANK_SIZE - 1);
