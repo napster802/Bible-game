@@ -52,22 +52,22 @@ if ($status === 'playing') {
     $stillWaiting = (int)$waitingStmt->fetchColumn();
 
     if ($elapsed >= $timeLimitMs + 2000 || ($contestantCount > 0 && $stillWaiting === 0)) {
-        // Record 0-point timeouts for anyone who didn't answer (contestants only - the host never plays)
-        $playerStmt = $db->prepare("SELECT device_id FROM players WHERE room_code = ? AND is_host = 0");
-        $playerStmt->execute([$code]);
-        $allPlayers = $playerStmt->fetchAll(PDO::FETCH_COLUMN);
+        // Record 0-point timeouts for anyone who didn't answer (contestants only - the host never plays).
+        // Single NOT EXISTS query instead of a per-player SELECT round-trip - under
+        // concurrent answer submissions, fewer queries per poll means a smaller window
+        // for SQLite's busy_timeout to actually get exercised.
+        $missingStmt = $db->prepare("SELECT p.device_id FROM players p WHERE p.room_code = ? AND p.is_host = 0
+                                      AND NOT EXISTS (SELECT 1 FROM answers a WHERE a.room_code = p.room_code AND a.device_id = p.device_id AND a.q_idx = ?)");
+        $missingStmt->execute([$code, $currentQIdx]);
+        $missingPlayers = $missingStmt->fetchAll(PDO::FETCH_COLUMN);
 
-        foreach ($allPlayers as $pid) {
-            $checkStmt = $db->prepare("SELECT 1 FROM answers WHERE room_code = ? AND device_id = ? AND q_idx = ?");
-            $checkStmt->execute([$code, $pid, $currentQIdx]);
-            if (!$checkStmt->fetchColumn()) {
-                $db->prepare("INSERT OR IGNORE INTO answers (room_code, device_id, q_idx, choice_idx, is_correct, points, time_taken, submitted_at) VALUES (?, ?, ?, -1, 0, 0, ?, ?)")
-                   ->execute([$code, $pid, $currentQIdx, (float)($timeLimitMs / 1000), nowMs()]);
-                // A timeout is as final as a wrong answer in Sudden Death Survival.
-                $eliminate = $room['game_format'] === 'survival' ? 1 : 0;
-                $db->prepare("UPDATE players SET wrong_count = wrong_count + 1, streak = CASE WHEN ? = 1 THEN 0 ELSE streak END, eliminated = eliminated OR ? WHERE room_code = ? AND device_id = ?")
-                   ->execute([$eliminate, $eliminate, $code, $pid]);
-            }
+        foreach ($missingPlayers as $pid) {
+            $db->prepare("INSERT OR IGNORE INTO answers (room_code, device_id, q_idx, choice_idx, is_correct, points, time_taken, submitted_at) VALUES (?, ?, ?, -1, 0, 0, ?, ?)")
+               ->execute([$code, $pid, $currentQIdx, (float)($timeLimitMs / 1000), nowMs()]);
+            // A timeout is as final as a wrong answer in Sudden Death Survival.
+            $eliminate = $room['game_format'] === 'survival' ? 1 : 0;
+            $db->prepare("UPDATE players SET wrong_count = wrong_count + 1, streak = CASE WHEN ? = 1 THEN 0 ELSE streak END, eliminated = eliminated OR ? WHERE room_code = ? AND device_id = ?")
+               ->execute([$eliminate, $eliminate, $code, $pid]);
         }
 
         // Sudden Death Survival ends the instant every contestant is out -

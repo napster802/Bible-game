@@ -54,6 +54,44 @@ const Multiplayer = (function () {
     return fetch(API + path, opts).then(r => r.json());
   }
 
+  function isTransientServerError(message) {
+    return typeof message === 'string' && /^(server|fatal server) error:/i.test(message);
+  }
+
+  // Submits an answer with built-in recovery, mirroring the pattern already
+  // used by submitImpostorClue/submitImpostorVote below. A transient SQLite
+  // busy_timeout (surfaced by db.php's global handler as "Server error: ...")
+  // or a dropped fetch gets one silent retry before the player ever sees it.
+  // A real rejection (round already moved on, duplicate submit, etc.) re-opens
+  // the UI via unlockFn so the player can retry by hand instead of being stuck
+  // "answer locked" until the timer runs out with no feedback.
+  function submitAnswerWithRecovery(payload, unlockFn, onSuccess, attempt) {
+    attempt = attempt || 1;
+    api('submit_answer.php', payload).then(res => {
+      if (res.success) {
+        onSuccess(res);
+      } else if (res.error === 'Already answered') {
+        // A duplicate of a request that already succeeded server-side -
+        // leave the UI locked, the next poll brings in the real result.
+      } else if (isTransientServerError(res.error) && attempt < 2) {
+        setTimeout(() => submitAnswerWithRecovery(payload, unlockFn, onSuccess, attempt + 1), 300);
+      } else {
+        answeredThisQuestion = false;
+        unlockFn();
+        App.showToast(res.error || 'Could not submit your answer - try again.', 'error');
+      }
+    }).catch(err => {
+      if (attempt < 2) {
+        setTimeout(() => submitAnswerWithRecovery(payload, unlockFn, onSuccess, attempt + 1), 300);
+        return;
+      }
+      console.error('Answer submit failed:', err);
+      answeredThisQuestion = false;
+      unlockFn();
+      App.showToast('Could not reach the host - try again.', 'error');
+    });
+  }
+
   function start(code, host) {
     roomCode = code;
     deviceId = Profile.getDeviceId();
@@ -505,18 +543,16 @@ const Multiplayer = (function () {
 
     lockTrueFalse(selectedBool, tf);
 
-    api('submit_answer.php', {
+    submitAnswerWithRecovery({
       room_code: roomCode,
       device_id: deviceId,
       q_idx: lastQIdx,
       choice_idx: selectedBool ? 1 : 0,
       is_correct: isCorrect,
       time_taken: currentTimeTaken
-    }).then(res => {
-      if (res.success) {
-        playLocalFeedbackSound(isCorrect);
-        showWaitingFeedback(isCorrect, res.points, question, res.streak, res.doubled);
-      }
+    }, () => unlockTrueFalse(tf, question), res => {
+      playLocalFeedbackSound(isCorrect);
+      showWaitingFeedback(isCorrect, res.points, question, res.streak, res.doubled);
     });
   }
 
@@ -526,6 +562,14 @@ const Multiplayer = (function () {
     [trueBtn, falseBtn].forEach(b => { if (b) { b.disabled = true; b.onclick = null; } });
     const selectedBtn = selectedBool ? trueBtn : falseBtn;
     if (selectedBtn) selectedBtn.classList.add(selectedBool === tf.isTrue ? 'correct' : 'wrong');
+  }
+
+  function unlockTrueFalse(tf, question) {
+    const trueBtn = document.getElementById('tf-true');
+    const falseBtn = document.getElementById('tf-false');
+    [trueBtn, falseBtn].forEach(b => { if (b) b.classList.remove('correct', 'wrong'); });
+    if (trueBtn) { trueBtn.disabled = false; trueBtn.onclick = () => submitTrueFalse(true, tf, question); }
+    if (falseBtn) { falseBtn.disabled = false; falseBtn.onclick = () => submitTrueFalse(false, tf, question); }
   }
 
   // ---------------- WORD SCRAMBLE ----------------
@@ -562,18 +606,16 @@ const Multiplayer = (function () {
 
     lockScramble(isCorrect, question, typed);
 
-    api('submit_answer.php', {
+    submitAnswerWithRecovery({
       room_code: roomCode,
       device_id: deviceId,
       q_idx: lastQIdx,
       choice_idx: 0,
       is_correct: isCorrect,
       time_taken: currentTimeTaken
-    }).then(res => {
-      if (res.success) {
-        playLocalFeedbackSound(isCorrect);
-        showWaitingFeedback(isCorrect, res.points, question, res.streak, res.doubled);
-      }
+    }, () => unlockScramble(typed), res => {
+      playLocalFeedbackSound(isCorrect);
+      showWaitingFeedback(isCorrect, res.points, question, res.streak, res.doubled);
     });
   }
 
@@ -590,6 +632,15 @@ const Multiplayer = (function () {
         : `✗ Correct answer: ${question.answer}`;
       resultEl.className = 'scramble-result ' + (isCorrect ? 'correct' : 'wrong');
     }
+  }
+
+  function unlockScramble(typed) {
+    const input = document.getElementById('scramble-input');
+    const submitBtn = document.getElementById('scramble-submit-btn');
+    const resultEl = document.getElementById('scramble-result');
+    if (input) { input.disabled = false; input.value = typed; }
+    if (submitBtn) submitBtn.disabled = false;
+    if (resultEl) resultEl.style.display = 'none';
   }
 
   // ---------------- MEMORY MATCH ----------------
@@ -703,7 +754,7 @@ const Multiplayer = (function () {
         : `Time's up — ${memoryPairsFound}/${memoryTotalPairs} pairs found`;
     }
 
-    api('submit_answer.php', {
+    submitAnswerWithRecovery({
       room_code: roomCode,
       device_id: deviceId,
       q_idx: qIdx,
@@ -711,11 +762,9 @@ const Multiplayer = (function () {
       is_correct: isCorrect,
       time_taken: currentTimeTaken,
       total_pairs: memoryTotalPairs
-    }).then(res => {
-      if (res.success) {
-        playLocalFeedbackSound(isCorrect);
-        showWaitingFeedback(isCorrect, res.points, { answer: `${memoryPairsFound}/${memoryTotalPairs} pairs found`, reference: '' }, res.streak, res.doubled);
-      }
+    }, () => {}, res => {
+      playLocalFeedbackSound(isCorrect);
+      showWaitingFeedback(isCorrect, res.points, { answer: `${memoryPairsFound}/${memoryTotalPairs} pairs found`, reference: '' }, res.streak, res.doubled);
     });
   }
 
@@ -783,18 +832,24 @@ const Multiplayer = (function () {
       else if (pos === pickedPos) btn.classList.add('wrong');
     });
 
-    api('submit_answer.php', {
+    submitAnswerWithRecovery({
       room_code: roomCode,
       device_id: deviceId,
       q_idx: qIdx,
       choice_idx: pickedPos,
       is_correct: isCorrect,
       time_taken: currentTimeTaken
-    }).then(res => {
-      if (res.success) {
-        playLocalFeedbackSound(isCorrect);
-        showWaitingFeedback(isCorrect, res.points, { answer: round.statements[round.lieIndex], reference: round.reference }, res.streak, res.doubled);
-      }
+    }, () => unlockTwoTruths(qIdx, lieDisplayPos, round), res => {
+      playLocalFeedbackSound(isCorrect);
+      showWaitingFeedback(isCorrect, res.points, { answer: round.statements[round.lieIndex], reference: round.reference }, res.streak, res.doubled);
+    });
+  }
+
+  function unlockTwoTruths(qIdx, lieDisplayPos, round) {
+    document.querySelectorAll('#twotruths-list .tt-statement').forEach((btn, pos) => {
+      btn.disabled = false;
+      btn.classList.remove('correct', 'wrong');
+      btn.onclick = () => submitTwoTruths(qIdx, pos, lieDisplayPos, round);
     });
   }
 
@@ -865,18 +920,28 @@ const Multiplayer = (function () {
       else if (i === pickedSide) card.classList.add('hl-wrong');
     });
 
-    api('submit_answer.php', {
+    submitAnswerWithRecovery({
       room_code: roomCode,
       device_id: deviceId,
       q_idx: qIdx,
       choice_idx: pickedSide,
       is_correct: isCorrect,
       time_taken: currentTimeTaken
-    }).then(res => {
-      if (res.success) {
-        playLocalFeedbackSound(isCorrect);
-        showWaitingFeedback(isCorrect, res.points, { answer: `${sides[correctSide].label}: ${sides[correctSide].value.toLocaleString()}`, reference: pair.reference }, res.streak, res.doubled);
-      }
+    }, () => unlockHigherLower(qIdx, correctSide, sides, pair), res => {
+      playLocalFeedbackSound(isCorrect);
+      showWaitingFeedback(isCorrect, res.points, { answer: `${sides[correctSide].label}: ${sides[correctSide].value.toLocaleString()}`, reference: pair.reference }, res.streak, res.doubled);
+    });
+  }
+
+  function unlockHigherLower(qIdx, correctSide, sides, pair) {
+    [0, 1].forEach(i => {
+      const card = document.getElementById(`hl-card-${i}`);
+      const valueEl = document.getElementById(`hl-value-${i}`);
+      if (valueEl) valueEl.textContent = '';
+      if (!card) return;
+      card.disabled = false;
+      card.classList.remove('hl-correct', 'hl-wrong');
+      card.onclick = () => submitHigherLower(qIdx, i, correctSide, sides, pair);
     });
   }
 
@@ -901,18 +966,16 @@ const Multiplayer = (function () {
 
     lockVerseFill(isCorrect, round, typed);
 
-    api('submit_answer.php', {
+    submitAnswerWithRecovery({
       room_code: roomCode,
       device_id: deviceId,
       q_idx: qIdx,
       choice_idx: 0,
       is_correct: isCorrect,
       time_taken: currentTimeTaken
-    }).then(res => {
-      if (res.success) {
-        playLocalFeedbackSound(isCorrect);
-        showWaitingFeedback(isCorrect, res.points, { answer: round.answer, reference: round.reference }, res.streak, res.doubled);
-      }
+    }, () => unlockVerseFill(typed), res => {
+      playLocalFeedbackSound(isCorrect);
+      showWaitingFeedback(isCorrect, res.points, { answer: round.answer, reference: round.reference }, res.streak, res.doubled);
     });
   }
 
@@ -929,6 +992,15 @@ const Multiplayer = (function () {
         : `✗ Correct answer: ${round.answer}`;
       resultEl.className = 'versefill-result ' + (isCorrect ? 'correct' : 'wrong');
     }
+  }
+
+  function unlockVerseFill(typed) {
+    const input = document.getElementById('versefill-input');
+    const submitBtn = document.getElementById('versefill-submit-btn');
+    const resultEl = document.getElementById('versefill-result');
+    if (input) { input.disabled = false; input.value = typed; }
+    if (submitBtn) submitBtn.disabled = false;
+    if (resultEl) resultEl.style.display = 'none';
   }
 
   // ---------------- EMOJI STORY CLUE ----------------
@@ -968,18 +1040,16 @@ const Multiplayer = (function () {
 
     lockEmojiClue(isCorrect, round, typed);
 
-    api('submit_answer.php', {
+    submitAnswerWithRecovery({
       room_code: roomCode,
       device_id: deviceId,
       q_idx: qIdx,
       choice_idx: 0,
       is_correct: isCorrect,
       time_taken: currentTimeTaken
-    }).then(res => {
-      if (res.success) {
-        playLocalFeedbackSound(isCorrect);
-        showWaitingFeedback(isCorrect, res.points, { answer: round.display, reference: round.reference }, res.streak, res.doubled);
-      }
+    }, () => unlockEmojiClue(typed), res => {
+      playLocalFeedbackSound(isCorrect);
+      showWaitingFeedback(isCorrect, res.points, { answer: round.display, reference: round.reference }, res.streak, res.doubled);
     });
   }
 
@@ -996,6 +1066,15 @@ const Multiplayer = (function () {
         : `✗ Correct answer: ${round.display}`;
       resultEl.className = 'emojiclue-result ' + (isCorrect ? 'correct' : 'wrong');
     }
+  }
+
+  function unlockEmojiClue(typed) {
+    const input = document.getElementById('emojiclue-input');
+    const submitBtn = document.getElementById('emojiclue-submit-btn');
+    const resultEl = document.getElementById('emojiclue-result');
+    if (input) { input.disabled = false; input.value = typed; }
+    if (submitBtn) submitBtn.disabled = false;
+    if (resultEl) resultEl.style.display = 'none';
   }
 
   function setMpStatusBadge(data) {
@@ -1631,18 +1710,16 @@ const Multiplayer = (function () {
 
     lockChoices(choiceIdx, question);
 
-    api('submit_answer.php', {
+    submitAnswerWithRecovery({
       room_code: roomCode,
       device_id: deviceId,
       q_idx: lastQIdx,
       choice_idx: choiceIdx,
       is_correct: isCorrect,
       time_taken: currentTimeTaken
-    }).then(res => {
-      if (res.success) {
-        playLocalFeedbackSound(isCorrect);
-        showWaitingFeedback(isCorrect, res.points, question, res.streak, res.doubled);
-      }
+    }, unlockChoices, res => {
+      playLocalFeedbackSound(isCorrect);
+      showWaitingFeedback(isCorrect, res.points, question, res.streak, res.doubled);
     });
   }
 
@@ -1651,6 +1728,13 @@ const Multiplayer = (function () {
       const btn = document.getElementById(`c${i}`);
       btn.disabled = true;
       if (i === selectedIdx) btn.classList.add(question.choices[i] === question.answer ? 'correct' : 'wrong');
+    }
+  }
+
+  function unlockChoices() {
+    for (let i = 0; i < 4; i++) {
+      const btn = document.getElementById(`c${i}`);
+      if (btn) { btn.disabled = false; btn.classList.remove('correct', 'wrong'); }
     }
   }
 
