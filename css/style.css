@@ -2763,7 +2763,6 @@ label,
 }
 
 .draw-guess-log {
-  margin-top: 0.75rem;
   max-height: 660px;
   overflow-y: auto;
   display: flex;
@@ -2842,7 +2841,6 @@ label,
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 0.4rem;
-  margin-bottom: 0.5rem;
   display: flex;
   justify-content: center;
 }
@@ -2862,6 +2860,10 @@ label,
   gap: 0.5rem;
   justify-content: center;
   min-height: 2.2rem;
+}
+
+.draw-correct-avatars:empty {
+  display: none;
 }
 
 .draw-correct-avatar-badge {
