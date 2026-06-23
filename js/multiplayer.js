@@ -25,6 +25,7 @@ const Multiplayer = (function () {
   let drawPointerBound = false;
   let drawDrawing = false;
   let drawColor = '#1a1a1a';
+  let drawLineWidth = 5;
   let answeredThisQuestion = false;
   let lastEventId = 0;
   let lastData = null;
@@ -1555,6 +1556,12 @@ const Multiplayer = (function () {
       drawColor = colorInput.value;
       colorInput.addEventListener('input', () => { drawColor = colorInput.value; });
     }
+    document.querySelectorAll('.draw-thickness-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        drawLineWidth = parseInt(btn.dataset.width, 10);
+        document.querySelectorAll('.draw-thickness-btn').forEach(b => b.classList.toggle('active', b === btn));
+      });
+    });
     if (!canvas) return;
     let currentStroke = null;
 
@@ -1571,7 +1578,7 @@ const Multiplayer = (function () {
       currentStroke.push(pt);
       const ctx = canvas.getContext('2d');
       ctx.strokeStyle = drawColor;
-      ctx.lineWidth = 5;
+      ctx.lineWidth = drawLineWidth;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.beginPath();
@@ -1615,7 +1622,7 @@ const Multiplayer = (function () {
       round: lastDrawRound,
       points: points,
       color: drawColor,
-      line_width: 5
+      line_width: drawLineWidth
     }).catch(err => console.error('Stroke submit failed:', err));
   }
 

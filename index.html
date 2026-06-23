@@ -618,6 +618,11 @@
         <div class="draw-color-picker" id="draw-color-picker" style="display:none">
           <label for="draw-color-input">🎨 Pen color:</label>
           <input type="color" id="draw-color-input" value="#1a1a1a">
+          <div class="draw-thickness-picker" id="draw-thickness-picker">
+            <button type="button" class="draw-thickness-btn" data-width="2">2x</button>
+            <button type="button" class="draw-thickness-btn" data-width="3">3x</button>
+            <button type="button" class="draw-thickness-btn active" data-width="5">5x</button>
+          </div>
         </div>
         <div class="draw-canvas-wrap">
           <canvas id="draw-canvas" width="600" height="600"></canvas>

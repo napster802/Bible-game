@@ -5,6 +5,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { jsonOut([]); }
 
 $db = getDB();
 cleanStale($db);
+cleanAbandonedLobbies($db);
 
 $stmt = $db->query("
     SELECT r.code, r.game_format, r.created_at,

@@ -310,7 +310,33 @@ function cleanStale(PDO $db): void {
     $db->prepare("DELETE FROM impostor_votes WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM drawing_strokes WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM drawing_guesses WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
+    $db->prepare("DELETE FROM drawing_guess_log WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM rooms WHERE created_at < ?")->execute([$cutoff]);
+}
+
+// A lobby whose host hasn't polled in 30s has been abandoned (tab closed
+// before starting) - it would otherwise sit in the public room list forever,
+// showing "0 players waiting", until the 24h cleanStale() sweep finally
+// catches it. Delete it (and everything tied to it) right away instead.
+function cleanAbandonedLobbies(PDO $db): void {
+    $cutoff = nowMs() - 30000;
+    $stmt = $db->prepare("
+        SELECT code FROM rooms
+        WHERE status = 'lobby'
+        AND code NOT IN (SELECT room_code FROM players WHERE is_host = 1 AND last_ping >= ?)
+    ");
+    $stmt->execute([$cutoff]);
+    $codes = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    if (!$codes) return;
+
+    $placeholders = implode(',', array_fill(0, count($codes), '?'));
+    foreach ([
+        'answers', 'players', 'room_events', 'impostor_clues', 'impostor_votes',
+        'drawing_strokes', 'drawing_guesses', 'drawing_guess_log',
+    ] as $table) {
+        $db->prepare("DELETE FROM $table WHERE room_code IN ($placeholders)")->execute($codes);
+    }
+    $db->prepare("DELETE FROM rooms WHERE code IN ($placeholders)")->execute($codes);
 }
 
 function markStalePlayers(PDO $db, string $roomCode): void {

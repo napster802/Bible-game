@@ -2764,7 +2764,7 @@ label,
 
 .draw-guess-log {
   margin-top: 0.75rem;
-  max-height: 220px;
+  max-height: 660px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -2812,6 +2812,29 @@ label,
   border-radius: var(--radius-sm);
   background: none;
   cursor: pointer;
+}
+
+.draw-thickness-picker {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.draw-thickness-btn {
+  width: 2.6rem;
+  height: 2.6rem;
+  border: 2px solid var(--bg3);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.draw-thickness-btn.active {
+  border-color: var(--gold);
+  background: var(--gold);
+  color: var(--bg);
 }
 
 .draw-canvas-wrap {
