@@ -25,8 +25,8 @@ $order = json_decode($room['scrab_turn_order'] ?? '[]', true) ?: [];
 $newStreak = (int)$room['scrab_pass_streak'] + 1;
 $nextRound = (int)$room['scrab_round'] + 1;
 
-// If every player has passed consecutively → game over
-if ($newStreak >= count($order)) {
+// If every player has passed 3 consecutive full cycles → game over
+if ($newStreak >= count($order) * 3) {
     scrabRackSubtraction($db, $code);
     $db->prepare("UPDATE rooms SET status = 'finished', scrab_pass_streak = ?, updated_at = ? WHERE code = ?")
        ->execute([$newStreak, $now, $code]);

@@ -2943,28 +2943,28 @@ label,
 
 .scrab-score-bar {
   display: flex;
-  gap: 0.5rem;
-  overflow-x: auto;
+  flex-wrap: wrap;
+  gap: 0.3rem;
   padding: 0.25rem 0.5rem;
-  scrollbar-width: none;
 }
-.scrab-score-bar::-webkit-scrollbar { display: none; }
 
 .scrab-player-score {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.1rem;
-  min-width: 4rem;
+  gap: 0.05rem;
+  min-width: 3rem;
+  flex: 1 1 3rem;
+  max-width: 4.5rem;
   background: var(--card);
   border-radius: var(--radius-sm);
-  padding: 0.3rem 0.5rem;
+  padding: 0.2rem 0.3rem;
   border: 1px solid var(--bg3);
 }
-.scrab-player-score.active-turn { border-color: var(--gold); }
-.scrab-player-score .ps-avatar { font-size: 1.2rem; }
-.scrab-player-score .ps-name { font-size: 0.65rem; color: var(--text2); max-width: 3.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.scrab-player-score .ps-pts { font-size: 0.9rem; font-weight: 700; color: var(--gold); }
+.scrab-player-score.active-turn { border-color: var(--gold); background: rgba(212,170,80,0.08); }
+.scrab-player-score .ps-avatar { font-size: 1rem; }
+.scrab-player-score .ps-name { font-size: 0.55rem; color: var(--text2); max-width: 3.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scrab-player-score .ps-pts { font-size: 0.8rem; font-weight: 700; color: var(--gold); }
 
 .scrab-board-container {
   overflow: auto;

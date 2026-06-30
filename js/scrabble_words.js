@@ -7,10 +7,10 @@
     '': 0,
   };
 
-  // Tile distribution (70 tiles)
+  // Tile distribution (100 tiles — supports up to 8 players)
   const BAG_DIST = {
-    A:6, B:2, C:2, D:3, E:6, F:1, G:1, H:3, I:5, J:2, K:1, L:3,
-    M:2, N:4, O:4, P:2, Q:1, R:4, S:4, T:4, U:2, V:1, W:2, X:1, Y:2, '':2,
+    A:9, B:2, C:2, D:4, E:9, F:2, G:2, H:4, I:7, J:2, K:2, L:4,
+    M:3, N:6, O:6, P:3, Q:1, R:6, S:6, T:6, U:3, V:2, W:2, X:1, Y:3, '':3,
   };
 
   // 11×11 premium grid (121 cells, row-major)
