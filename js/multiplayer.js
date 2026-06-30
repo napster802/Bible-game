@@ -2328,6 +2328,9 @@ const Multiplayer = (function () {
         document.getElementById('results-sub').textContent = `🕵️ Word Impostor • ${data.room.impostor_round} Round${data.room.impostor_round > 1 ? 's' : ''} • Multiplayer`;
       } else if (currentGameFormat === 'draw') {
         document.getElementById('results-sub').textContent = `🎨 Sketch & Guess • ${data.room.draw_round} Turn${data.room.draw_round > 1 ? 's' : ''} • Multiplayer`;
+      } else if (currentGameFormat === 'scrab') {
+        const rounds = Math.max(1, (data.room.scrab_round || 1));
+        document.getElementById('results-sub').textContent = `🕎 Bible Scrabble • ${rounds} Turn${rounds !== 1 ? 's' : ''} • Multiplayer`;
       } else {
         const bookLabel = currentBook === 'ALL'
           ? (currentTestament === 'ot' ? 'Old Testament' : currentTestament === 'nt' ? 'New Testament' : 'All Books')

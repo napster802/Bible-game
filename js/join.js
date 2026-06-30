@@ -19,7 +19,8 @@ const JoinGame = (function () {
     versefill:   { icon: '📖', label: 'Verse Fill-in-the-Blank' },
     emojiclue:   { icon: '🌊', label: 'Emoji Story Clue' },
     impostor:    { icon: '🕵️', label: 'Word Impostor' },
-    draw:        { icon: '🎨', label: 'Sketch & Guess' }
+    draw:        { icon: '🎨', label: 'Sketch & Guess' },
+    scrab:       { icon: '🕎', label: 'Bible Scrabble' }
   };
 
   let roomListTimer = null;

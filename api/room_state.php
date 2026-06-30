@@ -563,7 +563,7 @@ if (in_array($room['game_format'], ['scrab'], true) && in_array($status, ['scrab
             $order = json_decode($room['scrab_turn_order'] ?? '[]', true) ?: [];
             $newStreak = (int)$room['scrab_pass_streak'] + 1;
             $nextRound = (int)$room['scrab_round'] + 1;
-            if ($newStreak >= count($order) * 3) {
+            if ($newStreak >= count($order) * 5) {
                 scrabRackSubtraction($db, $code);
                 $db->prepare("UPDATE rooms SET status = 'finished', scrab_pass_streak = ?, updated_at = ? WHERE code = ?")
                    ->execute([$newStreak, $now, $code]);
@@ -642,7 +642,8 @@ jsonOut([
         'impostor_result'        => $room['impostor_result'],
         'impostor_last_skipped'  => (bool)$room['impostor_last_skipped'],
         'draw_round'        => (int)$room['draw_round'],
-        'draw_rounds_total' => (int)$room['draw_rounds_total']
+        'draw_rounds_total' => (int)$room['draw_rounds_total'],
+        'scrab_round'       => (int)($room['scrab_round'] ?? 1)
     ],
     'players'           => $playersOut,
     'player_count'      => count($playersOut),
