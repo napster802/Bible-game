@@ -1,0 +1,8 @@
+# Runtime database (generated on first request)
+data/game.db
+data/*.db
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
