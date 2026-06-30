@@ -2897,6 +2897,279 @@ label,
   justify-content: center;
 }
 
+/* ── Bible Scrabble ───────────────────────────────────────── */
+.scrab-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-bottom: 0;
+}
+
+.scrab-status-bar {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  margin-top: 0.3rem;
+}
+
+.scrab-turn-badge {
+  background: var(--gold);
+  color: var(--bg);
+  font-weight: 700;
+  border-radius: 20px;
+  padding: 0.15rem 0.6rem;
+}
+
+.scrab-timer-badge {
+  background: var(--bg3);
+  border: 1px solid var(--text2);
+  color: var(--text);
+  border-radius: 20px;
+  padding: 0.15rem 0.6rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.scrab-timer-badge.urgent { background: var(--red); border-color: var(--red); color: #fff; }
+
+.scrab-bag-badge {
+  background: var(--bg3);
+  color: var(--text2);
+  border-radius: 20px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.72rem;
+}
+
+.scrab-score-bar {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.25rem 0.5rem;
+  scrollbar-width: none;
+}
+.scrab-score-bar::-webkit-scrollbar { display: none; }
+
+.scrab-player-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  min-width: 4rem;
+  background: var(--card);
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--bg3);
+}
+.scrab-player-score.active-turn { border-color: var(--gold); }
+.scrab-player-score .ps-avatar { font-size: 1.2rem; }
+.scrab-player-score .ps-name { font-size: 0.65rem; color: var(--text2); max-width: 3.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scrab-player-score .ps-pts { font-size: 0.9rem; font-weight: 700; color: var(--gold); }
+
+.scrab-board-container {
+  overflow: auto;
+  max-height: 52vh;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--bg3);
+  background: var(--card);
+}
+
+.scrab-board {
+  border-collapse: collapse;
+  margin: 0 auto;
+  table-layout: fixed;
+}
+
+.scrab-board td {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  text-align: center;
+  vertical-align: middle;
+  border: 1px solid rgba(255,255,255,0.08);
+  cursor: pointer;
+  position: relative;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text);
+  user-select: none;
+  -webkit-user-select: none;
+}
+.scrab-board td:active { opacity: 0.7; }
+
+.scrab-board td .sq-label {
+  font-size: 0.35rem;
+  font-weight: 400;
+  display: block;
+  line-height: 1;
+  color: rgba(255,255,255,0.8);
+  letter-spacing: 0;
+  text-transform: uppercase;
+  margin-top: 0.15rem;
+}
+
+/* Premium squares */
+.sq-tw   { background: #7a0000; }
+.sq-dw   { background: #8b2252; }
+.sq-tl   { background: #003580; }
+.sq-dl   { background: #1a5599; }
+.sq-star { background: #5a3e00; }
+.sq-star::after { content: '⭐'; font-size: 1rem; }
+
+/* Placed tile */
+.scrab-board td.placed-tile {
+  background: #c8a84b;
+  color: #1a1000;
+  border: 1px solid #8a6820;
+}
+.scrab-board td.placed-tile .tile-pts {
+  position: absolute;
+  bottom: 1px;
+  right: 2px;
+  font-size: 0.45rem;
+  font-weight: 400;
+  color: rgba(0,0,0,0.6);
+}
+
+/* Pending (not yet submitted) tile */
+.scrab-board td.pending-tile {
+  background: rgba(212,175,55,0.4);
+  border: 2px dashed var(--gold);
+  color: var(--gold);
+}
+
+/* Rack */
+.scrab-rack-area {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg);
+  padding: 0.5rem 0.25rem 0.75rem;
+  border-top: 1px solid var(--bg3);
+  z-index: 10;
+}
+
+.scrab-rack {
+  display: flex;
+  justify-content: center;
+  gap: 0.3rem;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding: 0.2rem 0;
+  scrollbar-width: none;
+}
+.scrab-rack::-webkit-scrollbar { display: none; }
+
+.scrab-tile {
+  width: 42px;
+  height: 52px;
+  min-width: 42px;
+  background: #c8a84b;
+  color: #1a1000;
+  border: 2px solid #8a6820;
+  border-radius: 6px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s, border-color 0.1s;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.scrab-tile:active { transform: scale(0.93); }
+.scrab-tile.selected {
+  border-color: var(--gold2);
+  background: var(--gold2);
+  transform: translateY(-6px);
+  box-shadow: 0 4px 12px rgba(212,175,55,0.5);
+}
+.scrab-tile.used { opacity: 0.35; cursor: default; }
+.scrab-tile.blank-tile { background: #e8d878; border-style: dashed; }
+
+.scrab-tile .tile-pts {
+  position: absolute;
+  bottom: 2px;
+  right: 3px;
+  font-size: 0.45rem;
+  font-weight: 400;
+  color: rgba(0,0,0,0.55);
+}
+
+.scrab-actions {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+.scrab-actions .btn { padding: 0.45rem 0.8rem; font-size: 0.78rem; }
+
+#scrab-host-controls {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 0.4rem;
+}
+
+.scrab-plays-feed {
+  font-size: 0.75rem;
+  color: var(--text2);
+  padding: 0.5rem 0.75rem;
+  max-height: 8rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.scrab-play-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.scrab-play-word { font-weight: 700; color: var(--gold); }
+.scrab-play-score { color: var(--text); }
+
+/* Word result screen */
+.scrab-result-word {
+  font-size: 2.5rem;
+  font-weight: 900;
+  color: var(--gold);
+  letter-spacing: 0.1em;
+  margin: 0.5rem 0;
+}
+.scrab-result-score {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.scrab-result-bonus {
+  font-size: 1.1rem;
+  color: var(--gold2);
+  margin: 0.4rem 0;
+  font-weight: 600;
+}
+.scrab-result-note {
+  font-size: 0.85rem;
+  color: var(--text2);
+  max-width: 28rem;
+  margin: 0.5rem auto 0;
+  font-style: italic;
+}
+
+.scrab-rack-exchange {
+  justify-content: center;
+  margin: 1rem 0;
+}
+.scrab-rack-exchange .scrab-tile.selected {
+  transform: translateY(-6px);
+  border-color: var(--red);
+  background: #e8c84b;
+  box-shadow: 0 4px 12px rgba(192,57,43,0.5);
+}
+
 /* ── Print / PDF Export ───────────────────────────────────── */
 @media print {
   body {

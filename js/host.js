@@ -267,7 +267,7 @@ const HostGame = (function () {
   }
 
   function setGameFormat(format) {
-    gameFormat = ['truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor', 'draw'].includes(format) ? format : 'classic';
+    gameFormat = ['truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor', 'draw', 'scrab'].includes(format) ? format : 'classic';
     if (typeof GameInstructions !== 'undefined') GameInstructions.render(gameFormat, 'host-instructions-box');
     toggleLobbySettingsForFormat();
     action('set_game_format', { value: gameFormat });
@@ -279,16 +279,34 @@ const HostGame = (function () {
   function toggleLobbySettingsForFormat() {
     const isImpostor = gameFormat === 'impostor';
     const isDraw = gameFormat === 'draw';
+    const isScrab = gameFormat === 'scrab';
     const triviaSettings = document.getElementById('host-trivia-settings');
     const csvBox = document.getElementById('host-csv-upload-box');
     const impHint = document.getElementById('host-impostor-hint');
     const drawHint = document.getElementById('host-draw-hint');
     const drawRoundsRow = document.getElementById('host-draw-rounds-row');
-    if (triviaSettings) triviaSettings.style.display = (isImpostor || isDraw) ? 'none' : '';
-    if (csvBox) csvBox.style.display = (isImpostor || isDraw) ? 'none' : '';
+    const scrabHint = document.getElementById('host-scrab-hint');
+    const scrabTimeRow = document.getElementById('host-scrab-time-row');
+    if (triviaSettings) triviaSettings.style.display = (isImpostor || isDraw || isScrab) ? 'none' : '';
+    if (csvBox) csvBox.style.display = (isImpostor || isDraw || isScrab) ? 'none' : '';
     if (impHint) impHint.style.display = isImpostor ? '' : 'none';
     if (drawHint) drawHint.style.display = isDraw ? '' : 'none';
     if (drawRoundsRow) drawRoundsRow.style.display = isDraw ? '' : 'none';
+    if (scrabHint) scrabHint.style.display = isScrab ? '' : 'none';
+    if (scrabTimeRow) scrabTimeRow.style.display = isScrab ? '' : 'none';
+  }
+
+  function setScrabTimeLimit(seconds) {
+    action('set_scrab_time_limit', { value: seconds });
+  }
+
+  function scrabForceSkip() {
+    action('scrab_force_skip', {});
+  }
+
+  function scrabEndGame() {
+    if (!confirm('End the Scrabble game now and tally final scores?')) return;
+    action('scrab_end_game', {});
   }
 
   function setDrawRounds(rounds) {
@@ -547,6 +565,9 @@ const HostGame = (function () {
     setDrawRounds,
     nextDrawTurn,
     forceAdvanceDraw,
+    setScrabTimeLimit,
+    scrabForceSkip,
+    scrabEndGame,
     get roomCode() { return roomCode; }
   };
 })();

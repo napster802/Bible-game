@@ -151,6 +151,7 @@
               <option value="emojiclue">🌊 Emoji Story Clue</option>
               <option value="impostor">🕵️ Word Impostor</option>
               <option value="draw">🎨 Sketch &amp; Guess</option>
+              <option value="scrab">🕎 Bible Scrabble</option>
             </select>
           </div>
           <div class="instructions-box" id="host-instructions-box"></div>
@@ -209,6 +210,16 @@
           </div>
           <p class="hint-text" id="host-impostor-hint" style="display:none;">🕵️ Word Impostor needs at least 3 players. No timer - rounds advance once everyone has acted.</p>
           <p class="hint-text" id="host-draw-hint" style="display:none;">🎨 Sketch &amp; Guess needs at least 2 players. Each player takes a turn drawing while everyone else guesses.</p>
+          <p class="hint-text" id="host-scrab-hint" style="display:none;">🕎 Bible Scrabble needs at least 2 players. Take turns placing Bible words on the 11×11 board for points!</p>
+          <div id="host-scrab-time-row" style="display:none">
+            <label>Turn timer:
+              <select onchange="HostGame.setScrabTimeLimit(+this.value)">
+                <option value="60">60 seconds</option>
+                <option value="90" selected>90 seconds (default)</option>
+                <option value="120">120 seconds</option>
+              </select>
+            </label>
+          </div>
         </div>
 
         <div class="host-csv-upload" id="host-csv-upload-box">
@@ -659,6 +670,71 @@
       </div>
     </div>
 
+    <!-- ==================== SCREEN: BIBLE SCRABBLE - PLACE ==================== -->
+    <div class="screen" id="screen-scrab-place">
+      <div class="screen-header">
+        <h2>🕎 Bible Scrabble</h2>
+        <div class="scrab-status-bar">
+          <span id="scrab-turn-badge" class="scrab-turn-badge"></span>
+          <span id="scrab-timer-badge" class="scrab-timer-badge"></span>
+          <span id="scrab-bag-badge" class="scrab-bag-badge"></span>
+        </div>
+      </div>
+      <div class="screen-body scrab-body">
+        <!-- Player score bar -->
+        <div class="scrab-score-bar" id="scrab-score-bar"></div>
+        <!-- Board -->
+        <div class="scrab-board-container" id="scrab-board-container">
+          <table class="scrab-board" id="scrab-board"></table>
+        </div>
+        <!-- Rack + action buttons (sticky at bottom) -->
+        <div class="scrab-rack-area" id="scrab-rack-area">
+          <div class="scrab-rack" id="scrab-rack"></div>
+          <div class="scrab-actions" id="scrab-actions" style="display:none">
+            <button class="btn btn-primary" id="scrab-submit-btn" onclick="Scrabble.submitWord()" disabled>✅ Submit Word</button>
+            <button class="btn btn-secondary" onclick="Scrabble.clearPending()">↩ Clear</button>
+            <button class="btn btn-secondary" onclick="Scrabble.openExchange()">🔄 Exchange</button>
+            <button class="btn btn-secondary" onclick="Scrabble.passTurn()">⏭ Pass</button>
+          </div>
+          <div id="scrab-host-controls" style="display:none">
+            <button class="btn btn-secondary btn-sm" onclick="HostGame.scrabForceSkip()">⏭ Force Skip</button>
+            <button class="btn btn-danger btn-sm" onclick="HostGame.scrabEndGame()">🏁 End Game</button>
+          </div>
+        </div>
+        <!-- Recent plays feed -->
+        <div class="scrab-plays-feed" id="scrab-plays-feed"></div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: BIBLE SCRABBLE - WORD RESULT ==================== -->
+    <div class="screen" id="screen-scrab-word-result">
+      <div class="screen-header">
+        <h2>🕎 Word Played!</h2>
+      </div>
+      <div class="screen-body" style="text-align:center;padding:2rem 1rem;">
+        <div class="scrab-result-word" id="scrab-result-word"></div>
+        <div class="scrab-result-score" id="scrab-result-score"></div>
+        <div class="scrab-result-bonus" id="scrab-result-bonus"></div>
+        <div class="scrab-result-note" id="scrab-result-note"></div>
+        <p class="hint-text" style="margin-top:1.5rem">Next turn starting automatically…</p>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: BIBLE SCRABBLE - EXCHANGE ==================== -->
+    <div class="screen" id="screen-scrab-exchange">
+      <div class="screen-header">
+        <h2>🔄 Exchange Tiles</h2>
+      </div>
+      <div class="screen-body" style="padding:1.5rem;text-align:center;">
+        <p class="hint-text">Select tiles to return to the bag. You will lose your turn.</p>
+        <div class="scrab-rack scrab-rack-exchange" id="scrab-exchange-rack"></div>
+        <div style="margin-top:1.5rem;display:flex;gap:1rem;justify-content:center;">
+          <button class="btn btn-primary" onclick="Scrabble.confirmExchange()">🔄 Exchange Selected</button>
+          <button class="btn btn-secondary" onclick="App.goTo('scrab-place')">Cancel</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ==================== SCREEN: RESULTS ==================== -->
     <div class="screen" id="screen-results">
       <div class="results-top">
@@ -929,6 +1005,7 @@
   <script src="js/emojiclue_data.js"></script>
   <script src="js/impostor_data.js"></script>
   <script src="js/drawing_words.js"></script>
+  <script src="js/scrabble_words.js"></script>
   <script src="js/game_instructions.js"></script>
   <script src="js/question_tracker.js"></script>
   <script src="js/custom_questions.js"></script>

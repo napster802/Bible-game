@@ -49,6 +49,10 @@ const GameInstructions = (function () {
     draw: {
       title: '🎨 Sketch & Guess',
       text: 'Players take turns drawing, in join order. The drawer picks one of 4 secret words and sketches it while everyone else types guesses. The first 3 correct guessers score points, and the drawer earns a bonus for each. Needs 2+ players.'
+    },
+    scrab: {
+      title: '🕎 Bible Scrabble',
+      text: 'Take turns placing Bible words on an 11×11 board — books, characters, places, and concepts all count! Score by letter values and premium squares. Use all 7 tiles for a Miracle Bonus! Needs 2+ players.'
     }
   };
 

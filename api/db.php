@@ -36,7 +36,7 @@ define('DB_PATH', __DIR__ . '/../data/game.db');
 // Bump whenever migrateSchema()'s $columns table gains/changes entries, so
 // existing deployments pick up the new columns exactly once instead of never
 // (see the PRAGMA user_version guard around migrateSchema() in initDB()).
-define('SCHEMA_VERSION', 2);
+define('SCHEMA_VERSION', 3);
 
 function getDB(): PDO {
     static $db = null;
@@ -209,6 +209,18 @@ function initDB(PDO $db): void {
             created_at INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_drawing_guess_log_room ON drawing_guess_log(room_code, round, id);
+        CREATE TABLE IF NOT EXISTS scrab_plays (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            room_code TEXT NOT NULL,
+            device_id TEXT NOT NULL,
+            turn INTEGER NOT NULL,
+            word TEXT NOT NULL,
+            score INTEGER NOT NULL,
+            cells TEXT NOT NULL,
+            bonus TEXT,
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_scrab_plays_room ON scrab_plays(room_code, id);
     ");
     // ALTER TABLE attempts (in migrateSchema) momentarily need a stronger lock
     // than plain reads/writes, even when the column already exists and the
@@ -250,6 +262,14 @@ function migrateSchema(PDO $db): void {
             'draw_word_choice_indices' => "TEXT DEFAULT '[]'",
             'draw_word_idx'            => "INTEGER DEFAULT -1",
             'draw_round_start_time'    => "INTEGER DEFAULT 0",
+            'scrab_turn_order'         => "TEXT DEFAULT '[]'",
+            'scrab_round'              => "INTEGER DEFAULT 1",
+            'scrab_board'              => "TEXT DEFAULT '[]'",
+            'scrab_bag'                => "TEXT DEFAULT '[]'",
+            'scrab_turn_start_time'    => "INTEGER DEFAULT 0",
+            'scrab_pass_streak'        => "INTEGER DEFAULT 0",
+            'scrab_start_time'         => "INTEGER DEFAULT 0",
+            'scrab_time_limit'         => "INTEGER DEFAULT 90",
         ],
         'profiles' => [
             'wallet'                => "INTEGER DEFAULT 0",
@@ -265,6 +285,7 @@ function migrateSchema(PDO $db): void {
             'double_q_idx'   => "INTEGER DEFAULT -1",
             'frozen_until'   => "INTEGER DEFAULT 0",
             'eliminated'     => "INTEGER DEFAULT 0",
+            'scrab_rack'     => "TEXT DEFAULT '[]'",
         ],
     ];
     foreach ($columns as $table => $cols) {
@@ -311,6 +332,7 @@ function cleanStale(PDO $db): void {
     $db->prepare("DELETE FROM drawing_strokes WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM drawing_guesses WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM drawing_guess_log WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
+    $db->prepare("DELETE FROM scrab_plays WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM rooms WHERE created_at < ?")->execute([$cutoff]);
 }
 
@@ -332,7 +354,7 @@ function cleanAbandonedLobbies(PDO $db): void {
     $placeholders = implode(',', array_fill(0, count($codes), '?'));
     foreach ([
         'answers', 'players', 'room_events', 'impostor_clues', 'impostor_votes',
-        'drawing_strokes', 'drawing_guesses', 'drawing_guess_log',
+        'drawing_strokes', 'drawing_guesses', 'drawing_guess_log', 'scrab_plays',
     ] as $table) {
         $db->prepare("DELETE FROM $table WHERE room_code IN ($placeholders)")->execute($codes);
     }

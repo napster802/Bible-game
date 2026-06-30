@@ -22,6 +22,14 @@ const Multiplayer = (function () {
   let lastDrawRound = -1;
   let lastStrokeId = 0;
   let drawCanDraw = false;
+  // Scrabble state
+  let lastScrabRound = -1;
+  let scrabSelectedRackIdx = null;
+  let scrabPendingCells = [];  // [{row,col,letter,pts,rackIdx,isBlank}]
+  let scrabBoardData = null;
+  let scrabMyRack = [];
+  let scrabIsMyTurn = false;
+  let scrabTimerInterval = null;
   let drawPointerBound = false;
   let drawDrawing = false;
   let drawColor = '#1a1a1a';
@@ -241,6 +249,16 @@ const Multiplayer = (function () {
       if (lastStatus !== 'draw_reveal' || lastDrawRound !== data.room.draw_round) {
         enterDrawReveal(data);
       }
+    } else if (status === 'scrab_place') {
+      if (lastStatus !== 'scrab_place' || lastScrabRound !== data.scrab_round) {
+        enterScrabPlace(data);
+      } else {
+        updateScrabPlace(data);
+      }
+    } else if (status === 'scrab_word_result') {
+      if (lastStatus !== 'scrab_word_result') {
+        enterScrabWordResult(data);
+      }
     } else if (status === 'finished') {
       if (lastStatus !== 'finished') {
         enterResults(data);
@@ -251,6 +269,7 @@ const Multiplayer = (function () {
     lastQIdx = qIdx;
     lastImpRound = data.room.impostor_round;
     lastDrawRound = data.room.draw_round;
+    lastScrabRound = data.scrab_round || 1;
   }
 
   // ---------------- LOBBY ----------------
@@ -2412,6 +2431,336 @@ const Multiplayer = (function () {
     div.textContent = str;
     return div.innerHTML;
   }
+
+  // ============================================================
+  // BIBLE SCRABBLE
+  // ============================================================
+  const PREMIUM_LABELS = { tw:'Covenant\n×3W', dw:'Prophet\n×2W', tl:'Scroll\n×3L', dl:'Lamp\n×2L', star:'⭐', '':'' };
+  const PREMIUM_CLASSES = { tw:'sq-tw', dw:'sq-dw', tl:'sq-tl', dl:'sq-dl', star:'sq-star', '':'' };
+
+  function enterScrabPlace(data) {
+    scrabPendingCells = [];
+    scrabSelectedRackIdx = null;
+    scrabBoardData = data.scrab_board ? [...data.scrab_board] : Array(121).fill(null);
+    scrabMyRack = data.my_scrab_rack ? [...data.my_scrab_rack] : [];
+    scrabIsMyTurn = !!data.am_i_scrab_turn;
+    App.goTo('scrab-place');
+    renderScrabScoreBar(data);
+    renderScrabBoard();
+    renderScrabRack();
+    updateScrabStatusBar(data);
+    renderScrabPlaysFeed(data.scrab_recent_plays || []);
+    const actionsEl = document.getElementById('scrab-actions');
+    if (actionsEl) actionsEl.style.display = scrabIsMyTurn ? 'flex' : 'none';
+    const hostCtrl = document.getElementById('scrab-host-controls');
+    if (hostCtrl) hostCtrl.style.display = isHost ? 'flex' : 'none';
+    startScrabTimer(data);
+  }
+
+  function updateScrabPlace(data) {
+    if (!scrabIsMyTurn) {
+      scrabBoardData = data.scrab_board ? [...data.scrab_board] : scrabBoardData;
+    }
+    scrabIsMyTurn = !!data.am_i_scrab_turn;
+    if (scrabIsMyTurn && data.my_scrab_rack) scrabMyRack = [...data.my_scrab_rack];
+    renderScrabBoard();
+    renderScrabRack();
+    renderScrabScoreBar(data);
+    updateScrabStatusBar(data);
+    renderScrabPlaysFeed(data.scrab_recent_plays || []);
+    const actionsEl = document.getElementById('scrab-actions');
+    if (actionsEl) actionsEl.style.display = scrabIsMyTurn ? 'flex' : 'none';
+    startScrabTimer(data);
+  }
+
+  function enterScrabWordResult(data) {
+    stopScrabTimer();
+    App.goTo('scrab-word-result');
+    const wr = data.scrab_word_result;
+    if (!wr) return;
+    const wordEl = document.getElementById('scrab-result-word');
+    const scoreEl = document.getElementById('scrab-result-score');
+    const bonusEl = document.getElementById('scrab-result-bonus');
+    const noteEl  = document.getElementById('scrab-result-note');
+    if (wordEl) wordEl.textContent = wr.word;
+    if (scoreEl) scoreEl.textContent = `+${wr.score} points`;
+    if (bonusEl) bonusEl.textContent = wr.bonus ? `🎉 ${wr.bonus}` : '';
+    // Look up the note from the local word list
+    let note = '';
+    if (typeof ScrabbleWords !== 'undefined') {
+      const info = ScrabbleWords.getInfo(wr.word);
+      if (info) note = info.note;
+    }
+    if (noteEl) noteEl.textContent = note;
+  }
+
+  function renderScrabBoard() {
+    const table = document.getElementById('scrab-board');
+    if (!table) return;
+    const SQ = (typeof ScrabbleWords !== 'undefined') ? ScrabbleWords.PREMIUM_GRID : Array(121).fill('');
+    const pendingMap = {};
+    scrabPendingCells.forEach(c => { pendingMap[c.row * 11 + c.col] = c; });
+
+    let html = '';
+    for (let r = 0; r < 11; r++) {
+      html += '<tr>';
+      for (let c = 0; c < 11; c++) {
+        const idx = r * 11 + c;
+        const sq  = SQ[idx] || '';
+        const boardLetter = scrabBoardData ? scrabBoardData[idx] : null;
+        const pending = pendingMap[idx];
+
+        if (pending) {
+          const pts = (typeof ScrabbleWords !== 'undefined') ? ScrabbleWords.letterValue(pending.letter) : 0;
+          html += `<td class="pending-tile" data-row="${r}" data-col="${c}" onclick="Scrabble.cellTap(${r},${c})">
+            ${escapeHtml(pending.letter)}<span class="tile-pts">${pts}</span></td>`;
+        } else if (boardLetter) {
+          const pts = (typeof ScrabbleWords !== 'undefined') ? ScrabbleWords.letterValue(boardLetter) : 0;
+          html += `<td class="placed-tile" data-row="${r}" data-col="${c}">
+            ${escapeHtml(boardLetter)}<span class="tile-pts">${pts}</span></td>`;
+        } else {
+          const sqClass = PREMIUM_CLASSES[sq] || '';
+          const sqLabel = sq && sq !== 'star' ? `<span class="sq-label">${(PREMIUM_LABELS[sq]||'').replace('\n','<br>')}</span>` : '';
+          html += `<td class="${sqClass}" data-row="${r}" data-col="${c}" onclick="Scrabble.cellTap(${r},${c})">${sqLabel}</td>`;
+        }
+      }
+      html += '</tr>';
+    }
+    table.innerHTML = html;
+
+    // Scroll to center (5,5) on first render
+    const container = document.getElementById('scrab-board-container');
+    if (container && scrabPendingCells.length === 0 && (!scrabBoardData || !scrabBoardData[60])) {
+      const td = table.querySelector('[data-row="5"][data-col="5"]');
+      if (td) td.scrollIntoView({ block: 'center', inline: 'center' });
+    }
+  }
+
+  function renderScrabRack(exchangeMode) {
+    const rackId = exchangeMode ? 'scrab-exchange-rack' : 'scrab-rack';
+    const container = document.getElementById(rackId);
+    if (!container) return;
+    const LV = (typeof ScrabbleWords !== 'undefined') ? ScrabbleWords.LETTER_VALUES : {};
+    const pendingRackIndices = new Set(scrabPendingCells.map(c => c.rackIdx));
+
+    container.innerHTML = '';
+    scrabMyRack.forEach((letter, idx) => {
+      const isBlank = letter === '';
+      const displayLetter = isBlank ? '?' : letter;
+      const pts = LV[letter] ?? 0;
+      const isSelected = scrabSelectedRackIdx === idx;
+      const isUsed = pendingRackIndices.has(idx);
+      const btn = document.createElement('button');
+      btn.className = 'scrab-tile' +
+        (isBlank ? ' blank-tile' : '') +
+        (isSelected ? ' selected' : '') +
+        (isUsed ? ' used' : '');
+      btn.disabled = (!exchangeMode && !scrabIsMyTurn) || isUsed;
+      btn.innerHTML = `${escapeHtml(displayLetter)}<span class="tile-pts">${pts}</span>`;
+      if (exchangeMode) {
+        btn.onclick = () => toggleExchangeTile(idx);
+      } else {
+        btn.onclick = () => Scrabble.selectRackTile(idx);
+      }
+      container.appendChild(btn);
+    });
+  }
+
+  let scrabExchangeIndices = new Set();
+  function toggleExchangeTile(idx) {
+    if (scrabExchangeIndices.has(idx)) scrabExchangeIndices.delete(idx);
+    else scrabExchangeIndices.add(idx);
+    const container = document.getElementById('scrab-exchange-rack');
+    if (!container) return;
+    container.querySelectorAll('.scrab-tile').forEach((btn, i) => {
+      btn.classList.toggle('selected', scrabExchangeIndices.has(i));
+    });
+  }
+
+  function renderScrabScoreBar(data) {
+    const bar = document.getElementById('scrab-score-bar');
+    if (!bar || !data.players) return;
+    const currentId = data.scrab_current_player ? data.scrab_current_player.device_id : null;
+    bar.innerHTML = (data.players || [])
+      .filter(p => !p.is_host)
+      .map(p => `<div class="scrab-player-score ${p.device_id === currentId ? 'active-turn' : ''}">
+        <span class="ps-avatar">${p.avatar || '👤'}</span>
+        <span class="ps-name">${escapeHtml(p.name)}</span>
+        <span class="ps-pts">${p.score || 0}</span>
+      </div>`)
+      .join('');
+  }
+
+  function updateScrabStatusBar(data) {
+    const turnEl  = document.getElementById('scrab-turn-badge');
+    const bagEl   = document.getElementById('scrab-bag-badge');
+    if (turnEl) {
+      const cp = data.scrab_current_player;
+      turnEl.textContent = data.am_i_scrab_turn
+        ? '🎯 Your turn!'
+        : cp ? `${cp.avatar || '👤'} ${cp.name}'s turn` : '';
+    }
+    if (bagEl) bagEl.textContent = `🎒 ${data.scrab_tiles_in_bag ?? '?'} tiles`;
+  }
+
+  function startScrabTimer(data) {
+    stopScrabTimer();
+    const limit = (data.scrab_time_limit || 90) * 1000;
+    const elapsed = data.scrab_turn_elapsed_ms || 0;
+    let remaining = Math.max(0, limit - elapsed);
+    const timerEl = document.getElementById('scrab-timer-badge');
+    if (!timerEl) return;
+    const tick = () => {
+      const secs = Math.ceil(remaining / 1000);
+      timerEl.textContent = `⏱ ${secs}s`;
+      timerEl.classList.toggle('urgent', secs <= 15);
+      if (remaining <= 0) { stopScrabTimer(); return; }
+      remaining -= 500;
+    };
+    tick();
+    scrabTimerInterval = setInterval(tick, 500);
+  }
+
+  function stopScrabTimer() {
+    if (scrabTimerInterval) { clearInterval(scrabTimerInterval); scrabTimerInterval = null; }
+  }
+
+  function renderScrabPlaysFeed(plays) {
+    const feed = document.getElementById('scrab-plays-feed');
+    if (!feed) return;
+    if (!plays.length) { feed.innerHTML = ''; return; }
+    feed.innerHTML = plays.map(p => `
+      <div class="scrab-play-row">
+        <span>${p.avatar || '👤'}</span>
+        <span><strong>${escapeHtml(p.name)}</strong></span>
+        <span class="scrab-play-word">${escapeHtml(p.word)}</span>
+        <span class="scrab-play-score">+${p.score}pts</span>
+        ${p.bonus ? `<span class="scrab-play-bonus">🎉${escapeHtml(p.bonus)}</span>` : ''}
+      </div>`).join('');
+    feed.scrollTop = feed.scrollHeight;
+  }
+
+  // Public Scrabble namespace
+  const Scrabble = {
+    selectRackTile(idx) {
+      if (!scrabIsMyTurn) return;
+      if (scrabSelectedRackIdx === idx) {
+        scrabSelectedRackIdx = null;
+      } else {
+        scrabSelectedRackIdx = idx;
+      }
+      renderScrabRack();
+    },
+
+    cellTap(row, col) {
+      if (!scrabIsMyTurn) return;
+      const idx = row * 11 + col;
+
+      // Check if this cell has a pending tile → return to rack
+      const pendingIdx = scrabPendingCells.findIndex(c => c.row === row && c.col === col);
+      if (pendingIdx !== -1) {
+        scrabPendingCells.splice(pendingIdx, 1);
+        if (scrabSelectedRackIdx === null) scrabSelectedRackIdx = null;
+        renderScrabBoard();
+        renderScrabRack();
+        updateSubmitBtn();
+        return;
+      }
+
+      // Must have a tile selected
+      if (scrabSelectedRackIdx === null) return;
+      // Cell must be empty on the real board
+      if (scrabBoardData && scrabBoardData[idx] !== null) return;
+
+      const letter = scrabMyRack[scrabSelectedRackIdx];
+      const isBlank = letter === '';
+
+      if (isBlank) {
+        // Prompt for letter assignment
+        const assigned = (prompt('Blank tile — which letter?') || '').toUpperCase().trim();
+        if (!assigned || !/^[A-Z]$/.test(assigned)) return;
+        scrabPendingCells.push({ row, col, letter: assigned, rackIdx: scrabSelectedRackIdx, isBlank: true });
+      } else {
+        scrabPendingCells.push({ row, col, letter: letter.toUpperCase(), rackIdx: scrabSelectedRackIdx, isBlank: false });
+      }
+
+      scrabSelectedRackIdx = null;
+      renderScrabBoard();
+      renderScrabRack();
+      updateSubmitBtn();
+    },
+
+    clearPending() {
+      scrabPendingCells = [];
+      scrabSelectedRackIdx = null;
+      renderScrabBoard();
+      renderScrabRack();
+      updateSubmitBtn();
+    },
+
+    async submitWord() {
+      if (!scrabPendingCells.length) return;
+      const btn = document.getElementById('scrab-submit-btn');
+      if (btn) btn.disabled = true;
+      try {
+        const res = await api('scrab_submit_word.php', {
+          room_code: roomCode,
+          device_id: deviceId,
+          cells: scrabPendingCells.map(c => ({
+            row: c.row, col: c.col, letter: c.letter, rack_idx: c.rackIdx, is_blank: c.isBlank
+          }))
+        });
+        if (!res.success) {
+          App.showToast(res.error || 'Invalid placement', 'error');
+          if (btn) btn.disabled = false;
+          return;
+        }
+        scrabPendingCells = [];
+        scrabSelectedRackIdx = null;
+        // Update rack locally before next poll
+        scrabMyRack = res.new_rack || [];
+        renderScrabRack();
+      } catch (e) {
+        App.showToast('Network error', 'error');
+        if (btn) btn.disabled = false;
+      }
+    },
+
+    async passTurn() {
+      if (!confirm('Pass your turn?')) return;
+      await api('scrab_pass_turn.php', { room_code: roomCode, device_id: deviceId });
+      scrabPendingCells = [];
+      scrabSelectedRackIdx = null;
+    },
+
+    openExchange() {
+      scrabExchangeIndices = new Set();
+      renderScrabRack(true);
+      App.goTo('scrab-exchange');
+    },
+
+    async confirmExchange() {
+      if (!scrabExchangeIndices.size) { App.showToast('Select at least one tile', 'error'); return; }
+      const res = await api('scrab_exchange_tiles.php', {
+        room_code: roomCode,
+        device_id: deviceId,
+        indices: [...scrabExchangeIndices]
+      });
+      if (!res.success) { App.showToast(res.error || 'Exchange failed', 'error'); return; }
+      scrabMyRack = res.new_rack || [];
+      scrabExchangeIndices = new Set();
+      App.goTo('scrab-place');
+      renderScrabRack();
+    },
+  };
+
+  function updateSubmitBtn() {
+    const btn = document.getElementById('scrab-submit-btn');
+    if (btn) btn.disabled = scrabPendingCells.length === 0;
+  }
+
+  // Expose Scrabble as global for onclick= handlers
+  window.Scrabble = Scrabble;
 
   return {
     start,

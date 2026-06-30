@@ -30,6 +30,30 @@ switch ($action) {
         // Word Impostor has its own no-timer flow (imp_clue/imp_reveal/imp_vote/
         // imp_elim/imp_tiebreak) - nothing below this branch (question pools,
         // time limits) applies to it, so it short-circuits before that logic.
+        if ($room['game_format'] === 'scrab') {
+            require_once __DIR__ . '/scrabble_words.php';
+            $contestantStmt = $db->prepare("SELECT device_id FROM players WHERE room_code = ? AND is_host = 0 ORDER BY joined_at ASC");
+            $contestantStmt->execute([$code]);
+            $contestants = $contestantStmt->fetchAll(PDO::FETCH_COLUMN);
+            if (count($contestants) < 2) jsonOut(['success' => false, 'error' => 'Need at least 2 players to start Bible Scrabble'], 400);
+
+            $bag = scrabBuildInitialBag();
+
+            // Deal 7 tiles to each player
+            foreach ($contestants as $pid) {
+                [$drawn, $bag] = scrabDrawTiles($bag, 7);
+                $db->prepare("UPDATE players SET scrab_rack = ? WHERE room_code = ? AND device_id = ?")
+                   ->execute([json_encode($drawn), $code, $pid]);
+            }
+
+            // Init empty 121-cell board (null for each cell)
+            $emptyBoard = array_fill(0, 121, null);
+
+            $db->prepare("UPDATE rooms SET status = 'scrab_place', scrab_turn_order = ?, scrab_round = 1, scrab_board = ?, scrab_bag = ?, scrab_turn_start_time = ?, scrab_pass_streak = 0, scrab_start_time = ?, updated_at = ? WHERE code = ?")
+               ->execute([json_encode($contestants), json_encode($emptyBoard), json_encode($bag), $now, $now, $now, $code]);
+            break;
+        }
+
         if ($room['game_format'] === 'draw') {
             $contestantStmt = $db->prepare("SELECT device_id FROM players WHERE room_code = ? AND is_host = 0 ORDER BY joined_at ASC");
             $contestantStmt->execute([$code]);
@@ -158,7 +182,7 @@ switch ($action) {
     case 'set_game_format':
         if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
         $value = $input['value'] ?? 'classic';
-        $format = in_array($value, ['classic', 'truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor', 'draw'], true) ? $value : 'classic';
+        $format = in_array($value, ['classic', 'truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor', 'draw', 'scrab'], true) ? $value : 'classic';
         $db->prepare("UPDATE rooms SET game_format = ?, updated_at = ? WHERE code = ?")
            ->execute([$format, $now, $code]);
         break;
@@ -246,6 +270,30 @@ switch ($action) {
         if (!$book || !$category) jsonOut(['success' => false, 'error' => 'Missing book or category'], 400);
         $db->prepare("UPDATE rooms SET book = ?, category = ?, testament = ?, pool_size = ?, updated_at = ? WHERE code = ?")
            ->execute([$book, $category, $testament, $poolSize, $now, $code]);
+        break;
+
+    // ---- Bible Scrabble: host-driven actions ----
+    case 'set_scrab_time_limit':
+        if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
+        $tlimit = (int)($input['value'] ?? 90);
+        $tlimit = in_array($tlimit, [60, 90, 120], true) ? $tlimit : 90;
+        $db->prepare("UPDATE rooms SET scrab_time_limit = ?, updated_at = ? WHERE code = ?")
+           ->execute([$tlimit, $now, $code]);
+        break;
+
+    case 'scrab_force_skip':
+        if ($room['status'] !== 'scrab_place') jsonOut(['success' => false, 'error' => 'Not in Scrabble turn'], 400);
+        require_once __DIR__ . '/scrabble_words.php';
+        scrabAdvanceTurn($db, $code, $room);
+        $db->prepare("UPDATE rooms SET scrab_pass_streak = scrab_pass_streak + 1, updated_at = ? WHERE code = ?")->execute([$now, $code]);
+        break;
+
+    case 'scrab_end_game':
+        if (!in_array($room['status'], ['scrab_place', 'scrab_word_result'], true))
+            jsonOut(['success' => false, 'error' => 'Not in a Scrabble game'], 400);
+        require_once __DIR__ . '/scrabble_words.php';
+        scrabRackSubtraction($db, $code);
+        $db->prepare("UPDATE rooms SET status = 'finished', updated_at = ? WHERE code = ?")->execute([$now, $code]);
         break;
 
     default:

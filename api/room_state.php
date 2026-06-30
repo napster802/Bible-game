@@ -489,6 +489,111 @@ if ($room['game_format'] === 'draw') {
     }
 }
 
+// === BIBLE SCRABBLE state ===
+$scrabBoard         = null;
+$myScrabRack        = null;
+$scrabCurrentPlayer = null;
+$amIScrabTurn       = false;
+$scrabTilesInBag    = 0;
+$scrabRecentPlays   = [];
+$scrabTimeLimit     = 90;
+$scrabTurnElapsedMs = 0;
+$scrabWordResult    = null;
+
+if (in_array($room['game_format'], ['scrab'], true) && in_array($status, ['scrab_place', 'scrab_word_result'], true)) {
+    require_once __DIR__ . '/scrabble_words.php';
+
+    $scrabBoard      = json_decode($room['scrab_board'] ?? '[]', true) ?: array_fill(0, 121, null);
+    $bag             = json_decode($room['scrab_bag'] ?? '[]', true) ?: [];
+    $scrabTilesInBag = count($bag);
+    $scrabTimeLimit  = (int)($room['scrab_time_limit'] ?? 90);
+
+    // Send each player only their own private rack
+    $rackStmt = $db->prepare("SELECT scrab_rack FROM players WHERE room_code = ? AND device_id = ?");
+    $rackStmt->execute([$code, $deviceId]);
+    $myScrabRack = json_decode($rackStmt->fetchColumn() ?: '[]', true) ?: [];
+
+    $currentScrabId = scrabCurrentPlayerId($room);
+    $amIScrabTurn   = $currentScrabId === $deviceId;
+
+    if ($currentScrabId) {
+        foreach ($playersOut as $p) {
+            if ($p['device_id'] === $currentScrabId) {
+                $scrabCurrentPlayer = ['device_id' => $p['device_id'], 'name' => $p['name'], 'avatar' => $p['avatar']];
+                break;
+            }
+        }
+    }
+
+    $scrabTurnElapsedMs = $now - (int)$room['scrab_turn_start_time'];
+
+    // Recent plays feed (last 20)
+    $playsStmt = $db->prepare("SELECT sp.*, p.name, p.avatar FROM scrab_plays sp JOIN players p ON p.room_code = sp.room_code AND p.device_id = sp.device_id WHERE sp.room_code = ? ORDER BY sp.id DESC LIMIT 20");
+    $playsStmt->execute([$code]);
+    $scrabRecentPlays = array_reverse(array_map(fn($r) => [
+        'word'       => $r['word'],
+        'score'      => (int)$r['score'],
+        'bonus'      => $r['bonus'],
+        'name'       => $r['name'],
+        'avatar'     => $r['avatar'],
+        'device_id'  => $r['device_id'],
+        'turn'       => (int)$r['turn'],
+    ], $playsStmt->fetchAll()));
+
+    // Last play result (for scrab_word_result screen)
+    if ($status === 'scrab_word_result') {
+        $lastPlayStmt = $db->prepare("SELECT sp.*, p.name FROM scrab_plays sp JOIN players p ON p.room_code = sp.room_code AND p.device_id = sp.device_id WHERE sp.room_code = ? ORDER BY sp.id DESC LIMIT 1");
+        $lastPlayStmt->execute([$code]);
+        $lastPlay = $lastPlayStmt->fetch();
+        if ($lastPlay) {
+            $scrabWordResult = [
+                'word'   => $lastPlay['word'],
+                'score'  => (int)$lastPlay['score'],
+                'bonus'  => $lastPlay['bonus'],
+                'name'   => $lastPlay['name'],
+                'device_id' => $lastPlay['device_id'],
+            ];
+        }
+    }
+
+    // Auto-advance: turn timer expired → pass for current player
+    if ($status === 'scrab_place') {
+        $elapsed = $now - (int)$room['scrab_turn_start_time'];
+        if ($elapsed >= $scrabTimeLimit * 1000 + 2000) {
+            $order = json_decode($room['scrab_turn_order'] ?? '[]', true) ?: [];
+            $newStreak = (int)$room['scrab_pass_streak'] + 1;
+            $nextRound = (int)$room['scrab_round'] + 1;
+            if ($newStreak >= count($order)) {
+                scrabRackSubtraction($db, $code);
+                $db->prepare("UPDATE rooms SET status = 'finished', scrab_pass_streak = ?, updated_at = ? WHERE code = ?")
+                   ->execute([$newStreak, $now, $code]);
+                $status = 'finished';
+            } else {
+                $db->prepare("UPDATE rooms SET scrab_round = ?, scrab_pass_streak = ?, scrab_turn_start_time = ?, updated_at = ? WHERE code = ?")
+                   ->execute([$nextRound, $newStreak, $now, $now, $code]);
+            }
+            $stmt2r = $db->prepare("SELECT * FROM rooms WHERE code = ?");
+            $stmt2r->execute([$code]);
+            $room = $stmt2r->fetch();
+            $status = $room['status'];
+        }
+    }
+
+    // Auto-advance: scrab_word_result → scrab_place after 3s
+    if ($status === 'scrab_word_result') {
+        $resultElapsed = $now - (int)$room['updated_at'];
+        if ($resultElapsed >= 3000) {
+            $ended = scrabAdvanceTurn($db, $code, $room);
+            if (!$ended) {
+                $stmt2r = $db->prepare("SELECT * FROM rooms WHERE code = ?");
+                $stmt2r->execute([$code]);
+                $room = $stmt2r->fetch();
+            }
+            $status = $room['status'];
+        }
+    }
+}
+
 $myWalletStmt = $db->prepare("SELECT wallet FROM profiles WHERE device_id = ?");
 $myWalletStmt->execute([$deviceId]);
 $myWalletCol = $myWalletStmt->fetchColumn();
@@ -572,6 +677,16 @@ jsonOut([
     'draw_turn_number'      => $drawTurnNumber,
     'draw_total_turns'      => $drawTotalTurns,
     'draw_strokes'          => $drawStrokes,
+    'scrab_board'              => $scrabBoard,
+    'my_scrab_rack'            => $myScrabRack,
+    'scrab_current_player'     => $scrabCurrentPlayer,
+    'am_i_scrab_turn'          => $amIScrabTurn,
+    'scrab_tiles_in_bag'       => $scrabTilesInBag,
+    'scrab_recent_plays'       => $scrabRecentPlays,
+    'scrab_time_limit'         => $scrabTimeLimit,
+    'scrab_turn_elapsed_ms'    => $scrabTurnElapsedMs,
+    'scrab_word_result'        => $scrabWordResult,
+    'scrab_round'              => (int)($room['scrab_round'] ?? 1),
     'events'            => $eventsOut,
     'server_time'       => $now
 ]);
