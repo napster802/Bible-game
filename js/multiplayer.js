@@ -2755,6 +2755,48 @@ const Multiplayer = (function () {
       App.goTo('scrab-place');
       renderScrabRack();
     },
+
+    _helpTimer: null,
+    _helpPinned: false,
+
+    openHelp() {
+      clearTimeout(Scrabble._helpTimer);
+      const ov = document.getElementById('scrab-help-overlay');
+      if (ov) ov.style.display = 'flex';
+    },
+
+    scheduleCloseHelp() {
+      if (Scrabble._helpPinned) return;
+      Scrabble._helpTimer = setTimeout(() => {
+        const ov = document.getElementById('scrab-help-overlay');
+        if (ov) ov.style.display = 'none';
+      }, 300);
+    },
+
+    toggleHelp() {
+      const ov = document.getElementById('scrab-help-overlay');
+      if (!ov) return;
+      if (Scrabble._helpPinned) {
+        Scrabble._helpPinned = false;
+        clearTimeout(Scrabble._helpTimer);
+        ov.style.display = 'none';
+      } else {
+        Scrabble._helpPinned = true;
+        Scrabble.openHelp();
+      }
+    },
+
+    closeHelp(event) {
+      if (event && event.target !== document.getElementById('scrab-help-overlay')) return;
+      Scrabble.forceCloseHelp();
+    },
+
+    forceCloseHelp() {
+      Scrabble._helpPinned = false;
+      clearTimeout(Scrabble._helpTimer);
+      const ov = document.getElementById('scrab-help-overlay');
+      if (ov) ov.style.display = 'none';
+    },
   };
 
   function updateSubmitBtn() {

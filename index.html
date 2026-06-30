@@ -689,6 +689,7 @@
         </div>
         <!-- Rack + action buttons (sticky at bottom) -->
         <div class="scrab-rack-area" id="scrab-rack-area">
+          <button class="scrab-help-btn" onclick="Scrabble.toggleHelp()" onmouseenter="Scrabble.openHelp()" onmouseleave="Scrabble.scheduleCloseHelp()" aria-label="How to play Bible Scrabble">?</button>
           <div class="scrab-rack" id="scrab-rack"></div>
           <div class="scrab-actions" id="scrab-actions" style="display:none">
             <button class="btn btn-primary" id="scrab-submit-btn" onclick="Scrabble.submitWord()" disabled>✅ Submit Word</button>
@@ -731,6 +732,53 @@
         <div style="margin-top:1.5rem;display:flex;gap:1rem;justify-content:center;">
           <button class="btn btn-primary" onclick="Scrabble.confirmExchange()">🔄 Exchange Selected</button>
           <button class="btn btn-secondary" onclick="App.goTo('scrab-place')">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== BIBLE SCRABBLE HELP MODAL ==================== -->
+    <div class="overlay" id="scrab-help-overlay" style="display:none" onclick="Scrabble.closeHelp(event)">
+      <div class="overlay-card scrab-help-card" onclick="event.stopPropagation()" onmouseenter="Scrabble.openHelp()" onmouseleave="Scrabble.scheduleCloseHelp()">
+        <div class="scrab-help-header">
+          <h2>🕎 How to Play Bible Scrabble</h2>
+          <button class="scrab-help-close" onclick="Scrabble.forceCloseHelp()">✕</button>
+        </div>
+        <div class="scrab-help-body">
+          <div class="scrab-help-section">
+            <h3>Rules</h3>
+            <ul>
+              <li>Take turns placing <strong>Bible words</strong> on the 11×11 board</li>
+              <li>The <strong>first word</strong> must cover the ★ center square</li>
+              <li>Every new word must <strong>connect</strong> to a tile already on the board</li>
+              <li>All words formed across &amp; down must be valid Bible words</li>
+              <li>Your rack refills to 7 tiles after each play</li>
+              <li>Use <strong>↩ Clear</strong> to return tiles to your rack, <strong>🔄 Exchange</strong> to swap tiles with the bag (costs your turn), or <strong>⏭ Pass</strong> to skip your turn</li>
+              <li>Game ends when the tile bag is empty</li>
+            </ul>
+          </div>
+          <div class="scrab-help-section">
+            <h3>Board Squares</h3>
+            <div class="scrab-bonus-grid">
+              <span class="sq-badge sq-tw">TW</span><span>Triple Word — multiply the entire word score ×3</span>
+              <span class="sq-badge sq-dw">DW</span><span>Double Word — multiply the entire word score ×2</span>
+              <span class="sq-badge sq-tl">TL</span><span>Triple Letter — multiply that letter's points ×3</span>
+              <span class="sq-badge sq-dl">DL</span><span>Double Letter — multiply that letter's points ×2</span>
+              <span class="sq-badge sq-star">★</span><span>Center — first move starts here (acts as DW)</span>
+            </div>
+          </div>
+          <div class="scrab-help-section">
+            <h3>Letter Points</h3>
+            <div class="scrab-pts-grid">
+              <div><span class="pts-val">0</span><span class="pts-tiles">Blank (wild — any letter)</span></div>
+              <div><span class="pts-val">1</span><span class="pts-tiles">A &nbsp;E &nbsp;I &nbsp;L &nbsp;N &nbsp;O &nbsp;R &nbsp;S &nbsp;T &nbsp;U</span></div>
+              <div><span class="pts-val">2</span><span class="pts-tiles">D &nbsp;G</span></div>
+              <div><span class="pts-val">3</span><span class="pts-tiles">B &nbsp;C &nbsp;M &nbsp;P</span></div>
+              <div><span class="pts-val">4</span><span class="pts-tiles">F &nbsp;H &nbsp;V &nbsp;W &nbsp;Y</span></div>
+              <div><span class="pts-val">5</span><span class="pts-tiles">J &nbsp;K</span></div>
+              <div><span class="pts-val">8</span><span class="pts-tiles">X</span></div>
+              <div><span class="pts-val">10</span><span class="pts-tiles">Q &nbsp;Z</span></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
