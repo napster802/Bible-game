@@ -42,6 +42,7 @@ const Multiplayer = (function () {
   let scrabMyRack = [];
   let scrabIsMyTurn = false;
   let scrabTimerInterval = null;
+  let scrabDidInitialScroll = false;
   let drawPointerBound = false;
   let drawDrawing = false;
   let drawColor = '#1a1a1a';
@@ -2456,6 +2457,7 @@ const Multiplayer = (function () {
   function enterScrabPlace(data) {
     scrabPendingCells = [];
     scrabSelectedRackIdx = null;
+    scrabDidInitialScroll = false;
     scrabBoardData = data.scrab_board ? [...data.scrab_board] : Array(121).fill(null);
     scrabMyRack = data.my_scrab_rack ? [...data.my_scrab_rack] : [];
     scrabIsMyTurn = !!data.am_i_scrab_turn;
@@ -2543,9 +2545,9 @@ const Multiplayer = (function () {
     }
     table.innerHTML = html;
 
-    // Scroll to center (5,5) on first render
-    const container = document.getElementById('scrab-board-container');
-    if (container && scrabPendingCells.length === 0 && (!scrabBoardData || !scrabBoardData[60])) {
+    // Scroll to center (5,5) only once when first entering the screen
+    if (!scrabDidInitialScroll) {
+      scrabDidInitialScroll = true;
       const td = table.querySelector('[data-row="5"][data-col="5"]');
       if (td) td.scrollIntoView({ block: 'center', inline: 'center' });
     }
