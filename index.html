@@ -689,7 +689,10 @@
         </div>
         <!-- Rack + action buttons (sticky at bottom) -->
         <div class="scrab-rack-area" id="scrab-rack-area">
-          <button class="scrab-help-btn" onclick="Scrabble.toggleHelp()" onmouseenter="Scrabble.openHelp()" onmouseleave="Scrabble.scheduleCloseHelp()" aria-label="How to play Bible Scrabble">?</button>
+          <div class="scrab-rack-header">
+            <span class="scrab-rack-label">Your Tiles</span>
+            <button class="scrab-help-btn" onclick="Scrabble.toggleHelp()" onmouseenter="Scrabble.openHelp()" onmouseleave="Scrabble.scheduleCloseHelp()" aria-label="How to play Bible Scrabble">?</button>
+          </div>
           <div class="scrab-rack" id="scrab-rack"></div>
           <div class="scrab-actions" id="scrab-actions" style="display:none">
             <button class="btn btn-primary" id="scrab-submit-btn" onclick="Scrabble.submitWord()" disabled>✅ Submit Word</button>
@@ -759,11 +762,11 @@
           <div class="scrab-help-section">
             <h3>Board Squares</h3>
             <div class="scrab-bonus-grid">
-              <span class="sq-badge sq-tw">TW</span><span>Triple Word — multiply the entire word score ×3</span>
-              <span class="sq-badge sq-dw">DW</span><span>Double Word — multiply the entire word score ×2</span>
-              <span class="sq-badge sq-tl">TL</span><span>Triple Letter — multiply that letter's points ×3</span>
-              <span class="sq-badge sq-dl">DL</span><span>Double Letter — multiply that letter's points ×2</span>
-              <span class="sq-badge sq-star">★</span><span>Center — first move starts here (acts as DW)</span>
+              <span class="sq-badge sq-tw">COVENANT</span><span>×3 Word — entire word score tripled (corner squares)</span>
+              <span class="sq-badge sq-dw">PROPHET</span><span>×2 Word — entire word score doubled (diagonal squares)</span>
+              <span class="sq-badge sq-tl">SCROLL</span><span>×3 Letter — that tile's points tripled (edge squares)</span>
+              <span class="sq-badge sq-dl">LAMP</span><span>×2 Letter — that tile's points doubled (scattered squares)</span>
+              <span class="sq-badge sq-star">★</span><span>Star of Bethlehem — center square, first word starts here (acts as ×2 Word)</span>
             </div>
           </div>
           <div class="scrab-help-section">
