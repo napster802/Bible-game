@@ -6,3 +6,8 @@ data/*.db
 .DS_Store
 Thumbs.db
 .vscode/
+
+# Node (test tooling only)
+node_modules/
+package.json
+package-lock.json
