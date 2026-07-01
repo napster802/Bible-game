@@ -59,4 +59,4 @@ if ($alreadyJoined) {
        ->execute([$deviceId, $code, $name, $avatar, $now, $now]);
 }
 
-jsonOut(['success' => true, 'room_code' => $code, 'difficulty' => $room['difficulty']]);
+jsonOut(['success' => true, 'room_code' => $code, 'difficulty' => $room['difficulty'], 'game_format' => $room['game_format'] ?: 'classic']);

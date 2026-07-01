@@ -336,12 +336,12 @@ function cleanStale(PDO $db): void {
     $db->prepare("DELETE FROM rooms WHERE created_at < ?")->execute([$cutoff]);
 }
 
-// A lobby whose host hasn't polled in 30s has been abandoned (tab closed
-// before starting) - it would otherwise sit in the public room list forever,
-// showing "0 players waiting", until the 24h cleanStale() sweep finally
-// catches it. Delete it (and everything tied to it) right away instead.
+// A lobby whose host hasn't polled in 90s has been abandoned (tab closed or
+// backgrounded long enough for the browser to throttle JS timers — browsers
+// can slow setInterval to once per minute or more in hidden tabs). 90s gives
+// the host a comfortable buffer after switching away and returning.
 function cleanAbandonedLobbies(PDO $db): void {
-    $cutoff = nowMs() - 30000;
+    $cutoff = nowMs() - 90000;
     $stmt = $db->prepare("
         SELECT code FROM rooms
         WHERE status = 'lobby'

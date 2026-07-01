@@ -85,12 +85,12 @@ const JoinGame = (function () {
         </span>
         <span class="room-list-item-arrow">›</span>
       `;
-      btn.onclick = () => joinRoom(room.code);
+      btn.onclick = () => joinRoom(room.code, room.game_format);
       list.appendChild(btn);
     });
   }
 
-  function joinRoom(code) {
+  function joinRoom(code, knownFormat) {
     const profile = Profile.get();
     if (!profile) { App.goTo('profile'); return; }
 
@@ -109,6 +109,12 @@ const JoinGame = (function () {
       }
       stopRoomListPoll();
       App.goTo('join-wait');
+      // Render the correct game format immediately — before the first Multiplayer
+      // poll fires — so the player never briefly sees an empty or stale instructions box.
+      const fmt = res.game_format || knownFormat || 'classic';
+      if (typeof GameInstructions !== 'undefined') {
+        GameInstructions.render(fmt, 'join-instructions-box');
+      }
       Multiplayer.start(code, false);
     }).catch(err => {
       if (error) error.textContent = 'Could not reach the host server: ' + err.message;

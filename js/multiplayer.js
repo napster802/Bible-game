@@ -16,6 +16,18 @@ const Multiplayer = (function () {
   let pollTimer = null;
   let localTickTimer = null;
 
+  // Re-poll immediately when the host/player switches back to this tab.
+  // Browsers throttle setInterval heavily in hidden tabs (sometimes to once
+  // per minute), so without this the host's last_ping can go stale and
+  // cleanAbandonedLobbies() removes the room while they're briefly away.
+  (function attachVisibilityListener() {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && roomCode && deviceId) {
+        poll();
+      }
+    });
+  })();
+
   let lastStatus = null;
   let lastQIdx = -1;
   let lastImpRound = -1;
