@@ -774,6 +774,7 @@
         <div class="wordhunt-grid-container" id="wordhunt-grid-container">
           <table class="wordhunt-grid" id="wordhunt-grid"></table>
         </div>
+        <div class="wordhunt-dir-hint" id="wordhunt-dir-hint"></div>
         <div class="wordhunt-feed" id="wordhunt-feed"></div>
         <div class="wordhunt-host-controls" id="wordhunt-host-controls" style="display:none">
           <button class="btn btn-secondary btn-sm" onclick="WordHunt.forceNext()">⏭ Skip Turn</button>
@@ -787,10 +788,18 @@
       <div class="screen-header">
         <h2>🔍 Round Complete!</h2>
       </div>
-      <div class="screen-body" style="padding:1.5rem;text-align:center;">
-        <p id="wordhunt-round-result-title" class="wordhunt-result-title"></p>
+      <div class="screen-body" style="padding:1rem;">
+        <p id="wordhunt-round-result-title" class="wordhunt-result-title" style="text-align:center;margin-bottom:0.75rem"></p>
         <div id="wordhunt-round-scores" class="wordhunt-round-scores"></div>
-        <p class="hint-text" style="margin-top:1rem">Next round starting automatically…</p>
+        <div id="wordhunt-reveal-section" class="wordhunt-reveal-section" style="display:none">
+          <p class="wordhunt-reveal-label">❌ Unclaimed words:</p>
+          <div id="wordhunt-unclaimed-list" class="wordhunt-unclaimed-list"></div>
+        </div>
+        <div id="wordhunt-round-host-controls" class="wordhunt-round-controls" style="display:none">
+          <button class="btn btn-secondary" onclick="WordHunt.revealWords()">🔴 Reveal Words</button>
+          <button class="btn btn-primary" id="wordhunt-proceed-btn" onclick="WordHunt.proceed()">▶ Proceed</button>
+        </div>
+        <p id="wordhunt-round-waiting" class="hint-text" style="text-align:center;margin-top:0.75rem;display:none">Waiting for host to proceed…</p>
       </div>
     </div>
 

@@ -609,6 +609,8 @@ $wordhuntTimeLimit    = 180;
 $wordhuntRoundNum     = 0;
 $wordhuntRoundsTotal  = 3;
 $wordhuntTurnElapsedMs = 0;
+$wordhuntDirCounts    = [];
+$wordhuntUnclaimed    = [];
 
 if ($room['game_format'] === 'wordhunt' && in_array($status, ['wordhunt_active', 'wordhunt_round_result'], true)) {
     require_once __DIR__ . '/wordhunt_words.php';
@@ -621,6 +623,12 @@ if ($room['game_format'] === 'wordhunt' && in_array($status, ['wordhunt_active',
     $wordsList          = json_decode($room['wordhunt_words'] ?? '[]', true) ?: [];
     $wordhuntWordsCount = count($wordsList);
     $wordhuntElapsedMs  = $now - (int)$room['wordhunt_round_start'];
+
+    // Direction counts for the hint bar (how many words go in each direction)
+    foreach ($wordsList as $w) {
+        $key = ($w['dr'] ?? 0) . '_' . ($w['dc'] ?? 1);
+        $wordhuntDirCounts[$key] = ($wordhuntDirCounts[$key] ?? 0) + 1;
+    }
 
     // Build player → color-index map (position in contestant array)
     $colorMap = [];
@@ -687,7 +695,7 @@ if ($room['game_format'] === 'wordhunt' && in_array($status, ['wordhunt_active',
         }
     }
 
-    // Round result scores
+    // Round result scores + unclaimed words reveal
     if ($status === 'wordhunt_round_result') {
         $scoreStmt = $db->prepare(
             "SELECT wc.device_id, p.name, p.avatar, COUNT(*) AS words_found, SUM(wc.score) AS round_pts
@@ -703,6 +711,21 @@ if ($room['game_format'] === 'wordhunt' && in_array($status, ['wordhunt_active',
             'words_found' => (int)$r['words_found'],
             'round_pts'   => (int)$r['round_pts'],
         ], $scoreStmt->fetchAll());
+
+        // Compute unclaimed words (positions safe to reveal since round is over)
+        $foundWords = array_keys($wordhuntFound);
+        foreach ($wordsList as $w) {
+            if (!in_array($w['word'], $foundWords, true)) {
+                $wordhuntUnclaimed[] = [
+                    'word' => $w['word'],
+                    'row'  => (int)$w['row'],
+                    'col'  => (int)$w['col'],
+                    'dr'   => (int)($w['dr'] ?? 0),
+                    'dc'   => (int)($w['dc'] ?? 1),
+                    'len'  => mb_strlen($w['word']),
+                ];
+            }
+        }
     }
 
     // === Auto-advance ===
@@ -738,27 +761,7 @@ if ($room['game_format'] === 'wordhunt' && in_array($status, ['wordhunt_active',
         }
     }
 
-    // Round result: auto-advance after 5s
-    if ($status === 'wordhunt_round_result') {
-        $resultElapsed = $now - (int)$room['updated_at'];
-        if ($resultElapsed >= 5000) {
-            $nextRound = $wordhuntRoundNum + 1;
-            if ($nextRound > $wordhuntRoundsTotal) {
-                $db->prepare("UPDATE rooms SET status = 'finished', updated_at = ? WHERE code = ? AND status = 'wordhunt_round_result'")
-                   ->execute([$now, $code]);
-            } else {
-                // Generate grid for the next round; WHERE guard ensures only one concurrent poll does it
-                $newWords      = wordhuntSelectWords($nextRound);
-                $newGridResult = wordhuntBuildGrid($newWords);
-                $db->prepare("UPDATE rooms SET status = 'wordhunt_active', wordhunt_round = ?, wordhunt_grid = ?, wordhunt_words = ?, wordhunt_round_start = ?, wordhunt_turn_idx = 0, wordhunt_pass_streak = 0, updated_at = ? WHERE code = ? AND status = 'wordhunt_round_result'")
-                   ->execute([$nextRound, json_encode($newGridResult['grid']), json_encode($newGridResult['words']), $now, $now, $code]);
-            }
-            $stmt2r = $db->prepare("SELECT * FROM rooms WHERE code = ?");
-            $stmt2r->execute([$code]);
-            $room   = $stmt2r->fetch();
-            $status = $room['status'];
-        }
-    }
+    // Round result: host must click Proceed (via wordhunt_proceed action) to advance
 }
 
 $myWalletStmt = $db->prepare("SELECT wallet FROM profiles WHERE device_id = ?");
@@ -862,6 +865,8 @@ jsonOut([
     'wordhunt_words_count'     => $wordhuntWordsCount,
     'wordhunt_found_count'     => $wordhuntFoundCount,
     'wordhunt_found'           => $wordhuntFound,
+    'wordhunt_dir_counts'      => $wordhuntDirCounts,
+    'wordhunt_unclaimed'       => $wordhuntUnclaimed,
     'wordhunt_recent_claims'   => $wordhuntRecentClaims,
     'wordhunt_elapsed_ms'      => $wordhuntElapsedMs,
     'wordhunt_turn_elapsed_ms' => $wordhuntTurnElapsedMs,

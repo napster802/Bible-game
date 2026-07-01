@@ -3512,12 +3512,33 @@ label,
   padding: 0.25rem 0;
 }
 
+/* Direction hint bar */
+.wordhunt-dir-hint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: center;
+  padding: 0.3rem 0.5rem 0.1rem;
+}
+.wh-dir-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  background: var(--bg3);
+  border-radius: 2rem;
+  padding: 0.18rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text2);
+}
+.wh-dir-arrow { font-size: 0.95rem; color: var(--accent); }
+
 /* Round result */
 .wordhunt-result-title {
   font-size: 1.05rem;
   font-weight: 700;
   color: var(--gold);
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 .wordhunt-round-scores { display: flex; flex-direction: column; gap: 0.5rem; }
 .wh-result-row {
@@ -3533,6 +3554,46 @@ label,
 .wh-result-name   { flex: 1; font-size: 0.85rem; font-weight: 600; }
 .wh-result-words  { font-size: 0.75rem; color: var(--text2); }
 .wh-result-pts    { font-size: 0.9rem; font-weight: 700; color: var(--gold); }
+
+/* Reveal section */
+.wordhunt-reveal-section {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  background: rgba(231,76,60,0.1);
+  border: 1px solid rgba(231,76,60,0.3);
+  border-radius: 8px;
+}
+.wordhunt-reveal-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #e74c3c;
+  margin: 0 0 0.35rem;
+}
+.wordhunt-unclaimed-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.wh-unclaimed-word {
+  background: rgba(231,76,60,0.18);
+  color: #e74c3c;
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 2rem;
+  border: 1px solid rgba(231,76,60,0.4);
+  letter-spacing: 0.03em;
+}
+.wh-unclaimed { background: rgba(231,76,60,0.25) !important; color: #e74c3c !important; }
+
+/* Host proceed controls on round result */
+.wordhunt-round-controls {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+  margin-top: 0.85rem;
+  flex-wrap: wrap;
+}
 
 /* ── Print / PDF Export ───────────────────────────────────── */
 @media print {

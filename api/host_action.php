@@ -346,6 +346,24 @@ switch ($action) {
         $db->prepare("UPDATE rooms SET status = 'finished', updated_at = ? WHERE code = ?")->execute([$now, $code]);
         break;
 
+    case 'wordhunt_proceed':
+        if ($room['status'] !== 'wordhunt_round_result')
+            jsonOut(['success' => false, 'error' => 'Not at round result'], 400);
+        require_once __DIR__ . '/wordhunt_words.php';
+        $currentRound  = (int)$room['wordhunt_round'];
+        $totalRounds   = (int)$room['wordhunt_rounds_total'];
+        $nextRound     = $currentRound + 1;
+        if ($nextRound > $totalRounds) {
+            $db->prepare("UPDATE rooms SET status = 'finished', updated_at = ? WHERE code = ? AND status = 'wordhunt_round_result'")
+               ->execute([$now, $code]);
+        } else {
+            $newWords      = wordhuntSelectWords($nextRound);
+            $newGridResult = wordhuntBuildGrid($newWords);
+            $db->prepare("UPDATE rooms SET status = 'wordhunt_active', wordhunt_round = ?, wordhunt_grid = ?, wordhunt_words = ?, wordhunt_round_start = ?, wordhunt_turn_idx = 0, wordhunt_pass_streak = 0, updated_at = ? WHERE code = ? AND status = 'wordhunt_round_result'")
+               ->execute([$nextRound, json_encode($newGridResult['grid']), json_encode($newGridResult['words']), $now, $now, $code]);
+        }
+        break;
+
     default:
         jsonOut(['success' => false, 'error' => 'Unknown action'], 400);
 }

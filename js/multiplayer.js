@@ -47,6 +47,7 @@ const Multiplayer = (function () {
   let lastWordhuntRound = -1;
   let wordhuntGrid = [];
   let wordhuntFound = {};
+  let wordhuntUnclaimed = [];
   let wordhuntIsMyTurn = false;
   let wordhuntTouchStart = null;   // {row, col} of swipe start cell
   let wordhuntTouchDir = null;     // {dr, dc} locked direction, or null
@@ -2866,6 +2867,7 @@ const Multiplayer = (function () {
     renderWordhuntFeed(data.wordhunt_recent_claims || []);
     updateWordhuntBadges(data);
     updateWordhuntTurnBanner(data);
+    renderWordhuntDirHint(data);
     const hc = document.getElementById('wordhunt-host-controls');
     if (hc) hc.style.display = isHost ? 'flex' : 'none';
     bindWordhuntTouch();
@@ -2883,21 +2885,32 @@ const Multiplayer = (function () {
     renderWordhuntFeed(data.wordhunt_recent_claims || []);
     updateWordhuntBadges(data);
     updateWordhuntTurnBanner(data);
+    renderWordhuntDirHint(data);
     startWordhuntTimer(data);
   }
 
   function enterWordhuntRoundResult(data) {
     stopWordhuntTimer();
+    wordhuntUnclaimed = data.wordhunt_unclaimed || [];
     App.goTo('wordhunt-round-result');
-    const titleEl = document.getElementById('wordhunt-round-result-title');
+
+    const titleEl  = document.getElementById('wordhunt-round-result-title');
     const scoresEl = document.getElementById('wordhunt-round-scores');
+    const revealSec = document.getElementById('wordhunt-reveal-section');
+    const hostCtrl  = document.getElementById('wordhunt-round-host-controls');
+    const waitEl    = document.getElementById('wordhunt-round-waiting');
+    const proceedBtn = document.getElementById('wordhunt-proceed-btn');
+
     const round = data.wordhunt_round || 1;
     const total = data.wordhunt_rounds_total || 3;
+    const isLastRound = round >= total;
+
     if (titleEl) titleEl.textContent = `Round ${round} of ${total} — Results`;
+
     if (scoresEl) {
       const scores = data.wordhunt_round_scores || [];
       if (scores.length === 0) {
-        scoresEl.innerHTML = '<p class="hint-text">No words found this round.</p>';
+        scoresEl.innerHTML = '<p class="hint-text" style="text-align:center">No words found this round.</p>';
       } else {
         scoresEl.innerHTML = scores.map((s, i) => `
           <div class="wh-result-row">
@@ -2908,6 +2921,48 @@ const Multiplayer = (function () {
             <span class="wh-result-pts">+${s.round_pts} pts</span>
           </div>`).join('');
       }
+    }
+
+    // Reset reveal section
+    if (revealSec) revealSec.style.display = 'none';
+
+    // Host controls vs waiting message
+    if (hostCtrl) hostCtrl.style.display = isHost ? 'flex' : 'none';
+    if (waitEl) waitEl.style.display = isHost ? 'none' : '';
+    if (proceedBtn) proceedBtn.textContent = isLastRound ? '🏁 View Final Scores' : '▶ Next Round';
+
+    // Show reveal section immediately if there are unclaimed words
+    if (wordhuntUnclaimed.length > 0 && revealSec) {
+      // Keep hidden until host clicks Reveal, but pre-fill the list
+      renderWordhuntUnclaimedList();
+    }
+  }
+
+  function renderWordhuntUnclaimedList() {
+    const listEl = document.getElementById('wordhunt-unclaimed-list');
+    if (!listEl) return;
+    listEl.innerHTML = wordhuntUnclaimed.map(w =>
+      `<span class="wh-unclaimed-word">${escapeHtml(w.word)}</span>`
+    ).join('');
+  }
+
+  function revealWordhuntWords() {
+    const revealSec = document.getElementById('wordhunt-reveal-section');
+    if (revealSec) {
+      renderWordhuntUnclaimedList();
+      revealSec.style.display = '';
+    }
+    // Also highlight unclaimed cells on the grid (grid is still in memory)
+    const table = document.getElementById('wordhunt-grid');
+    if (table && wordhuntUnclaimed.length > 0) {
+      wordhuntUnclaimed.forEach(w => {
+        for (let i = 0; i < w.len; i++) {
+          const r = w.row + i * w.dr;
+          const c = w.col + i * w.dc;
+          const cell = table.querySelector(`td[data-row="${r}"][data-col="${c}"]`);
+          if (cell) cell.classList.add('wh-unclaimed');
+        }
+      });
     }
   }
 
@@ -3030,6 +3085,22 @@ const Multiplayer = (function () {
         ${c.bonus ? `<span class="wh-feed-bonus">${escapeHtml(c.bonus)}</span>` : ''}
       </div>`).join('') || '<p class="hint-text" style="font-size:0.75rem;margin:0.25rem">Swipe to find Bible words!</p>';
     feed.scrollTop = feed.scrollHeight;
+  }
+
+  const WH_DIR_LABELS = {
+    '0_1': '→', '0_-1': '←', '1_0': '↓', '-1_0': '↑',
+    '1_1': '↘', '1_-1': '↙', '-1_1': '↗', '-1_-1': '↖'
+  };
+  const WH_DIR_ORDER = ['0_1', '0_-1', '1_0', '-1_0', '1_1', '1_-1', '-1_1', '-1_-1'];
+
+  function renderWordhuntDirHint(data) {
+    const hint = document.getElementById('wordhunt-dir-hint');
+    if (!hint) return;
+    const counts = data.wordhunt_dir_counts || {};
+    const parts = WH_DIR_ORDER
+      .filter(key => counts[key])
+      .map(key => `<span class="wh-dir-chip">${counts[key]}<span class="wh-dir-arrow">${WH_DIR_LABELS[key]}</span></span>`);
+    hint.innerHTML = parts.length ? parts.join('') : '';
   }
 
   function bindWordhuntTouch() {
@@ -3197,8 +3268,10 @@ const Multiplayer = (function () {
   }
 
   const WordHunt = {
-    forceNext() { if (typeof HostGame !== 'undefined') HostGame.wordhuntForceNext(); },
-    forceEnd()  { if (typeof HostGame !== 'undefined') HostGame.wordhuntForceEnd(); }
+    forceNext()   { if (typeof HostGame !== 'undefined') HostGame.wordhuntForceNext(); },
+    forceEnd()    { if (typeof HostGame !== 'undefined') HostGame.wordhuntForceEnd(); },
+    revealWords() { revealWordhuntWords(); },
+    proceed()     { if (typeof HostGame !== 'undefined') HostGame.wordhuntProceed(); }
   };
   window.WordHunt = WordHunt;
 

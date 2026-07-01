@@ -333,6 +333,7 @@ const HostGame = (function () {
     if (!confirm('End the Word Hunt now?')) return;
     action('wordhunt_force_end', {});
   }
+  function wordhuntProceed()   { action('wordhunt_proceed', {}); }
 
   function setDifficulty(diff) {
     selectedDifficulty = diff;
@@ -593,6 +594,7 @@ const HostGame = (function () {
     setWordhuntRounds,
     wordhuntForceNext,
     wordhuntForceEnd,
+    wordhuntProceed,
     get roomCode() { return roomCode; }
   };
 })();
