@@ -35,7 +35,7 @@ switch ($action) {
             $contestantStmt = $db->prepare("SELECT device_id FROM players WHERE room_code = ? AND is_host = 0 ORDER BY joined_at ASC");
             $contestantStmt->execute([$code]);
             $contestants = $contestantStmt->fetchAll(PDO::FETCH_COLUMN);
-            if (count($contestants) < 2) jsonOut(['success' => false, 'error' => 'Need at least 2 players to start Bible Word Hunt'], 400);
+            if (count($contestants) < 1) jsonOut(['success' => false, 'error' => 'Need at least 1 player to start Bible Word Hunt'], 400);
 
             $words      = wordhuntSelectWords(1);
             $gridResult = wordhuntBuildGrid($words);

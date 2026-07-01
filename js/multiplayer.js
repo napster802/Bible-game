@@ -48,9 +48,13 @@ const Multiplayer = (function () {
   let wordhuntGrid = [];
   let wordhuntFound = {};
   let wordhuntIsMyTurn = false;
-  let wordhuntTouchStart = null;
-  let wordhuntTouchDir = null;
+  let wordhuntTouchStart = null;   // {row, col} of swipe start cell
+  let wordhuntTouchDir = null;     // {dr, dc} locked direction, or null
   let wordhuntTouchCells = [];
+  let wordhuntTouchStartX = 0;     // pixel coords at touchstart
+  let wordhuntTouchStartY = 0;
+  let wordhuntLastScrollY = 0;
+  let wordhuntScrolling = false;   // true when the touch is panning the grid
   let wordhuntTimerInterval = null;
   let wordhuntTouchBound = false;
   let drawPointerBound = false;
@@ -2908,9 +2912,9 @@ const Multiplayer = (function () {
 
   function renderWordhuntGrid() {
     const table = document.getElementById('wordhunt-grid');
-    if (!table || wordhuntGrid.length !== 100) return;
+    if (!table || wordhuntGrid.length !== 200) return;
     let html = '';
-    for (let r = 0; r < 10; r++) {
+    for (let r = 0; r < 20; r++) {
       html += '<tr>';
       for (let c = 0; c < 10; c++) {
         const letter = wordhuntGrid[r * 10 + c] || '';
@@ -2922,22 +2926,20 @@ const Multiplayer = (function () {
     applyWordhuntFoundColors();
   }
 
-  // Color cells that belong to already-found words using position data from the server.
-  // wordhuntFound[word] = { row, col, dir, len, color_idx, ... }
+  // Color cells of found words using dr/dc direction vectors from the server.
+  // wordhuntFound[word] = { row, col, dr, dc, len, color_idx }
   function applyWordhuntFoundColors() {
     const table = document.getElementById('wordhunt-grid');
     if (!table) return;
     Object.entries(wordhuntFound).forEach(([, info]) => {
-      const { row, col, dir, len, color_idx } = info;
-      if (row === undefined || col === undefined) return;
+      const { row, col, dr, dc, len, color_idx } = info;
+      if (row === undefined || col === undefined || dr === undefined) return;
       const colorClass = `wh-c${color_idx || 0}`;
       for (let i = 0; i < len; i++) {
-        const r = dir === 'v' ? row + i : row;
-        const c = dir === 'h' ? col + i : col;
+        const r = row + i * dr;
+        const c = col + i * dc;
         const cell = table.querySelector(`td[data-row="${r}"][data-col="${c}"]`);
-        if (cell) {
-          cell.classList.add('wh-found', colorClass);
-        }
+        if (cell) cell.classList.add('wh-found', colorClass);
       }
     });
   }
@@ -3067,41 +3069,81 @@ const Multiplayer = (function () {
     if (!cell) return;
     e.preventDefault();
     wordhuntTouchStart = cell;
+    wordhuntTouchStartX = touch.clientX;
+    wordhuntTouchStartY = touch.clientY;
+    wordhuntLastScrollY = touch.clientY;
     wordhuntTouchDir = null;
     wordhuntTouchCells = [cell];
-    whHighlightCells(wordhuntTouchCells);
+    wordhuntScrolling = false;
+    whHighlightCells([cell]);
   }
 
   function whTouchMove(e) {
     if (!wordhuntTouchStart) return;
     e.preventDefault();
     const touch = e.touches[0];
+    const absDx = Math.abs(touch.clientX - wordhuntTouchStartX);
+    const absDy = Math.abs(touch.clientY - wordhuntTouchStartY);
+
+    // Decide scroll vs word-select on the first significant movement
+    if (!wordhuntTouchDir && !wordhuntScrolling) {
+      if (absDx < 4 && absDy < 4) return; // not moved enough yet
+      // Primarily vertical with little horizontal → manual grid scroll
+      if (absDy > absDx * 2.5 && absDy > 12) {
+        wordhuntScrolling = true;
+      }
+    }
+
+    if (wordhuntScrolling) {
+      const container = document.getElementById('wordhunt-grid-container');
+      if (container) container.scrollTop += wordhuntLastScrollY - touch.clientY;
+      wordhuntLastScrollY = touch.clientY;
+      return;
+    }
+
+    // Word-selection mode — determine / maintain direction
     const cell = whCellFromPoint(touch.clientX, touch.clientY);
     if (!cell) return;
 
-    const dr = cell.row - wordhuntTouchStart.row;
-    const dc = cell.col - wordhuntTouchStart.col;
-
-    // Lock direction on second cell
     if (!wordhuntTouchDir) {
-      if (Math.abs(dr) > 0 && dc === 0) wordhuntTouchDir = 'v';
-      else if (Math.abs(dc) > 0 && dr === 0) wordhuntTouchDir = 'h';
-      else return;
+      // Haven't locked direction yet — try to lock on current cell
+      if (cell.row === wordhuntTouchStart.row && cell.col === wordhuntTouchStart.col) return;
+      const dRow = cell.row - wordhuntTouchStart.row;
+      const dCol = cell.col - wordhuntTouchStart.col;
+      const sR = Math.sign(dRow);
+      const sC = Math.sign(dCol);
+      const aR = Math.abs(dRow);
+      const aC = Math.abs(dCol);
+      if (aR === 0 && aC > 0)      wordhuntTouchDir = { dr: 0,  dc: sC };  // horizontal
+      else if (aC === 0 && aR > 0) wordhuntTouchDir = { dr: sR, dc: 0  };  // vertical
+      else if (aR === aC)          wordhuntTouchDir = { dr: sR, dc: sC };  // diagonal
+      else return; // ambiguous — wait for cleaner direction
     }
 
-    // Build path from start to current cell in locked direction
+    const { dr, dc } = wordhuntTouchDir;
+
+    // How many steps from start to current cell in locked direction
+    let steps;
+    if (dr === 0)      steps = Math.abs(cell.col - wordhuntTouchStart.col);
+    else if (dc === 0) steps = Math.abs(cell.row - wordhuntTouchStart.row);
+    else               steps = Math.min(Math.abs(cell.row - wordhuntTouchStart.row),
+                                        Math.abs(cell.col - wordhuntTouchStart.col));
+
+    // Finger moved backward? clamp to zero (show only start cell)
+    if (dr !== 0 && steps > 0 && Math.sign(cell.row - wordhuntTouchStart.row) !== dr) steps = 0;
+    if (dc !== 0 && steps > 0 && Math.sign(cell.col - wordhuntTouchStart.col) !== dc) steps = 0;
+
     const cells = [];
-    if (wordhuntTouchDir === 'h') {
-      const minC = Math.min(wordhuntTouchStart.col, cell.col);
-      const maxC = Math.max(wordhuntTouchStart.col, cell.col);
-      for (let c = minC; c <= maxC; c++) cells.push({ row: wordhuntTouchStart.row, col: c });
-    } else {
-      const minR = Math.min(wordhuntTouchStart.row, cell.row);
-      const maxR = Math.max(wordhuntTouchStart.row, cell.row);
-      for (let r = minR; r <= maxR; r++) cells.push({ row: r, col: wordhuntTouchStart.col });
+    for (let i = 0; i <= steps; i++) {
+      const r = wordhuntTouchStart.row + i * dr;
+      const c = wordhuntTouchStart.col + i * dc;
+      if (r < 0 || r >= 20 || c < 0 || c >= 10) break;
+      cells.push({ row: r, col: c });
     }
-    wordhuntTouchCells = cells;
-    whHighlightCells(cells);
+    if (cells.length > 0) {
+      wordhuntTouchCells = cells;
+      whHighlightCells(cells);
+    }
   }
 
   function whTouchEnd(e) {
@@ -3110,6 +3152,7 @@ const Multiplayer = (function () {
     wordhuntTouchStart = null;
     wordhuntTouchDir = null;
     wordhuntTouchCells = [];
+    wordhuntScrolling = false;
     whHighlightCells([]);
     if (cells.length < 3) return;
     submitWordhuntSwipe(cells);
@@ -3119,6 +3162,7 @@ const Multiplayer = (function () {
     wordhuntTouchStart = null;
     wordhuntTouchDir = null;
     wordhuntTouchCells = [];
+    wordhuntScrolling = false;
     whHighlightCells([]);
   }
 

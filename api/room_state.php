@@ -643,7 +643,7 @@ if ($room['game_format'] === 'wordhunt' && in_array($status, ['wordhunt_active',
     // Build word→position lookup from the words list
     $wordPositions = [];
     foreach ($wordsList as $w) {
-        $wordPositions[$w['word']] = ['row' => $w['row'], 'col' => $w['col'], 'dir' => $w['dir']];
+        $wordPositions[$w['word']] = ['row' => (int)$w['row'], 'col' => (int)$w['col'], 'dr' => (int)($w['dr'] ?? 0), 'dc' => (int)($w['dc'] ?? 1)];
     }
 
     $wordhuntFound = [];
@@ -657,7 +657,8 @@ if ($room['game_format'] === 'wordhunt' && in_array($status, ['wordhunt_active',
             'color_idx' => $colorMap[$r['device_id']] ?? 0,
             'row'       => $pos ? $pos['row'] : 0,
             'col'       => $pos ? $pos['col'] : 0,
-            'dir'       => $pos ? $pos['dir'] : 'h',
+            'dr'        => $pos ? $pos['dr']  : 0,
+            'dc'        => $pos ? $pos['dc']  : 1,
             'len'       => mb_strlen($r['word']),
         ];
         $wordhuntRecentClaims[] = [
@@ -750,7 +751,7 @@ if ($room['game_format'] === 'wordhunt' && in_array($status, ['wordhunt_active',
                 $newWords      = wordhuntSelectWords($nextRound);
                 $newGridResult = wordhuntBuildGrid($newWords);
                 $db->prepare("UPDATE rooms SET status = 'wordhunt_active', wordhunt_round = ?, wordhunt_grid = ?, wordhunt_words = ?, wordhunt_round_start = ?, wordhunt_turn_idx = 0, wordhunt_pass_streak = 0, updated_at = ? WHERE code = ? AND status = 'wordhunt_round_result'")
-                   ->execute([$nextRound, json_encode($newGridResult['grid']), json_encode($newGridResult['words']), $now, $now, $now, $code]);
+                   ->execute([$nextRound, json_encode($newGridResult['grid']), json_encode($newGridResult['words']), $now, $now, $code]);
             }
             $stmt2r = $db->prepare("SELECT * FROM rooms WHERE code = ?");
             $stmt2r->execute([$code]);

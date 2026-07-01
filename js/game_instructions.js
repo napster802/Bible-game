@@ -56,7 +56,7 @@ const GameInstructions = (function () {
     },
     wordhunt: {
       title: '🔍 Bible Word Hunt',
-      text: 'A 10×10 grid hides Bible words — books, characters, places & more! Swipe from the first letter to the last to claim a word. In Race mode everyone hunts at once; first to swipe it scores. Longer words score more. 3 rounds, highest total wins!'
+      text: 'A 10×20 grid hides Bible words in 8 directions — left, right, up, down & diagonals! Swipe from the first letter to the last to claim a word. In Race mode everyone hunts at once; first to swipe it scores. Longer words score more. 3 rounds, highest total wins!'
     }
   };
 

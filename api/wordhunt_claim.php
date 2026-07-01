@@ -7,7 +7,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { jsonOut([]); }
 $input    = getInput();
 $code     = trim($input['room_code'] ?? '');
 $deviceId = trim($input['device_id'] ?? '');
-$cells    = $input['cells'] ?? [];   // [{row, col}, …] ordered first→last
+$cells    = $input['cells'] ?? [];   // [{row, col}, …] in swipe order (first → last)
 
 if (!$code || !$deviceId || !is_array($cells) || count($cells) < 3) {
     jsonOut(['success' => false, 'error' => 'Missing params'], 400);
@@ -41,75 +41,56 @@ if ($mode === 'turn') {
     }
 }
 
-// Load grid
+// Load grid (10×20 = 200 cells)
 $grid = json_decode($room['wordhunt_grid'] ?? '[]', true) ?: [];
-if (count($grid) !== 100) jsonOut(['success' => false, 'error' => 'Invalid game state'], 400);
+if (count($grid) !== WH_CELLS) {
+    jsonOut(['success' => false, 'error' => 'Invalid game state'], 400);
+}
 
-// Bounds-check each cell
+// Bounds-check every submitted cell
 foreach ($cells as $cell) {
     $r = (int)($cell['row'] ?? -1);
     $c = (int)($cell['col'] ?? -1);
-    if ($r < 0 || $r > 9 || $c < 0 || $c > 9) {
+    if ($r < 0 || $r >= WH_ROWS || $c < 0 || $c >= WH_COLS) {
         jsonOut(['success' => false, 'error' => 'Cell out of bounds'], 400);
     }
 }
 
-// Determine direction (all same row → horizontal; all same col → vertical)
-$rows = array_map(fn($c) => (int)$c['row'], $cells);
-$cols = array_map(fn($c) => (int)$c['col'], $cells);
-$allSameRow = count(array_unique($rows)) === 1;
-$allSameCol = count(array_unique($cols)) === 1;
+// Determine direction from the first two cells (keeps swipe order — no sorting)
+$dr = (int)$cells[1]['row'] - (int)$cells[0]['row'];
+$dc = (int)$cells[1]['col'] - (int)$cells[0]['col'];
 
-if (!$allSameRow && !$allSameCol) {
+// Must be one of the 8 unit vectors
+$validDirs = [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+if (!in_array([$dr, $dc], $validDirs, true)) {
     jsonOut(['success' => false, 'error' => 'Swipe in a straight line only'], 400);
 }
 
-// Normalise to ascending order (so swipe direction doesn't matter)
-if ($allSameRow) {
-    usort($cells, fn($a, $b) => (int)$a['col'] - (int)$b['col']);
-    $sortedCols = array_column($cells, 'col');
-    if (count(array_unique($sortedCols)) !== count($sortedCols)) {
-        jsonOut(['success' => false, 'error' => 'Duplicate cells'], 400);
-    }
-} else {
-    usort($cells, fn($a, $b) => (int)$a['row'] - (int)$b['row']);
-    $sortedRows = array_column($cells, 'row');
-    if (count(array_unique($sortedRows)) !== count($sortedRows)) {
-        jsonOut(['success' => false, 'error' => 'Duplicate cells'], 400);
+// Verify every consecutive cell pair follows the same direction
+for ($i = 1; $i < count($cells); $i++) {
+    $stepDr = (int)$cells[$i]['row'] - (int)$cells[$i - 1]['row'];
+    $stepDc = (int)$cells[$i]['col'] - (int)$cells[$i - 1]['col'];
+    if ($stepDr !== $dr || $stepDc !== $dc) {
+        jsonOut(['success' => false, 'error' => 'Not a straight line'], 400);
     }
 }
 
-// Verify cells are consecutive (no gaps)
-if ($allSameRow) {
-    $minC = (int)$cells[0]['col'];
-    $maxC = (int)$cells[count($cells) - 1]['col'];
-    if ($maxC - $minC + 1 !== count($cells)) {
-        jsonOut(['success' => false, 'error' => 'Cells not consecutive'], 400);
-    }
-} else {
-    $minR = (int)$cells[0]['row'];
-    $maxR = (int)$cells[count($cells) - 1]['row'];
-    if ($maxR - $minR + 1 !== count($cells)) {
-        jsonOut(['success' => false, 'error' => 'Cells not consecutive'], 400);
-    }
-}
-
-// Extract word from grid at those cells
+// Extract word from grid in swipe order
 $word = '';
 foreach ($cells as $cell) {
-    $word .= $grid[(int)$cell['row'] * 10 + (int)$cell['col']] ?? '';
+    $word .= $grid[(int)$cell['row'] * WH_COLS + (int)$cell['col']] ?? '';
 }
 $word = strtoupper($word);
 
-// Verify word is in this round's word list and matches position
+// Match against this round's hidden word list — start position AND direction must match
 $wordsList = json_decode($room['wordhunt_words'] ?? '[]', true) ?: [];
+$startRow  = (int)$cells[0]['row'];
+$startCol  = (int)$cells[0]['col'];
 $wordData  = null;
 foreach ($wordsList as $w) {
     if ($w['word'] !== $word) continue;
-    // Must start at the right cell
-    $startRow = (int)$cells[0]['row'];
-    $startCol = (int)$cells[0]['col'];
-    if ((int)$w['row'] === $startRow && (int)$w['col'] === $startCol) {
+    if ((int)$w['row'] === $startRow && (int)$w['col'] === $startCol
+            && (int)$w['dr'] === $dr && (int)$w['dc'] === $dc) {
         $wordData = $w;
         break;
     }
@@ -119,12 +100,11 @@ if (!$wordData) {
     jsonOut(['success' => false, 'error' => 'Not a Bible word — keep searching!'], 400);
 }
 
-// Compute base score
+// Scoring
 $baseScore   = wordhuntScoreWord($word);
 $bonus       = null;
 $bonusPoints = 0;
 
-// First Light: first claim in this round
 $claimCountStmt = $db->prepare("SELECT COUNT(*) FROM wordhunt_claims WHERE room_code = ? AND round = ?");
 $claimCountStmt->execute([$code, $round]);
 $claimCount = (int)$claimCountStmt->fetchColumn();
@@ -133,14 +113,13 @@ if ($claimCount === 0) {
     $bonus       = '🌅 First Light';
     $bonusPoints = 20;
 } elseif (($now - (int)$room['wordhunt_round_start']) <= 5000) {
-    // Speed Demon: found in first 5 s (only if not also First Light)
     $bonus       = '⚡ Speed Demon';
     $bonusPoints = 10;
 }
 
 $totalScore = $baseScore + $bonusPoints;
 
-// Insert claim — UNIQUE(room_code, round, word) ensures first write wins
+// INSERT — UNIQUE(room_code, round, word) ensures first-write wins in race mode
 try {
     $db->prepare("INSERT INTO wordhunt_claims (room_code, device_id, round, word, score, cells, bonus, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
        ->execute([$code, $deviceId, $round, $word, $totalScore, json_encode($cells), $bonus, $now]);
@@ -148,7 +127,7 @@ try {
     jsonOut(['success' => false, 'error' => 'Already claimed by another player!'], 400);
 }
 
-// Award points to player
+// Award points
 $db->prepare("UPDATE players SET score = score + ? WHERE room_code = ? AND device_id = ?")
    ->execute([$totalScore, $code, $deviceId]);
 
@@ -157,7 +136,6 @@ $newClaimCount = $claimCount + 1;
 if ($mode === 'turn') {
     wordhuntAdvanceTurn($db, $code, $room);
 } else {
-    // Race mode: end round immediately if all words found
     if ($newClaimCount >= count($wordsList)) {
         wordhuntEndRound($db, $code);
     } else {

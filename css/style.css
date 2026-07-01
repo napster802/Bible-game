@@ -3370,7 +3370,7 @@ label,
   border-radius: var(--radius-sm);
   border: 1px solid var(--bg3);
   background: var(--card);
-  touch-action: none;
+  touch-action: none; /* manual scroll handled in JS */
   flex: 1;
   min-height: 0;
 }
@@ -3381,9 +3381,10 @@ label,
 }
 .wordhunt-grid td {
   width: 10%;
-  aspect-ratio: 1;
+  height: 28px;
+  min-height: 28px;
   text-align: center;
-  font-size: 0.95rem;
+  font-size: 0.82rem;
   font-weight: 700;
   color: var(--text);
   border: 1px solid var(--bg3);
@@ -3391,6 +3392,8 @@ label,
   -webkit-user-select: none;
   text-transform: uppercase;
   position: relative;
+  line-height: 28px;
+  padding: 0;
 }
 .wordhunt-grid td.wh-swipe {
   background: rgba(212,170,80,0.35);
