@@ -2447,6 +2447,7 @@ const Multiplayer = (function () {
     const champion = sorted[0];
     const record = {
       date: new Date().toISOString(),
+      game_format: room.game_format || 'classic',
       difficulty: room.difficulty,
       quizMode: room.quiz_mode,
       book: room.book,
@@ -2455,9 +2456,9 @@ const Multiplayer = (function () {
       mode: isHost ? 'host' : 'join',
       questionCount: room.question_count,
       players: sorted.map(p => ({
-        name: p.name, avatar: p.avatar, score: p.score, correct: p.correct, wrong: p.wrong,
-        accuracy: room.question_count > 0 ? Math.round((p.correct / room.question_count) * 100) : 0,
-        avgResponseTime: (p.correct + p.wrong) > 0 ? p.total_time / (p.correct + p.wrong) : 0
+        name: p.name, avatar: p.avatar, score: p.score, correct: p.correct || 0, wrong: p.wrong || 0,
+        accuracy: room.question_count > 0 ? Math.round(((p.correct || 0) / room.question_count) * 100) : 0,
+        avgResponseTime: ((p.correct || 0) + (p.wrong || 0)) > 0 ? (p.total_time || 0) / ((p.correct || 0) + (p.wrong || 0)) : 0
       })),
       champion: champion ? { name: champion.name, avatar: champion.avatar, score: champion.score } : null
     };

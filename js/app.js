@@ -994,10 +994,11 @@ const App = (function () {
     const sorted = state.players.slice().sort((a, b) => b.score - a.score);
     const record = {
       date: new Date().toISOString(),
+      game_format: 'classic',
       difficulty: state.difficulty,
       mode: state.mode,
       questionCount: state.questions.length,
-      players: state.players.map(p => ({
+      players: sorted.map(p => ({
         name: p.name,
         avatar: p.avatar,
         score: p.score,
@@ -1027,50 +1028,55 @@ const App = (function () {
     const list = document.getElementById('history-list');
     if (!list) return;
 
-    const filtered = filter === 'all' ? hist : hist.filter(r => r.difficulty === filter);
+    const filtered = filter === 'all'
+      ? hist
+      : hist.filter(r => (r.game_format || 'classic') === filter);
 
     if (filtered.length === 0) {
-      list.innerHTML = '<p class="empty-msg">No games yet. Start playing!</p>';
+      list.innerHTML = '<p class="empty-msg">No games yet for this mode. Start playing!</p>';
       return;
     }
 
     list.innerHTML = filtered.map(r => {
       const date = new Date(r.date);
       const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const fmt = r.game_format || 'classic';
+      const fmtLabel = gameFormatLabel(fmt);
       const champion = r.champion;
+      const players = (r.players || []).slice(0, 10);
       return `
         <div class="history-card">
           <div class="hc-top">
-            <span class="hc-diff hc-diff-${r.difficulty}">${capitalize(r.difficulty)}</span>
-            <span class="hc-mode">${modeLabel(r.mode)}</span>
+            <span class="hc-format-badge">${escHtml(fmtLabel)}</span>
             <span class="hc-date">${dateStr}</span>
           </div>
           ${champion ? `
           <div class="hc-champion">
             <span>${avatarHtml(champion.avatar)}</span>
             <strong>${escHtml(champion.name)}</strong>
-            <span class="hc-score">${champion.score} pts</span>
+            <span class="hc-score">🏆 ${champion.score} pts</span>
           </div>` : ''}
           <div class="hc-players">
-            ${(r.players || []).map(p => `
-              <span class="hc-player">
-                ${avatarHtml(p.avatar)} ${escHtml(p.name)} — ${p.score} (${p.accuracy}%)
-              </span>
+            ${players.map((p, i) => `
+              <div class="hc-player">
+                <span class="hc-player-rank">#${i + 1}</span>
+                <span class="hc-player-info">${avatarHtml(p.avatar)} ${escHtml(p.name)}</span>
+                <span class="hc-player-score">${p.score.toLocaleString()} pts${p.accuracy !== undefined ? ' · ' + p.accuracy + '%' : ''}</span>
+              </div>
             `).join('')}
           </div>
-          <div class="hc-meta">${r.questionCount} questions</div>
+          ${r.questionCount ? `<div class="hc-meta">${r.questionCount} questions · ${modeLabel(r.mode)}</div>` : ''}
         </div>
       `;
     }).join('');
   }
 
-  function filterHistory(diff, btn) {
-    historyFilter = diff;
-    // Update active class on filter buttons
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  function filterHistory(fmt, btn) {
+    historyFilter = fmt;
+    document.querySelectorAll('#history-mode-bar .filter-btn').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
     const hist = JSON.parse(localStorage.getItem('bca_history') || '[]');
-    renderHistoryCards(hist, diff);
+    renderHistoryCards(hist, fmt);
   }
 
   function clearHistory() {
@@ -1371,6 +1377,25 @@ const App = (function () {
       daily: 'Daily Challenge'
     };
     return labels[mode] || mode;
+  }
+
+  function gameFormatLabel(fmt) {
+    const labels = {
+      classic:     '📚 Classic',
+      truefalse:   '⚡ True/False',
+      scramble:    '🔤 Scramble',
+      survival:    '💀 Survival',
+      memory:      '🧠 Memory',
+      twotruths:   '🤥 Two Truths',
+      higherlower: '📊 Higher/Lower',
+      versefill:   '📖 Verse Fill',
+      emojiclue:   '🌊 Emoji Clue',
+      impostor:    '🕵️ Word Impostor',
+      draw:        '🎨 Sketch & Guess',
+      scrab:       '🕎 Bible Scrabble',
+      wordhunt:    '🔍 Word Hunt'
+    };
+    return labels[fmt] || fmt;
   }
 
   // ─────────────────────────────────────────────────────────────
