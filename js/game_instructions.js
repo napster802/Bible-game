@@ -53,6 +53,10 @@ const GameInstructions = (function () {
     scrab: {
       title: '🕎 Bible Scrabble',
       text: 'Take turns placing Bible words on an 11×11 board — books, characters, places, and concepts all count! Score by letter values and premium squares. Use all 7 tiles for a Miracle Bonus! Needs 2+ players.'
+    },
+    wordhunt: {
+      title: '🔍 Bible Word Hunt',
+      text: 'A 10×10 grid hides Bible words — books, characters, places & more! Swipe from the first letter to the last to claim a word. In Race mode everyone hunts at once; first to swipe it scores. Longer words score more. 3 rounds, highest total wins!'
     }
   };
 

@@ -267,7 +267,7 @@ const HostGame = (function () {
   }
 
   function setGameFormat(format) {
-    gameFormat = ['truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor', 'draw', 'scrab'].includes(format) ? format : 'classic';
+    gameFormat = ['truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor', 'draw', 'scrab', 'wordhunt'].includes(format) ? format : 'classic';
     if (typeof GameInstructions !== 'undefined') GameInstructions.render(gameFormat, 'host-instructions-box');
     toggleLobbySettingsForFormat();
     action('set_game_format', { value: gameFormat });
@@ -277,23 +277,29 @@ const HostGame = (function () {
   // settings at all, so the trivia-only lobby controls (source/difficulty/
   // count/CSV upload) hide as a single block instead of being shown but meaningless.
   function toggleLobbySettingsForFormat() {
-    const isImpostor = gameFormat === 'impostor';
-    const isDraw = gameFormat === 'draw';
-    const isScrab = gameFormat === 'scrab';
+    const isImpostor  = gameFormat === 'impostor';
+    const isDraw      = gameFormat === 'draw';
+    const isScrab     = gameFormat === 'scrab';
+    const isWordhunt  = gameFormat === 'wordhunt';
+    const noTrivia    = isImpostor || isDraw || isScrab || isWordhunt;
     const triviaSettings = document.getElementById('host-trivia-settings');
-    const csvBox = document.getElementById('host-csv-upload-box');
-    const impHint = document.getElementById('host-impostor-hint');
-    const drawHint = document.getElementById('host-draw-hint');
-    const drawRoundsRow = document.getElementById('host-draw-rounds-row');
-    const scrabHint = document.getElementById('host-scrab-hint');
-    const scrabTimeRow = document.getElementById('host-scrab-time-row');
-    if (triviaSettings) triviaSettings.style.display = (isImpostor || isDraw || isScrab) ? 'none' : '';
-    if (csvBox) csvBox.style.display = (isImpostor || isDraw || isScrab) ? 'none' : '';
-    if (impHint) impHint.style.display = isImpostor ? '' : 'none';
-    if (drawHint) drawHint.style.display = isDraw ? '' : 'none';
-    if (drawRoundsRow) drawRoundsRow.style.display = isDraw ? '' : 'none';
-    if (scrabHint) scrabHint.style.display = isScrab ? '' : 'none';
-    if (scrabTimeRow) scrabTimeRow.style.display = isScrab ? '' : 'none';
+    const csvBox         = document.getElementById('host-csv-upload-box');
+    const impHint        = document.getElementById('host-impostor-hint');
+    const drawHint       = document.getElementById('host-draw-hint');
+    const drawRoundsRow  = document.getElementById('host-draw-rounds-row');
+    const scrabHint      = document.getElementById('host-scrab-hint');
+    const scrabTimeRow   = document.getElementById('host-scrab-time-row');
+    const whHint         = document.getElementById('host-wordhunt-hint');
+    const whRows         = document.getElementById('host-wordhunt-rows');
+    if (triviaSettings) triviaSettings.style.display = noTrivia ? 'none' : '';
+    if (csvBox)         csvBox.style.display         = noTrivia ? 'none' : '';
+    if (impHint)        impHint.style.display        = isImpostor ? '' : 'none';
+    if (drawHint)       drawHint.style.display       = isDraw ? '' : 'none';
+    if (drawRoundsRow)  drawRoundsRow.style.display  = isDraw ? '' : 'none';
+    if (scrabHint)      scrabHint.style.display      = isScrab ? '' : 'none';
+    if (scrabTimeRow)   scrabTimeRow.style.display   = isScrab ? '' : 'none';
+    if (whHint)         whHint.style.display         = isWordhunt ? '' : 'none';
+    if (whRows)         whRows.style.display         = isWordhunt ? '' : 'none';
   }
 
   function setScrabTimeLimit(seconds) {
@@ -311,6 +317,21 @@ const HostGame = (function () {
 
   function setDrawRounds(rounds) {
     action('set_draw_rounds', { value: parseInt(rounds, 10) === 2 ? 2 : 1 });
+  }
+
+  function setWordhuntMode(mode) {
+    action('set_wordhunt_mode', { value: mode === 'turn' ? 'turn' : 'race' });
+  }
+
+  function setWordhuntRounds(rounds) {
+    const r = parseInt(rounds, 10);
+    action('set_wordhunt_rounds', { value: [2, 3, 4].includes(r) ? r : 3 });
+  }
+
+  function wordhuntForceNext() { action('wordhunt_force_next', {}); }
+  function wordhuntForceEnd()  {
+    if (!confirm('End the Word Hunt now?')) return;
+    action('wordhunt_force_end', {});
   }
 
   function setDifficulty(diff) {
@@ -568,6 +589,10 @@ const HostGame = (function () {
     setScrabTimeLimit,
     scrabForceSkip,
     scrabEndGame,
+    setWordhuntMode,
+    setWordhuntRounds,
+    wordhuntForceNext,
+    wordhuntForceEnd,
     get roomCode() { return roomCode; }
   };
 })();

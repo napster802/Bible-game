@@ -3306,6 +3306,163 @@ label,
   letter-spacing: 0.08em;
 }
 
+/* ── Bible Word Hunt ──────────────────────────────────────── */
+.wordhunt-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-bottom: 0.5rem;
+}
+
+.wordhunt-status-bar {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.wordhunt-badge {
+  font-size: 0.72rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 20px;
+  background: var(--bg2);
+  color: var(--text2);
+  white-space: nowrap;
+}
+.wordhunt-timer-badge { color: var(--gold); background: rgba(212,170,80,0.12); }
+.wordhunt-timer-badge.urgent { color: var(--red); background: rgba(220,50,50,0.12); animation: pulse 0.8s infinite; }
+
+.wordhunt-score-bar {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.25rem 0;
+  scrollbar-width: none;
+}
+.wordhunt-score-bar::-webkit-scrollbar { display: none; }
+.wordhunt-player-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  min-width: 44px;
+}
+.wh-avatar {
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+  border-radius: 50%;
+  border: 2px solid transparent;
+}
+.wh-name { font-size: 0.55rem; color: var(--text2); max-width: 44px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wh-pts  { font-size: 0.8rem; font-weight: 700; color: var(--gold); }
+
+.wordhunt-turn-banner {
+  text-align: center;
+  font-size: 0.82rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  background: var(--bg2);
+  color: var(--text2);
+}
+
+.wordhunt-grid-container {
+  overflow: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--bg3);
+  background: var(--card);
+  touch-action: none;
+  flex: 1;
+  min-height: 0;
+}
+.wordhunt-grid {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+}
+.wordhunt-grid td {
+  width: 10%;
+  aspect-ratio: 1;
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  border: 1px solid var(--bg3);
+  user-select: none;
+  -webkit-user-select: none;
+  text-transform: uppercase;
+  position: relative;
+}
+.wordhunt-grid td.wh-swipe {
+  background: rgba(212,170,80,0.35);
+  color: var(--gold);
+}
+.wordhunt-grid td.wh-found {
+  opacity: 0.85;
+  color: #fff;
+  font-weight: 900;
+}
+/* 10 player found-word colours */
+.wh-c0 { background: #1a6b3a; } .wh-c1 { background: #1a3a8b; }
+.wh-c2 { background: #8b1a1a; } .wh-c3 { background: #7a4a00; }
+.wh-c4 { background: #4a1a6b; } .wh-c5 { background: #00586b; }
+.wh-c6 { background: #5c6b00; } .wh-c7 { background: #6b005a; }
+.wh-c8 { background: #00456b; } .wh-c9 { background: #6b3000; }
+
+@keyframes wh-shake {
+  0%,100% { transform: translateX(0); }
+  20%,60%  { transform: translateX(-6px); }
+  40%,80%  { transform: translateX(6px); }
+}
+.wh-shake { animation: wh-shake 0.4s ease; }
+
+.wordhunt-feed {
+  max-height: 80px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  font-size: 0.75rem;
+  padding: 0.1rem 0;
+}
+.wordhunt-feed::-webkit-scrollbar { display: none; }
+.wh-feed-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  padding: 0.12rem 0.25rem;
+  border-radius: 4px;
+}
+.wh-feed-word { font-weight: 700; color: var(--text); flex: 1; }
+.wh-feed-pts  { color: var(--gold); font-weight: 700; }
+.wh-feed-bonus { font-size: 0.7rem; color: var(--text2); }
+
+.wordhunt-host-controls {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  padding: 0.25rem 0;
+}
+
+/* Round result */
+.wordhunt-result-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--gold);
+  margin-bottom: 1rem;
+}
+.wordhunt-round-scores { display: flex; flex-direction: column; gap: 0.5rem; }
+.wh-result-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--card);
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+}
+.wh-result-rank   { font-size: 0.9rem; font-weight: 700; color: var(--gold); min-width: 1.5rem; }
+.wh-result-avatar { font-size: 1.1rem; }
+.wh-result-name   { flex: 1; font-size: 0.85rem; font-weight: 600; }
+.wh-result-words  { font-size: 0.75rem; color: var(--text2); }
+.wh-result-pts    { font-size: 0.9rem; font-weight: 700; color: var(--gold); }
+
 /* ── Print / PDF Export ───────────────────────────────────── */
 @media print {
   body {

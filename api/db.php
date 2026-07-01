@@ -36,7 +36,7 @@ define('DB_PATH', __DIR__ . '/../data/game.db');
 // Bump whenever migrateSchema()'s $columns table gains/changes entries, so
 // existing deployments pick up the new columns exactly once instead of never
 // (see the PRAGMA user_version guard around migrateSchema() in initDB()).
-define('SCHEMA_VERSION', 3);
+define('SCHEMA_VERSION', 4);
 
 function getDB(): PDO {
     static $db = null;
@@ -221,6 +221,19 @@ function initDB(PDO $db): void {
             created_at INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_scrab_plays_room ON scrab_plays(room_code, id);
+        CREATE TABLE IF NOT EXISTS wordhunt_claims (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            room_code   TEXT NOT NULL,
+            device_id   TEXT NOT NULL,
+            round       INTEGER NOT NULL,
+            word        TEXT NOT NULL,
+            score       INTEGER NOT NULL,
+            cells       TEXT NOT NULL,
+            bonus       TEXT,
+            created_at  INTEGER NOT NULL,
+            UNIQUE(room_code, round, word)
+        );
+        CREATE INDEX IF NOT EXISTS idx_wordhunt_claims_room ON wordhunt_claims(room_code, id);
     ");
     // ALTER TABLE attempts (in migrateSchema) momentarily need a stronger lock
     // than plain reads/writes, even when the column already exists and the
@@ -270,6 +283,17 @@ function migrateSchema(PDO $db): void {
             'scrab_pass_streak'        => "INTEGER DEFAULT 0",
             'scrab_start_time'         => "INTEGER DEFAULT 0",
             'scrab_time_limit'         => "INTEGER DEFAULT 90",
+            'wordhunt_mode'            => "TEXT DEFAULT 'race'",
+            'wordhunt_turn_order'      => "TEXT DEFAULT '[]'",
+            'wordhunt_round'           => "INTEGER DEFAULT 0",
+            'wordhunt_rounds_total'    => "INTEGER DEFAULT 3",
+            'wordhunt_grid'            => "TEXT DEFAULT '[]'",
+            'wordhunt_words'           => "TEXT DEFAULT '[]'",
+            'wordhunt_round_start'     => "INTEGER DEFAULT 0",
+            'wordhunt_time_limit'      => "INTEGER DEFAULT 180",
+            'wordhunt_turn_start'      => "INTEGER DEFAULT 0",
+            'wordhunt_pass_streak'     => "INTEGER DEFAULT 0",
+            'wordhunt_turn_idx'        => "INTEGER DEFAULT 0",
         ],
         'profiles' => [
             'wallet'                => "INTEGER DEFAULT 0",
@@ -333,6 +357,7 @@ function cleanStale(PDO $db): void {
     $db->prepare("DELETE FROM drawing_guesses WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM drawing_guess_log WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM scrab_plays WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
+    $db->prepare("DELETE FROM wordhunt_claims WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM rooms WHERE created_at < ?")->execute([$cutoff]);
 }
 
@@ -354,7 +379,7 @@ function cleanAbandonedLobbies(PDO $db): void {
     $placeholders = implode(',', array_fill(0, count($codes), '?'));
     foreach ([
         'answers', 'players', 'room_events', 'impostor_clues', 'impostor_votes',
-        'drawing_strokes', 'drawing_guesses', 'drawing_guess_log', 'scrab_plays',
+        'drawing_strokes', 'drawing_guesses', 'drawing_guess_log', 'scrab_plays', 'wordhunt_claims',
     ] as $table) {
         $db->prepare("DELETE FROM $table WHERE room_code IN ($placeholders)")->execute($codes);
     }

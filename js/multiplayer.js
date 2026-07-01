@@ -43,6 +43,16 @@ const Multiplayer = (function () {
   let scrabIsMyTurn = false;
   let scrabTimerInterval = null;
   let scrabDidInitialScroll = false;
+  // Word Hunt state
+  let lastWordhuntRound = -1;
+  let wordhuntGrid = [];
+  let wordhuntFound = {};
+  let wordhuntIsMyTurn = false;
+  let wordhuntTouchStart = null;
+  let wordhuntTouchDir = null;
+  let wordhuntTouchCells = [];
+  let wordhuntTimerInterval = null;
+  let wordhuntTouchBound = false;
   let drawPointerBound = false;
   let drawDrawing = false;
   let drawColor = '#1a1a1a';
@@ -272,6 +282,16 @@ const Multiplayer = (function () {
       if (lastStatus !== 'scrab_word_result') {
         enterScrabWordResult(data);
       }
+    } else if (status === 'wordhunt_active') {
+      if (lastStatus !== 'wordhunt_active' || lastWordhuntRound !== data.wordhunt_round) {
+        enterWordhuntActive(data);
+      } else {
+        updateWordhuntActive(data);
+      }
+    } else if (status === 'wordhunt_round_result') {
+      if (lastStatus !== 'wordhunt_round_result') {
+        enterWordhuntRoundResult(data);
+      }
     } else if (status === 'finished') {
       if (lastStatus !== 'finished') {
         enterResults(data);
@@ -283,6 +303,7 @@ const Multiplayer = (function () {
     lastImpRound = data.room.impostor_round;
     lastDrawRound = data.room.draw_round;
     lastScrabRound = data.scrab_round || 1;
+    lastWordhuntRound = data.wordhunt_round || 0;
   }
 
   // ---------------- LOBBY ----------------
@@ -2817,6 +2838,324 @@ const Multiplayer = (function () {
     const btn = document.getElementById('scrab-submit-btn');
     if (btn) btn.disabled = scrabPendingCells.length === 0;
   }
+
+  // ─────────────────────────────────────────────────────────
+  //  BIBLE WORD HUNT
+  // ─────────────────────────────────────────────────────────
+
+  // Player color palette for found-word highlighting (up to 10 players)
+  const WH_COLORS = ['#1a6b3a','#1a3a8b','#8b1a1a','#7a4a00','#4a1a6b','#00586b','#5c6b00','#6b005a','#00456b','#6b3000'];
+
+  function enterWordhuntActive(data) {
+    wordhuntGrid = data.wordhunt_grid || [];
+    wordhuntFound = data.wordhunt_found || {};
+    wordhuntIsMyTurn = !!data.am_i_wordhunt_turn;
+    wordhuntTouchStart = null;
+    wordhuntTouchDir = null;
+    wordhuntTouchCells = [];
+    // Reset binding flag each round so new containers get listeners
+    wordhuntTouchBound = false;
+    App.goTo('wordhunt-active');
+    renderWordhuntGrid();
+    renderWordhuntScoreBar(data);
+    renderWordhuntFeed(data.wordhunt_recent_claims || []);
+    updateWordhuntBadges(data);
+    updateWordhuntTurnBanner(data);
+    const hc = document.getElementById('wordhunt-host-controls');
+    if (hc) hc.style.display = isHost ? 'flex' : 'none';
+    bindWordhuntTouch();
+    startWordhuntTimer(data);
+  }
+
+  function updateWordhuntActive(data) {
+    const newFound = data.wordhunt_found || {};
+    const foundChanged = Object.keys(newFound).length !== Object.keys(wordhuntFound).length;
+    wordhuntFound = newFound;
+    wordhuntIsMyTurn = !!data.am_i_wordhunt_turn;
+    // Only re-render grid cells when found-word set actually changed
+    if (foundChanged) applyWordhuntFoundColors();
+    renderWordhuntScoreBar(data);
+    renderWordhuntFeed(data.wordhunt_recent_claims || []);
+    updateWordhuntBadges(data);
+    updateWordhuntTurnBanner(data);
+    startWordhuntTimer(data);
+  }
+
+  function enterWordhuntRoundResult(data) {
+    stopWordhuntTimer();
+    App.goTo('wordhunt-round-result');
+    const titleEl = document.getElementById('wordhunt-round-result-title');
+    const scoresEl = document.getElementById('wordhunt-round-scores');
+    const round = data.wordhunt_round || 1;
+    const total = data.wordhunt_rounds_total || 3;
+    if (titleEl) titleEl.textContent = `Round ${round} of ${total} — Results`;
+    if (scoresEl) {
+      const scores = data.wordhunt_round_scores || [];
+      if (scores.length === 0) {
+        scoresEl.innerHTML = '<p class="hint-text">No words found this round.</p>';
+      } else {
+        scoresEl.innerHTML = scores.map((s, i) => `
+          <div class="wh-result-row">
+            <span class="wh-result-rank">#${i + 1}</span>
+            <span class="wh-result-avatar">${escapeHtml(s.avatar)}</span>
+            <span class="wh-result-name">${escapeHtml(s.name)}</span>
+            <span class="wh-result-words">${s.words_found} word${s.words_found !== 1 ? 's' : ''}</span>
+            <span class="wh-result-pts">+${s.round_pts} pts</span>
+          </div>`).join('');
+      }
+    }
+  }
+
+  function renderWordhuntGrid() {
+    const table = document.getElementById('wordhunt-grid');
+    if (!table || wordhuntGrid.length !== 100) return;
+    let html = '';
+    for (let r = 0; r < 10; r++) {
+      html += '<tr>';
+      for (let c = 0; c < 10; c++) {
+        const letter = wordhuntGrid[r * 10 + c] || '';
+        html += `<td data-row="${r}" data-col="${c}">${escapeHtml(letter)}</td>`;
+      }
+      html += '</tr>';
+    }
+    table.innerHTML = html;
+    applyWordhuntFoundColors();
+  }
+
+  // Color cells that belong to already-found words using position data from the server.
+  // wordhuntFound[word] = { row, col, dir, len, color_idx, ... }
+  function applyWordhuntFoundColors() {
+    const table = document.getElementById('wordhunt-grid');
+    if (!table) return;
+    Object.entries(wordhuntFound).forEach(([, info]) => {
+      const { row, col, dir, len, color_idx } = info;
+      if (row === undefined || col === undefined) return;
+      const colorClass = `wh-c${color_idx || 0}`;
+      for (let i = 0; i < len; i++) {
+        const r = dir === 'v' ? row + i : row;
+        const c = dir === 'h' ? col + i : col;
+        const cell = table.querySelector(`td[data-row="${r}"][data-col="${c}"]`);
+        if (cell) {
+          cell.classList.add('wh-found', colorClass);
+        }
+      }
+    });
+  }
+
+  function updateWordhuntBadges(data) {
+    const roundBadge = document.getElementById('wordhunt-round-badge');
+    const foundBadge = document.getElementById('wordhunt-found-badge');
+    if (roundBadge) roundBadge.textContent = `Round ${data.wordhunt_round || 1}/${data.wordhunt_rounds_total || 3}`;
+    if (foundBadge) foundBadge.textContent = `${data.wordhunt_found_count || 0}/${data.wordhunt_words_count || '?'} found`;
+  }
+
+  function updateWordhuntTurnBanner(data) {
+    const banner = document.getElementById('wordhunt-turn-banner');
+    if (!banner) return;
+    if ((data.wordhunt_mode || 'race') === 'turn') {
+      const cp = data.wordhunt_current_player;
+      if (cp) {
+        if (data.am_i_wordhunt_turn) {
+          banner.innerHTML = `<strong>Your turn!</strong> Swipe a hidden word to claim it.`;
+          banner.style.background = 'rgba(212,170,80,0.15)';
+          banner.style.color = 'var(--gold)';
+        } else {
+          banner.innerHTML = `${escapeHtml(cp.avatar)} <strong>${escapeHtml(cp.name)}</strong> is searching…`;
+          banner.style.background = '';
+          banner.style.color = '';
+        }
+      }
+      banner.style.display = '';
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
+  function startWordhuntTimer(data) {
+    stopWordhuntTimer();
+    const badge = document.getElementById('wordhunt-timer-badge');
+    if (!badge) return;
+    const mode = data.wordhunt_mode || 'race';
+    const limitMs = (data.wordhunt_time_limit || 180) * 1000;
+    const elapsedMs = data.wordhunt_elapsed_ms || 0;
+    const turnLimitMs = 45000;
+    const turnElapsedMs = data.wordhunt_turn_elapsed_ms || 0;
+
+    function tick() {
+      const nowElapsed = elapsedMs + (Date.now() - tickStart);
+      let remainMs;
+      if (mode === 'turn') {
+        remainMs = Math.max(0, turnLimitMs - (turnElapsedMs + (Date.now() - tickStart)));
+      } else {
+        remainMs = Math.max(0, limitMs - nowElapsed);
+      }
+      const secs = Math.ceil(remainMs / 1000);
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      badge.textContent = `${m}:${String(s).padStart(2, '0')}`;
+      badge.classList.toggle('urgent', secs <= 15);
+    }
+    const tickStart = Date.now();
+    tick();
+    wordhuntTimerInterval = setInterval(tick, 500);
+  }
+
+  function stopWordhuntTimer() {
+    if (wordhuntTimerInterval) { clearInterval(wordhuntTimerInterval); wordhuntTimerInterval = null; }
+  }
+
+  function renderWordhuntScoreBar(data) {
+    const bar = document.getElementById('wordhunt-score-bar');
+    if (!bar) return;
+    const players = (data.players || []).filter(p => !p.is_host);
+    bar.innerHTML = players.map((p, i) => `
+      <div class="wordhunt-player-score">
+        <span class="wh-avatar" style="background:${WH_COLORS[i % 10]}20;border-color:${WH_COLORS[i % 10]}">${escapeHtml(p.avatar)}</span>
+        <span class="wh-name">${escapeHtml(p.name.split(' ')[0])}</span>
+        <span class="wh-pts">${p.score}</span>
+      </div>`).join('');
+  }
+
+  function renderWordhuntFeed(claims) {
+    const feed = document.getElementById('wordhunt-feed');
+    if (!feed) return;
+    feed.innerHTML = claims.map(c => `
+      <div class="wh-feed-row">
+        <span>${escapeHtml(c.avatar)}</span>
+        <span class="wh-feed-word">${escapeHtml(c.word)}</span>
+        <span class="wh-feed-pts">+${c.score}</span>
+        ${c.bonus ? `<span class="wh-feed-bonus">${escapeHtml(c.bonus)}</span>` : ''}
+      </div>`).join('') || '<p class="hint-text" style="font-size:0.75rem;margin:0.25rem">Swipe to find Bible words!</p>';
+    feed.scrollTop = feed.scrollHeight;
+  }
+
+  function bindWordhuntTouch() {
+    if (wordhuntTouchBound) return;
+    wordhuntTouchBound = true;
+    const container = document.getElementById('wordhunt-grid-container');
+    if (!container) return;
+
+    container.addEventListener('touchstart', whTouchStart, { passive: false });
+    container.addEventListener('touchmove',  whTouchMove,  { passive: false });
+    container.addEventListener('touchend',   whTouchEnd,   { passive: false });
+    container.addEventListener('touchcancel',whTouchCancel,{ passive: false });
+  }
+
+  function whCellFromPoint(x, y) {
+    const table = document.getElementById('wordhunt-grid');
+    if (!table) return null;
+    const el = document.elementFromPoint(x, y);
+    if (!el) return null;
+    const td = el.closest('td[data-row]');
+    if (!td) return null;
+    return { row: parseInt(td.dataset.row, 10), col: parseInt(td.dataset.col, 10) };
+  }
+
+  function whHighlightCells(cells) {
+    const table = document.getElementById('wordhunt-grid');
+    if (!table) return;
+    table.querySelectorAll('td.wh-swipe').forEach(td => td.classList.remove('wh-swipe'));
+    cells.forEach(({ row, col }) => {
+      const td = table.querySelector(`td[data-row="${row}"][data-col="${col}"]`);
+      if (td) td.classList.add('wh-swipe');
+    });
+  }
+
+  function whTouchStart(e) {
+    const touch = e.touches[0];
+    const cell = whCellFromPoint(touch.clientX, touch.clientY);
+    if (!cell) return;
+    e.preventDefault();
+    wordhuntTouchStart = cell;
+    wordhuntTouchDir = null;
+    wordhuntTouchCells = [cell];
+    whHighlightCells(wordhuntTouchCells);
+  }
+
+  function whTouchMove(e) {
+    if (!wordhuntTouchStart) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const cell = whCellFromPoint(touch.clientX, touch.clientY);
+    if (!cell) return;
+
+    const dr = cell.row - wordhuntTouchStart.row;
+    const dc = cell.col - wordhuntTouchStart.col;
+
+    // Lock direction on second cell
+    if (!wordhuntTouchDir) {
+      if (Math.abs(dr) > 0 && dc === 0) wordhuntTouchDir = 'v';
+      else if (Math.abs(dc) > 0 && dr === 0) wordhuntTouchDir = 'h';
+      else return;
+    }
+
+    // Build path from start to current cell in locked direction
+    const cells = [];
+    if (wordhuntTouchDir === 'h') {
+      const minC = Math.min(wordhuntTouchStart.col, cell.col);
+      const maxC = Math.max(wordhuntTouchStart.col, cell.col);
+      for (let c = minC; c <= maxC; c++) cells.push({ row: wordhuntTouchStart.row, col: c });
+    } else {
+      const minR = Math.min(wordhuntTouchStart.row, cell.row);
+      const maxR = Math.max(wordhuntTouchStart.row, cell.row);
+      for (let r = minR; r <= maxR; r++) cells.push({ row: r, col: wordhuntTouchStart.col });
+    }
+    wordhuntTouchCells = cells;
+    whHighlightCells(cells);
+  }
+
+  function whTouchEnd(e) {
+    e.preventDefault();
+    const cells = wordhuntTouchCells.slice();
+    wordhuntTouchStart = null;
+    wordhuntTouchDir = null;
+    wordhuntTouchCells = [];
+    whHighlightCells([]);
+    if (cells.length < 3) return;
+    submitWordhuntSwipe(cells);
+  }
+
+  function whTouchCancel(e) {
+    wordhuntTouchStart = null;
+    wordhuntTouchDir = null;
+    wordhuntTouchCells = [];
+    whHighlightCells([]);
+  }
+
+  function submitWordhuntSwipe(cells) {
+    if (!roomCode || !deviceId) return;
+    fetch('api/wordhunt_claim.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ room_code: roomCode, device_id: deviceId, cells })
+    })
+    .then(r => r.json())
+    .then(res => {
+      if (res.success) {
+        App.showToast(`✅ ${res.word} — +${res.score} pts${res.bonus ? ' ' + res.bonus : ''}`, 'success');
+        if (res.note) App.showToast(`📖 ${res.word}: ${res.note}`, 'info', 3000);
+        poll();
+      } else {
+        if (res.error && res.error !== 'Not a Bible word — keep searching!') {
+          App.showToast(res.error, 'error');
+        } else {
+          // Shake the grid briefly on invalid word
+          const container = document.getElementById('wordhunt-grid-container');
+          if (container) {
+            container.classList.add('wh-shake');
+            setTimeout(() => container.classList.remove('wh-shake'), 400);
+          }
+        }
+      }
+    })
+    .catch(() => {});
+  }
+
+  const WordHunt = {
+    forceNext() { if (typeof HostGame !== 'undefined') HostGame.wordhuntForceNext(); },
+    forceEnd()  { if (typeof HostGame !== 'undefined') HostGame.wordhuntForceEnd(); }
+  };
+  window.WordHunt = WordHunt;
 
   // Expose Scrabble as global for onclick= handlers
   window.Scrabble = Scrabble;

@@ -30,6 +30,21 @@ switch ($action) {
         // Word Impostor has its own no-timer flow (imp_clue/imp_reveal/imp_vote/
         // imp_elim/imp_tiebreak) - nothing below this branch (question pools,
         // time limits) applies to it, so it short-circuits before that logic.
+        if ($room['game_format'] === 'wordhunt') {
+            require_once __DIR__ . '/wordhunt_words.php';
+            $contestantStmt = $db->prepare("SELECT device_id FROM players WHERE room_code = ? AND is_host = 0 ORDER BY joined_at ASC");
+            $contestantStmt->execute([$code]);
+            $contestants = $contestantStmt->fetchAll(PDO::FETCH_COLUMN);
+            if (count($contestants) < 2) jsonOut(['success' => false, 'error' => 'Need at least 2 players to start Bible Word Hunt'], 400);
+
+            $words      = wordhuntSelectWords(1);
+            $gridResult = wordhuntBuildGrid($words);
+
+            $db->prepare("UPDATE rooms SET status = 'wordhunt_active', wordhunt_round = 1, wordhunt_turn_order = ?, wordhunt_grid = ?, wordhunt_words = ?, wordhunt_round_start = ?, wordhunt_turn_idx = 0, wordhunt_pass_streak = 0, updated_at = ? WHERE code = ?")
+               ->execute([json_encode($contestants), json_encode($gridResult['grid']), json_encode($gridResult['words']), $now, $now, $code]);
+            break;
+        }
+
         if ($room['game_format'] === 'scrab') {
             require_once __DIR__ . '/scrabble_words.php';
             $contestantStmt = $db->prepare("SELECT device_id FROM players WHERE room_code = ? AND is_host = 0 ORDER BY joined_at ASC");
@@ -182,7 +197,7 @@ switch ($action) {
     case 'set_game_format':
         if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
         $value = $input['value'] ?? 'classic';
-        $format = in_array($value, ['classic', 'truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor', 'draw', 'scrab'], true) ? $value : 'classic';
+        $format = in_array($value, ['classic', 'truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor', 'draw', 'scrab', 'wordhunt'], true) ? $value : 'classic';
         $db->prepare("UPDATE rooms SET game_format = ?, updated_at = ? WHERE code = ?")
            ->execute([$format, $now, $code]);
         break;
@@ -293,6 +308,41 @@ switch ($action) {
             jsonOut(['success' => false, 'error' => 'Not in a Scrabble game'], 400);
         require_once __DIR__ . '/scrabble_words.php';
         scrabRackSubtraction($db, $code);
+        $db->prepare("UPDATE rooms SET status = 'finished', updated_at = ? WHERE code = ?")->execute([$now, $code]);
+        break;
+
+    // ---- Bible Word Hunt: lobby settings ----
+    case 'set_wordhunt_mode':
+        if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
+        $whMode = ($input['value'] ?? 'race') === 'turn' ? 'turn' : 'race';
+        // Adjust default time limit: race=180s, turn=45s
+        $whTime = $whMode === 'turn' ? 45 : 180;
+        $db->prepare("UPDATE rooms SET wordhunt_mode = ?, wordhunt_time_limit = ?, updated_at = ? WHERE code = ?")
+           ->execute([$whMode, $whTime, $now, $code]);
+        break;
+
+    case 'set_wordhunt_rounds':
+        if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
+        $whRounds = (int)($input['value'] ?? 3);
+        $whRounds = in_array($whRounds, [2, 3, 4], true) ? $whRounds : 3;
+        $db->prepare("UPDATE rooms SET wordhunt_rounds_total = ?, updated_at = ? WHERE code = ?")
+           ->execute([$whRounds, $now, $code]);
+        break;
+
+    // ---- Bible Word Hunt: host in-game controls ----
+    case 'wordhunt_force_next':
+        if ($room['status'] !== 'wordhunt_active') jsonOut(['success' => false, 'error' => 'Not in Word Hunt'], 400);
+        require_once __DIR__ . '/wordhunt_words.php';
+        // In turn mode, advance the current player's turn
+        if (($room['wordhunt_mode'] ?? 'race') === 'turn') {
+            wordhuntAdvanceTurn($db, $code, $room);
+            $db->prepare("UPDATE rooms SET wordhunt_pass_streak = wordhunt_pass_streak + 1, updated_at = ? WHERE code = ?")->execute([$now, $code]);
+        }
+        break;
+
+    case 'wordhunt_force_end':
+        if (!in_array($room['status'], ['wordhunt_active', 'wordhunt_round_result'], true))
+            jsonOut(['success' => false, 'error' => 'Not in a Word Hunt game'], 400);
         $db->prepare("UPDATE rooms SET status = 'finished', updated_at = ? WHERE code = ?")->execute([$now, $code]);
         break;
 
