@@ -2945,9 +2945,10 @@ const Multiplayer = (function () {
     const unclaimedSec  = document.getElementById('wordhunt-result-unclaimed');
     const unclaimedList = document.getElementById('wordhunt-result-unclaimed-list');
     if (unclaimedList && wordhuntUnclaimed.length > 0) {
-      unclaimedList.innerHTML = wordhuntUnclaimed.map((w, i) =>
-        `<span class="wh-unc-chip-${i % 4}">${escapeHtml(w.word)}</span>`
-      ).join('');
+      unclaimedList.innerHTML = wordhuntUnclaimed.map(w => {
+        const cls = WH_DIR_COLOR_CLASS[`${w.dr}_${w.dc}`] || 'wh-d-r';
+        return `<span class="wh-unc-chip ${cls}">${escapeHtml(w.word)}</span>`;
+      }).join('');
       if (unclaimedSec) unclaimedSec.style.display = '';
     } else if (unclaimedSec) {
       unclaimedSec.style.display = 'none';
@@ -2961,8 +2962,9 @@ const Multiplayer = (function () {
   function highlightUnclaimedCells() {
     const table = document.getElementById('wordhunt-grid');
     if (!table || wordhuntUnclaimed.length === 0) return;
-    wordhuntUnclaimed.forEach((w, wordIdx) => {
-      const colorClass = `wh-unc-color-${wordIdx % 4}`;
+    wordhuntUnclaimed.forEach((w) => {
+      const dirKey = `${w.dr}_${w.dc}`;
+      const colorClass = WH_DIR_COLOR_CLASS[dirKey] || 'wh-d-r';
       for (let i = 0; i < w.len; i++) {
         const r = w.row + i * w.dr;
         const c = w.col + i * w.dc;
@@ -3111,6 +3113,16 @@ const Multiplayer = (function () {
     '1_1': '↘', '1_-1': '↙', '-1_1': '↗', '-1_-1': '↖'
   };
   const WH_DIR_ORDER = ['0_1', '0_-1', '1_0', '-1_0', '1_1', '1_-1', '-1_1', '-1_-1'];
+  const WH_DIR_COLOR_CLASS = {
+    '0_1':   'wh-d-r',
+    '0_-1':  'wh-d-l',
+    '1_0':   'wh-d-d',
+    '-1_0':  'wh-d-u',
+    '1_1':   'wh-d-se',
+    '1_-1':  'wh-d-sw',
+    '-1_1':  'wh-d-ne',
+    '-1_-1': 'wh-d-nw'
+  };
 
   function renderWordhuntDirHint(data) {
     const hint = document.getElementById('wordhunt-dir-hint');
@@ -3118,7 +3130,10 @@ const Multiplayer = (function () {
     const counts = data.wordhunt_dir_counts || {};
     const parts = WH_DIR_ORDER
       .filter(key => counts[key])
-      .map(key => `<span class="wh-dir-chip">${counts[key]} ${WH_DIR_LABELS[key]}</span>`);
+      .map(key => {
+        const cls = WH_DIR_COLOR_CLASS[key] || '';
+        return `<span class="wh-dir-chip ${cls}">${counts[key]} ${WH_DIR_LABELS[key]}</span>`;
+      });
     hint.innerHTML = parts.length ? parts.join('') : '';
   }
 

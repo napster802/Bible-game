@@ -3524,12 +3524,10 @@ label,
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
-  background: rgba(255,255,255,0.92);
   border-radius: 2rem;
   padding: 0.18rem 0.55rem;
   font-size: 0.78rem;
   font-weight: 700;
-  color: #1a2545;
 }
 /* Round result — inline panel on the active grid screen */
 .wordhunt-result-panel {
@@ -3590,37 +3588,33 @@ label,
   border: 1px solid rgba(231,76,60,0.4);
   letter-spacing: 0.03em;
 }
-/* Per-word color palette (4 colors cycling) — bg + text + border all from same hue */
-.wh-unclaimed            { font-weight: 700 !important; }
-.wh-unc-color-0          { background: rgba(231, 76, 60,0.50) !important; color: #ff8a80 !important; }
-.wh-unc-color-1          { background: rgba(230,126, 34,0.50) !important; color: #ffcc80 !important; }
-.wh-unc-color-2          { background: rgba(142, 68,173,0.50) !important; color: #e1bee7 !important; }
-.wh-unc-color-3          { background: rgba( 22,160,133,0.50) !important; color: #80cbc4 !important; }
-/* Directional border — colour matches word's palette */
-.wh-unc-t.wh-unc-color-0 { border-top:    3px solid #e74c3c !important; }
-.wh-unc-r.wh-unc-color-0 { border-right:  3px solid #e74c3c !important; }
-.wh-unc-b.wh-unc-color-0 { border-bottom: 3px solid #e74c3c !important; }
-.wh-unc-l.wh-unc-color-0 { border-left:   3px solid #e74c3c !important; }
-.wh-unc-t.wh-unc-color-1 { border-top:    3px solid #e67e22 !important; }
-.wh-unc-r.wh-unc-color-1 { border-right:  3px solid #e67e22 !important; }
-.wh-unc-b.wh-unc-color-1 { border-bottom: 3px solid #e67e22 !important; }
-.wh-unc-l.wh-unc-color-1 { border-left:   3px solid #e67e22 !important; }
-.wh-unc-t.wh-unc-color-2 { border-top:    3px solid #8e44ad !important; }
-.wh-unc-r.wh-unc-color-2 { border-right:  3px solid #8e44ad !important; }
-.wh-unc-b.wh-unc-color-2 { border-bottom: 3px solid #8e44ad !important; }
-.wh-unc-l.wh-unc-color-2 { border-left:   3px solid #8e44ad !important; }
-.wh-unc-t.wh-unc-color-3 { border-top:    3px solid #16a085 !important; }
-.wh-unc-r.wh-unc-color-3 { border-right:  3px solid #16a085 !important; }
-.wh-unc-b.wh-unc-color-3 { border-bottom: 3px solid #16a085 !important; }
-.wh-unc-l.wh-unc-color-3 { border-left:   3px solid #16a085 !important; }
+/* Direction-keyed color palette — each of 8 directions gets its own hue */
+/* CSS custom properties: --dc=border/accent, --db=cell bg, --dt=chip bg, --dtx=text */
+.wh-d-r  { --dc:#e67e22; --db:rgba(230,126, 34,0.50); --dt:rgba(230,126, 34,0.88); --dtx:#1a0e00; }
+.wh-d-l  { --dc:#e74c3c; --db:rgba(231, 76, 60,0.50); --dt:rgba(231, 76, 60,0.88); --dtx:#fff;    }
+.wh-d-d  { --dc:#2980b9; --db:rgba( 41,128,185,0.50); --dt:rgba( 41,128,185,0.88); --dtx:#fff;    }
+.wh-d-u  { --dc:#27ae60; --db:rgba( 39,174, 96,0.50); --dt:rgba( 39,174, 96,0.88); --dtx:#fff;    }
+.wh-d-se { --dc:#d4ac0d; --db:rgba(212,172, 13,0.50); --dt:rgba(212,172, 13,0.88); --dtx:#1a1200; }
+.wh-d-sw { --dc:#c0392b; --db:rgba(192, 57, 43,0.50); --dt:rgba(192, 57, 43,0.88); --dtx:#fff;    }
+.wh-d-ne { --dc:#1abc9c; --db:rgba( 26,188,156,0.50); --dt:rgba( 26,188,156,0.88); --dtx:#002e27; }
+.wh-d-nw { --dc:#8e44ad; --db:rgba(142, 68,173,0.50); --dt:rgba(142, 68,173,0.88); --dtx:#fff;    }
+
+/* Direction hint chips — vibrant chip bg per direction */
+.wh-dir-chip {
+  background: var(--dt, rgba(255,255,255,0.92));
+  color: var(--dtx, #1a2545);
+}
+/* Grid unclaimed cells — semi-transparent bg + border per direction */
+.wh-unclaimed { font-weight: 700 !important; background: var(--db) !important; color: var(--dtx) !important; }
+.wh-unc-t     { border-top:    3px solid var(--dc) !important; }
+.wh-unc-r     { border-right:  3px solid var(--dc) !important; }
+.wh-unc-b     { border-bottom: 3px solid var(--dc) !important; }
+.wh-unc-l     { border-left:   3px solid var(--dc) !important; }
 /* Unclaimed word list chips */
 .wh-result-unclaimed-section { margin-top: 0.6rem; }
 .wh-result-unclaimed-label   { font-size: 0.75rem; font-weight: 700; color: var(--text2); margin: 0 0 0.35rem; }
 .wh-result-unclaimed-chips   { display: flex; flex-wrap: wrap; gap: 0.3rem; }
-.wh-unc-chip-0 { background: rgba(231, 76, 60,0.22); color: #ff8a80; border: 1px solid rgba(231, 76, 60,0.5); font-size: 0.75rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 2rem; }
-.wh-unc-chip-1 { background: rgba(230,126, 34,0.22); color: #ffcc80; border: 1px solid rgba(230,126, 34,0.5); font-size: 0.75rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 2rem; }
-.wh-unc-chip-2 { background: rgba(142, 68,173,0.22); color: #e1bee7; border: 1px solid rgba(142, 68,173,0.5); font-size: 0.75rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 2rem; }
-.wh-unc-chip-3 { background: rgba( 22,160,133,0.22); color: #80cbc4; border: 1px solid rgba( 22,160,133,0.5); font-size: 0.75rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 2rem; }
+.wh-unc-chip { background: var(--db); color: var(--dtx); border: 1px solid var(--dc); font-size: 0.75rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 2rem; }
 
 /* Host proceed controls on round result */
 .wordhunt-round-controls {
