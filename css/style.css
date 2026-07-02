@@ -3531,14 +3531,20 @@ label,
   font-weight: 700;
   color: #1a2545;
 }
-.wh-dir-arrow { font-size: 0.95rem; color: #1a2545; font-weight: 900; }
-
-/* Round result */
-.wordhunt-result-title {
-  font-size: 1.05rem;
+/* Round result — inline panel on the active grid screen */
+.wordhunt-result-panel {
+  margin: 0.5rem 0.5rem 0;
+  padding: 0.75rem;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+}
+.wordhunt-result-panel-title {
+  text-align: center;
+  font-size: 0.95rem;
   font-weight: 700;
   color: var(--gold);
-  margin-bottom: 0.75rem;
+  margin: 0 0 0.5rem;
 }
 .wordhunt-round-scores { display: flex; flex-direction: column; gap: 0.5rem; }
 .wh-result-row {
@@ -3584,7 +3590,7 @@ label,
   border: 1px solid rgba(231,76,60,0.4);
   letter-spacing: 0.03em;
 }
-.wh-unclaimed { background: rgba(231,76,60,0.25) !important; color: #e74c3c !important; }
+.wh-unclaimed { background: rgba(231,76,60,0.35) !important; color: #ff6b6b !important; font-weight: 700 !important; }
 
 /* Host proceed controls on round result */
 .wordhunt-round-controls {

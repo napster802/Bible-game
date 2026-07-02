@@ -299,6 +299,7 @@ const Multiplayer = (function () {
       } else if (wordhuntUnclaimed.length === 0 && data.wordhunt_unclaimed && data.wordhunt_unclaimed.length > 0) {
         // Defensive: first poll may have been on the timer boundary before PHP computed unclaimed
         wordhuntUnclaimed = data.wordhunt_unclaimed;
+        highlightUnclaimedCells();
       }
     } else if (status === 'finished') {
       if (lastStatus !== 'finished') {
@@ -2856,6 +2857,10 @@ const Multiplayer = (function () {
   const WH_COLORS = ['#1a6b3a','#1a3a8b','#8b1a1a','#7a4a00','#4a1a6b','#00586b','#5c6b00','#6b005a','#00456b','#6b3000'];
 
   function enterWordhuntActive(data) {
+    // Hide result panel from previous round
+    const rp = document.getElementById('wordhunt-result-panel');
+    if (rp) rp.style.display = 'none';
+
     wordhuntGrid = data.wordhunt_grid || [];
     wordhuntFound = data.wordhunt_found || {};
     wordhuntIsMyTurn = !!data.am_i_wordhunt_turn;
@@ -2895,78 +2900,63 @@ const Multiplayer = (function () {
   function enterWordhuntRoundResult(data) {
     stopWordhuntTimer();
     wordhuntUnclaimed = data.wordhunt_unclaimed || [];
-    App.goTo('wordhunt-round-result');
 
-    const titleEl  = document.getElementById('wordhunt-round-result-title');
-    const scoresEl = document.getElementById('wordhunt-round-scores');
-    const revealSec = document.getElementById('wordhunt-reveal-section');
-    const hostCtrl  = document.getElementById('wordhunt-round-host-controls');
-    const waitEl    = document.getElementById('wordhunt-round-waiting');
-    const proceedBtn = document.getElementById('wordhunt-proceed-btn');
+    // Stay on the grid screen — do NOT navigate away
+    App.goTo('wordhunt-active');
 
+    // Highlight unclaimed cells in red directly on the grid
+    highlightUnclaimedCells();
+
+    // Disable player interaction (round is over)
+    wordhuntIsMyTurn = false;
+    const hc = document.getElementById('wordhunt-host-controls');
+    if (hc) hc.style.display = 'none';
+
+    // Show inline result panel
     const round = data.wordhunt_round || 1;
     const total = data.wordhunt_rounds_total || 3;
     const isLastRound = round >= total;
 
+    const panel    = document.getElementById('wordhunt-result-panel');
+    const titleEl  = document.getElementById('wordhunt-result-title');
+    const scoresEl = document.getElementById('wordhunt-result-scores');
+    const hostBtns = document.getElementById('wordhunt-result-host-btns');
+    const waitEl   = document.getElementById('wordhunt-result-waiting');
+    const proceedBtn = document.getElementById('wordhunt-result-proceed-btn');
+
+    if (panel) panel.style.display = '';
     if (titleEl) titleEl.textContent = `Round ${round} of ${total} — Results`;
 
     if (scoresEl) {
       const scores = data.wordhunt_round_scores || [];
-      if (scores.length === 0) {
-        scoresEl.innerHTML = '<p class="hint-text" style="text-align:center">No words found this round.</p>';
-      } else {
-        scoresEl.innerHTML = scores.map((s, i) => `
-          <div class="wh-result-row">
-            <span class="wh-result-rank">#${i + 1}</span>
-            <span class="wh-result-avatar">${escapeHtml(s.avatar)}</span>
-            <span class="wh-result-name">${escapeHtml(s.name)}</span>
-            <span class="wh-result-words">${s.words_found} word${s.words_found !== 1 ? 's' : ''}</span>
-            <span class="wh-result-pts">+${s.round_pts} pts</span>
-          </div>`).join('');
-      }
+      scoresEl.innerHTML = scores.length === 0
+        ? '<p class="hint-text" style="text-align:center">No words found this round.</p>'
+        : scores.map((s, i) => `
+            <div class="wh-result-row">
+              <span class="wh-result-rank">#${i + 1}</span>
+              <span class="wh-result-avatar">${escapeHtml(s.avatar)}</span>
+              <span class="wh-result-name">${escapeHtml(s.name)}</span>
+              <span class="wh-result-words">${s.words_found} word${s.words_found !== 1 ? 's' : ''}</span>
+              <span class="wh-result-pts">+${s.round_pts} pts</span>
+            </div>`).join('');
     }
 
-    // Reset reveal section
-    if (revealSec) revealSec.style.display = 'none';
-
-    // Host controls vs waiting message
-    if (hostCtrl) hostCtrl.style.display = isHost ? 'flex' : 'none';
+    if (hostBtns) hostBtns.style.display = isHost ? 'flex' : 'none';
     if (waitEl) waitEl.style.display = isHost ? 'none' : '';
     if (proceedBtn) proceedBtn.textContent = isLastRound ? '🏁 View Final Scores' : '▶ Next Round';
-
-    // Show reveal section immediately if there are unclaimed words
-    if (wordhuntUnclaimed.length > 0 && revealSec) {
-      // Keep hidden until host clicks Reveal, but pre-fill the list
-      renderWordhuntUnclaimedList();
-    }
   }
 
-  function renderWordhuntUnclaimedList() {
-    const listEl = document.getElementById('wordhunt-unclaimed-list');
-    if (!listEl) return;
-    listEl.innerHTML = wordhuntUnclaimed.map(w =>
-      `<span class="wh-unclaimed-word">${escapeHtml(w.word)}</span>`
-    ).join('');
-  }
-
-  function revealWordhuntWords() {
-    const revealSec = document.getElementById('wordhunt-reveal-section');
-    if (revealSec) {
-      renderWordhuntUnclaimedList();
-      revealSec.style.display = '';
-    }
-    // Also highlight unclaimed cells on the grid (grid is still in memory)
+  function highlightUnclaimedCells() {
     const table = document.getElementById('wordhunt-grid');
-    if (table && wordhuntUnclaimed.length > 0) {
-      wordhuntUnclaimed.forEach(w => {
-        for (let i = 0; i < w.len; i++) {
-          const r = w.row + i * w.dr;
-          const c = w.col + i * w.dc;
-          const cell = table.querySelector(`td[data-row="${r}"][data-col="${c}"]`);
-          if (cell) cell.classList.add('wh-unclaimed');
-        }
-      });
-    }
+    if (!table || wordhuntUnclaimed.length === 0) return;
+    wordhuntUnclaimed.forEach(w => {
+      for (let i = 0; i < w.len; i++) {
+        const r = w.row + i * w.dr;
+        const c = w.col + i * w.dc;
+        const cell = table.querySelector(`td[data-row="${r}"][data-col="${c}"]`);
+        if (cell) cell.classList.add('wh-unclaimed');
+      }
+    });
   }
 
   function renderWordhuntGrid() {
@@ -3102,7 +3092,7 @@ const Multiplayer = (function () {
     const counts = data.wordhunt_dir_counts || {};
     const parts = WH_DIR_ORDER
       .filter(key => counts[key])
-      .map(key => `<span class="wh-dir-chip">${counts[key]}<span class="wh-dir-arrow">${WH_DIR_LABELS[key]}</span></span>`);
+      .map(key => `<span class="wh-dir-chip">${counts[key]} ${WH_DIR_LABELS[key]}</span>`);
     hint.innerHTML = parts.length ? parts.join('') : '';
   }
 

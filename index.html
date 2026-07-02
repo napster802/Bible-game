@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#0a1a3e">
   <title>Bible Challenge Arena</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=3">
 </head>
 <body>
   <canvas id="confetti-canvas"></canvas>
@@ -780,26 +780,15 @@
           <button class="btn btn-secondary btn-sm" onclick="WordHunt.forceNext()">⏭ Skip Turn</button>
           <button class="btn btn-secondary btn-sm" onclick="WordHunt.forceEnd()">🏁 End Game</button>
         </div>
-      </div>
-    </div>
-
-    <!-- ==================== SCREEN: BIBLE WORD HUNT - ROUND RESULT ==================== -->
-    <div class="screen" id="screen-wordhunt-round-result">
-      <div class="screen-header">
-        <h2>🔍 Round Complete!</h2>
-      </div>
-      <div class="screen-body" style="padding:1rem;">
-        <p id="wordhunt-round-result-title" class="wordhunt-result-title" style="text-align:center;margin-bottom:0.75rem"></p>
-        <div id="wordhunt-round-scores" class="wordhunt-round-scores"></div>
-        <div id="wordhunt-reveal-section" class="wordhunt-reveal-section" style="display:none">
-          <p class="wordhunt-reveal-label">❌ Unclaimed words:</p>
-          <div id="wordhunt-unclaimed-list" class="wordhunt-unclaimed-list"></div>
+        <!-- Inline result panel — shown when round ends, grid stays visible above -->
+        <div id="wordhunt-result-panel" class="wordhunt-result-panel" style="display:none">
+          <p id="wordhunt-result-title" class="wordhunt-result-panel-title"></p>
+          <div id="wordhunt-result-scores" class="wordhunt-round-scores"></div>
+          <div id="wordhunt-result-host-btns" class="wordhunt-round-controls" style="display:none">
+            <button class="btn btn-primary" id="wordhunt-result-proceed-btn" onclick="WordHunt.proceed()">▶ Next Round</button>
+          </div>
+          <p id="wordhunt-result-waiting" class="hint-text" style="text-align:center;display:none">Waiting for host to proceed…</p>
         </div>
-        <div id="wordhunt-round-host-controls" class="wordhunt-round-controls" style="display:none">
-          <button class="btn btn-secondary" onclick="WordHunt.revealWords()">🔴 Reveal Words</button>
-          <button class="btn btn-primary" id="wordhunt-proceed-btn" onclick="WordHunt.proceed()">▶ Proceed</button>
-        </div>
-        <p id="wordhunt-round-waiting" class="hint-text" style="text-align:center;margin-top:0.75rem;display:none">Waiting for host to proceed…</p>
       </div>
     </div>
 
