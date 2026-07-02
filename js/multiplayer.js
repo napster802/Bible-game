@@ -2941,6 +2941,18 @@ const Multiplayer = (function () {
             </div>`).join('');
     }
 
+    // Unclaimed word text list (same color coding as grid highlights)
+    const unclaimedSec  = document.getElementById('wordhunt-result-unclaimed');
+    const unclaimedList = document.getElementById('wordhunt-result-unclaimed-list');
+    if (unclaimedList && wordhuntUnclaimed.length > 0) {
+      unclaimedList.innerHTML = wordhuntUnclaimed.map((w, i) =>
+        `<span class="wh-unc-chip-${i % 4}">${escapeHtml(w.word)}</span>`
+      ).join('');
+      if (unclaimedSec) unclaimedSec.style.display = '';
+    } else if (unclaimedSec) {
+      unclaimedSec.style.display = 'none';
+    }
+
     if (hostBtns) hostBtns.style.display = isHost ? 'flex' : 'none';
     if (waitEl) waitEl.style.display = isHost ? 'none' : '';
     if (proceedBtn) proceedBtn.textContent = isLastRound ? '🏁 View Final Scores' : '▶ Next Round';
@@ -2949,26 +2961,24 @@ const Multiplayer = (function () {
   function highlightUnclaimedCells() {
     const table = document.getElementById('wordhunt-grid');
     if (!table || wordhuntUnclaimed.length === 0) return;
-    wordhuntUnclaimed.forEach(w => {
+    wordhuntUnclaimed.forEach((w, wordIdx) => {
+      const colorClass = `wh-unc-color-${wordIdx % 4}`;
       for (let i = 0; i < w.len; i++) {
         const r = w.row + i * w.dr;
         const c = w.col + i * w.dc;
         const cell = table.querySelector(`td[data-row="${r}"][data-col="${c}"]`);
         if (!cell) continue;
-        cell.classList.add('wh-unclaimed');
+        cell.classList.add('wh-unclaimed', colorClass);
         const first = i === 0, last = i === w.len - 1;
         if (w.dr === 0) {
-          // Horizontal: top+bottom run the full word; left cap on first, right cap on last
           cell.classList.add('wh-unc-t', 'wh-unc-b');
           if (first) cell.classList.add('wh-unc-l');
           if (last)  cell.classList.add('wh-unc-r');
         } else if (w.dc === 0) {
-          // Vertical: left+right run the full word; top cap on first, bottom cap on last
           cell.classList.add('wh-unc-l', 'wh-unc-r');
           if (first) cell.classList.add('wh-unc-t');
           if (last)  cell.classList.add('wh-unc-b');
         } else {
-          // Diagonal: cells share only corners, so each cell gets a full border
           cell.classList.add('wh-unc-t', 'wh-unc-r', 'wh-unc-b', 'wh-unc-l');
         }
       }

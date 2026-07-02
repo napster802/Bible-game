@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#0a1a3e">
   <title>Bible Challenge Arena</title>
-  <link rel="stylesheet" href="css/style.css?v=4">
+  <link rel="stylesheet" href="css/style.css?v=5">
 </head>
 <body>
   <canvas id="confetti-canvas"></canvas>
@@ -784,6 +784,10 @@
         <div id="wordhunt-result-panel" class="wordhunt-result-panel" style="display:none">
           <p id="wordhunt-result-title" class="wordhunt-result-panel-title"></p>
           <div id="wordhunt-result-scores" class="wordhunt-round-scores"></div>
+          <div id="wordhunt-result-unclaimed" class="wh-result-unclaimed-section" style="display:none">
+            <p class="wh-result-unclaimed-label">❌ Unclaimed words (highlighted on grid above):</p>
+            <div id="wordhunt-result-unclaimed-list" class="wh-result-unclaimed-chips"></div>
+          </div>
           <div id="wordhunt-result-host-btns" class="wordhunt-round-controls" style="display:none">
             <button class="btn btn-primary" id="wordhunt-result-proceed-btn" onclick="WordHunt.proceed()">▶ Next Round</button>
           </div>
