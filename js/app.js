@@ -1030,7 +1030,7 @@ const App = (function () {
 
     const filtered = filter === 'all'
       ? hist
-      : hist.filter(r => (r.game_format || 'classic') === filter);
+      : hist.filter(r => (r.game_format || r.gameFormat || 'classic') === filter);
 
     if (filtered.length === 0) {
       list.innerHTML = '<p class="empty-msg">No games yet for this mode. Start playing!</p>';
@@ -1040,7 +1040,7 @@ const App = (function () {
     list.innerHTML = filtered.map(r => {
       const date = new Date(r.date);
       const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const fmt = r.game_format || 'classic';
+      const fmt = r.game_format || r.gameFormat || 'classic';
       const fmtLabel = gameFormatLabel(fmt);
       const champion = r.champion;
       const players = (r.players || []).slice(0, 10);
@@ -1065,7 +1065,7 @@ const App = (function () {
               </div>
             `).join('')}
           </div>
-          ${r.questionCount ? `<div class="hc-meta">${r.questionCount} questions · ${modeLabel(r.mode)}</div>` : ''}
+          ${r.questionCount > 0 ? `<div class="hc-meta">${r.questionCount} questions</div>` : ''}
         </div>
       `;
     }).join('');
@@ -1374,7 +1374,9 @@ const App = (function () {
       tournament: 'Tournament',
       sabbath: 'Sabbath School',
       speed: 'Speed Round',
-      daily: 'Daily Challenge'
+      daily: 'Daily Challenge',
+      join: 'Multiplayer',
+      host: 'Multiplayer'
     };
     return labels[mode] || mode;
   }

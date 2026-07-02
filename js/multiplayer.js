@@ -956,7 +956,7 @@ const Multiplayer = (function () {
     return arr;
   }
 
-  function renderBlitzQuestion() {
+  function renderBlitzQuestion(keepDisabled) {
     const elapsed = Date.now() - blitzStartTime;
     // Pick difficulty tier based on elapsed time — questions get harder over time
     const diff = elapsed < 30000 ? 'easy' : elapsed < 60000 ? 'medium' : 'hard';
@@ -990,14 +990,30 @@ const Multiplayer = (function () {
     if (flash) flash.style.display = 'none';
     const choices = document.getElementById('blitz-choices');
     if (choices) choices.style.display = 'flex';
+
+    // Re-enable buttons only when not entering a cooldown period
+    if (!keepDisabled) {
+      const trueBtn  = document.getElementById('blitz-btn-true');
+      const falseBtn = document.getElementById('blitz-btn-false');
+      if (trueBtn)  { trueBtn.disabled  = false; trueBtn.textContent  = '✓ TRUE'; }
+      if (falseBtn) { falseBtn.disabled = false; falseBtn.textContent = '✗ FALSE'; }
+      const coolEl = document.getElementById('blitz-cooldown-msg');
+      if (coolEl) { coolEl.style.display = 'none'; coolEl.textContent = ''; }
+    }
   }
 
   function blitzAnswer(playerSaidTrue) {
-    if (blitzAnswering) return;
+    const trueBtn  = document.getElementById('blitz-btn-true');
+    const falseBtn = document.getElementById('blitz-btn-false');
+    if (blitzAnswering || (trueBtn && trueBtn.disabled)) return;
     blitzAnswering = true;
 
     const elapsed = Date.now() - blitzStartTime;
     if (elapsed >= 90000) { blitzAnswering = false; return; }
+
+    // Disable buttons immediately to prevent double-tap
+    if (trueBtn)  trueBtn.disabled  = true;
+    if (falseBtn) falseBtn.disabled = true;
 
     const isCorrect = (playerSaidTrue === blitzCorrectAnswer);
 
@@ -1012,9 +1028,10 @@ const Multiplayer = (function () {
     const scoreBadge = document.getElementById('blitz-score-badge');
     if (scoreBadge) scoreBadge.textContent = `${blitzScore} pts`;
 
-    // Show flash
-    const choices = document.getElementById('blitz-choices');
-    if (choices) choices.style.display = 'none';
+    // Cooldown duration by tier: 3s easy, 4s medium, 5s hard
+    const cooldownMs = elapsed < 30000 ? 3000 : elapsed < 60000 ? 4000 : 5000;
+
+    // Show flash (keep choices visible but buttons disabled)
     const flash = document.getElementById('blitz-answer-flash');
     if (flash) {
       flash.style.display = '';
@@ -1036,10 +1053,37 @@ const Multiplayer = (function () {
     blitzAnswered++;
     blitzQIdx++;
 
+    // After 400ms flash: hide flash, load next question, start countdown
     setTimeout(() => {
-      blitzAnswering = false;
-      renderBlitzQuestion();
+      if (flash) flash.style.display = 'none';
+      renderBlitzQuestion(true); // true = keep buttons disabled for countdown
+      blitzStartCooldown(cooldownMs);
     }, 400);
+  }
+
+  function blitzStartCooldown(ms) {
+    const trueBtn    = document.getElementById('blitz-btn-true');
+    const falseBtn   = document.getElementById('blitz-btn-false');
+    const coolEl     = document.getElementById('blitz-cooldown-msg');
+    const endTime    = Date.now() + ms;
+    let   cdInterval = null;
+
+    function tick() {
+      const rem = Math.ceil((endTime - Date.now()) / 1000);
+      if (rem <= 0) {
+        clearInterval(cdInterval);
+        if (trueBtn)  { trueBtn.disabled  = false; trueBtn.textContent  = '✓ TRUE'; }
+        if (falseBtn) { falseBtn.disabled = false; falseBtn.textContent = '✗ FALSE'; }
+        if (coolEl)   { coolEl.style.display = 'none'; coolEl.textContent = ''; }
+        blitzAnswering = false;
+      } else {
+        if (coolEl)   { coolEl.style.display = ''; coolEl.textContent = `Next in ${rem}s…`; }
+        if (trueBtn)  trueBtn.textContent  = `TRUE (${rem}s)`;
+        if (falseBtn) falseBtn.textContent = `FALSE (${rem}s)`;
+      }
+    }
+    tick();
+    cdInterval = setInterval(tick, 500);
   }
 
   function updateBlitz(data) {

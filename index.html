@@ -893,9 +893,10 @@
         <div class="question-card" id="blitz-question-card" style="margin-bottom:1rem;"></div>
         <div class="blitz-answer-flash" id="blitz-answer-flash" style="display:none;"></div>
         <div class="blitz-choices" id="blitz-choices">
-          <button class="btn btn-blitz-true" onclick="Multiplayer.blitzAnswer(true)">✓ TRUE</button>
-          <button class="btn btn-blitz-false" onclick="Multiplayer.blitzAnswer(false)">✗ FALSE</button>
+          <button class="btn btn-blitz-true" id="blitz-btn-true" onclick="Multiplayer.blitzAnswer(true)">✓ TRUE</button>
+          <button class="btn btn-blitz-false" id="blitz-btn-false" onclick="Multiplayer.blitzAnswer(false)">✗ FALSE</button>
         </div>
+        <div class="blitz-cooldown-msg" id="blitz-cooldown-msg" style="display:none;"></div>
         <div class="blitz-counter" id="blitz-counter">0 answered</div>
       </div>
     </div>
