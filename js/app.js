@@ -1393,7 +1393,10 @@ const App = (function () {
       impostor:    '🕵️ Word Impostor',
       draw:        '🎨 Sketch & Guess',
       scrab:       '🕎 Bible Scrabble',
-      wordhunt:    '🔍 Word Hunt'
+      wordhunt:    '🔍 Word Hunt',
+      blitz:       '⚡ Bible Blitz',
+      bowl:        '🏆 Bible Bowl',
+      hotseat:     '🎯 Hot Seat'
     };
     return labels[fmt] || fmt;
   }
