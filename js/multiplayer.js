@@ -296,6 +296,9 @@ const Multiplayer = (function () {
     } else if (status === 'wordhunt_round_result') {
       if (lastStatus !== 'wordhunt_round_result') {
         enterWordhuntRoundResult(data);
+      } else if (wordhuntUnclaimed.length === 0 && data.wordhunt_unclaimed && data.wordhunt_unclaimed.length > 0) {
+        // Defensive: first poll may have been on the timer boundary before PHP computed unclaimed
+        wordhuntUnclaimed = data.wordhunt_unclaimed;
       }
     } else if (status === 'finished') {
       if (lastStatus !== 'finished') {

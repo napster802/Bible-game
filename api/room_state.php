@@ -695,12 +695,25 @@ if ($room['game_format'] === 'wordhunt' && in_array($status, ['wordhunt_active',
         }
     }
 
+    // === Auto-advance (runs first so round result block sees correct status) ===
+
+    // Race mode: time limit expired
+    if ($status === 'wordhunt_active' && $wordhuntMode === 'race') {
+        if ($wordhuntElapsedMs >= $wordhuntTimeLimit * 1000 + 2000) {
+            $db->prepare("UPDATE rooms SET status = 'wordhunt_round_result', updated_at = ? WHERE code = ? AND status = 'wordhunt_active'")
+               ->execute([$now, $code]);
+            $status = 'wordhunt_round_result';
+        }
+    }
+
     // Round result scores + unclaimed words reveal
     if ($status === 'wordhunt_round_result') {
+        // LEFT JOIN so scores show even if player record cleaned up
         $scoreStmt = $db->prepare(
-            "SELECT wc.device_id, p.name, p.avatar, COUNT(*) AS words_found, SUM(wc.score) AS round_pts
+            "SELECT wc.device_id, COALESCE(p.name,'Player') AS name, COALESCE(p.avatar,'👤') AS avatar,
+                    COUNT(*) AS words_found, SUM(wc.score) AS round_pts
              FROM wordhunt_claims wc
-             JOIN players p ON p.room_code = wc.room_code AND p.device_id = wc.device_id
+             LEFT JOIN players p ON p.room_code = wc.room_code AND p.device_id = wc.device_id
              WHERE wc.room_code = ? AND wc.round = ?
              GROUP BY wc.device_id ORDER BY round_pts DESC");
         $scoreStmt->execute([$code, $wordhuntRoundNum]);
@@ -712,10 +725,14 @@ if ($room['game_format'] === 'wordhunt' && in_array($status, ['wordhunt_active',
             'round_pts'   => (int)$r['round_pts'],
         ], $scoreStmt->fetchAll());
 
-        // Compute unclaimed words (positions safe to reveal since round is over)
-        $foundWords = array_keys($wordhuntFound);
+        // Compute unclaimed directly from wordhunt_claims (not from $wordhuntFound JOIN)
+        $claimedStmt = $db->prepare("SELECT DISTINCT word FROM wordhunt_claims WHERE room_code = ? AND round = ?");
+        $claimedStmt->execute([$code, $wordhuntRoundNum]);
+        $claimedWordSet = [];
+        foreach ($claimedStmt->fetchAll() as $cw) { $claimedWordSet[$cw['word']] = true; }
+
         foreach ($wordsList as $w) {
-            if (!in_array($w['word'], $foundWords, true)) {
+            if (!isset($claimedWordSet[$w['word']])) {
                 $wordhuntUnclaimed[] = [
                     'word' => $w['word'],
                     'row'  => (int)$w['row'],
@@ -725,17 +742,6 @@ if ($room['game_format'] === 'wordhunt' && in_array($status, ['wordhunt_active',
                     'len'  => mb_strlen($w['word']),
                 ];
             }
-        }
-    }
-
-    // === Auto-advance ===
-
-    // Race mode: time limit expired
-    if ($status === 'wordhunt_active' && $wordhuntMode === 'race') {
-        if ($wordhuntElapsedMs >= $wordhuntTimeLimit * 1000 + 2000) {
-            $db->prepare("UPDATE rooms SET status = 'wordhunt_round_result', updated_at = ? WHERE code = ? AND status = 'wordhunt_active'")
-               ->execute([$now, $code]);
-            $status = 'wordhunt_round_result';
         }
     }
 
