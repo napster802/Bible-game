@@ -267,7 +267,7 @@ const HostGame = (function () {
   }
 
   function setGameFormat(format) {
-    gameFormat = ['truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor', 'draw', 'scrab', 'wordhunt', 'blitz'].includes(format) ? format : 'classic';
+    gameFormat = ['truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor', 'draw', 'scrab', 'wordhunt', 'blitz', 'bowl', 'hotseat'].includes(format) ? format : 'classic';
     if (typeof GameInstructions !== 'undefined') GameInstructions.render(gameFormat, 'host-instructions-box');
     toggleLobbySettingsForFormat();
     action('set_game_format', { value: gameFormat });

@@ -1065,7 +1065,6 @@ const App = (function () {
               </div>
             `).join('')}
           </div>
-          ${r.questionCount > 0 ? `<div class="hc-meta">${r.questionCount} questions</div>` : ''}
         </div>
       `;
     }).join('');
