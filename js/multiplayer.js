@@ -927,13 +927,13 @@ const Multiplayer = (function () {
       const multBadge = document.getElementById('blitz-multiplier-badge');
       if (multBadge) {
         if (elapsed < 30000) {
-          multBadge.textContent = '3×';
+          multBadge.textContent = '⭐ EASY  +50 pts';
           multBadge.className = 'blitz-multiplier-badge';
         } else if (elapsed < 60000) {
-          multBadge.textContent = '2×';
+          multBadge.textContent = '🔥 MED  +100 pts';
           multBadge.className = 'blitz-multiplier-badge x2';
         } else {
-          multBadge.textContent = '1×';
+          multBadge.textContent = '💀 HARD  +200 pts';
           multBadge.className = 'blitz-multiplier-badge x1';
         }
       }
@@ -942,15 +942,30 @@ const Multiplayer = (function () {
     renderBlitzQuestion();
   }
 
+  function blitzShuffledPool(diff) {
+    if (typeof QUESTION_DB === 'undefined') return [];
+    const pool = QUESTION_DB[diff] || [];
+    // Fisher-Yates seeded shuffle so the order is unique per room but deterministic
+    const arr = pool.slice();
+    let s = seededHash(`${roomCode}-blitz-shuffle-${diff}`);
+    for (let i = arr.length - 1; i > 0; i--) {
+      s = (s * 1664525 + 1013904223) >>> 0;
+      const j = s % (i + 1);
+      const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+    return arr;
+  }
+
   function renderBlitzQuestion() {
-    // Use same QUESTION_DB approach as truefalse but with blitz-specific seed
-    const seed = `${roomCode}-blitz-${blitzQIdx}`;
-    const hash1 = seededHash(seed);
-    const difficulty = currentDifficulty || 'medium';
-    const pool = (typeof QUESTION_DB !== 'undefined' && QUESTION_DB[difficulty]) ? QUESTION_DB[difficulty] : [];
+    const elapsed = Date.now() - blitzStartTime;
+    // Pick difficulty tier based on elapsed time — questions get harder over time
+    const diff = elapsed < 30000 ? 'easy' : elapsed < 60000 ? 'medium' : 'hard';
+    const pool = blitzShuffledPool(diff);
     if (!pool.length) return;
 
-    const qObj = pool[hash1 % pool.length];
+    // Index within this tier restarts from 0 each tier; use blitzQIdx mod pool size
+    const seed = `${roomCode}-blitz-${diff}-${blitzQIdx}`;
+    const qObj = pool[blitzQIdx % pool.length];
     const useCorrect = seededHash(seed + '-tf') % 2 === 0;
     let statement;
     if (useCorrect) {
@@ -986,10 +1001,12 @@ const Multiplayer = (function () {
 
     const isCorrect = (playerSaidTrue === blitzCorrectAnswer);
 
-    let multiplier = 1;
-    if (elapsed < 30000) multiplier = 3;
-    else if (elapsed < 60000) multiplier = 2;
-    const pts = isCorrect ? 100 * multiplier : 0;
+    let pts = 0;
+    if (isCorrect) {
+      if (elapsed < 30000) pts = 50;
+      else if (elapsed < 60000) pts = 100;
+      else pts = 200;
+    }
     if (isCorrect) blitzScore += pts;
 
     const scoreBadge = document.getElementById('blitz-score-badge');
@@ -2775,6 +2792,8 @@ const Multiplayer = (function () {
       } else if (currentGameFormat === 'scrab') {
         const rounds = Math.max(1, (data.room.scrab_round || 1));
         document.getElementById('results-sub').textContent = `🕎 Bible Scrabble • ${rounds} Turn${rounds !== 1 ? 's' : ''} • Multiplayer`;
+      } else if (currentGameFormat === 'blitz') {
+        document.getElementById('results-sub').textContent = `⚡ Bible Blitz • 90 Seconds • Multiplayer`;
       } else if (currentGameFormat === 'bowl') {
         document.getElementById('results-sub').textContent = `🏆 Bible Bowl (Teams) • ${data.room.question_count} Questions • Multiplayer`;
       } else if (currentGameFormat === 'hotseat') {

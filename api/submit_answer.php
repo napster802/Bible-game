@@ -34,10 +34,9 @@ if ($room['status'] === 'blitz_active') {
 
     $points = 0;
     if ($isCorrect && $elapsed < 90000) {
-        if ($elapsed < 30000) $multiplier = 3;
-        elseif ($elapsed < 60000) $multiplier = 2;
-        else $multiplier = 1;
-        $points = 100 * $multiplier;
+        if ($elapsed < 30000)      $points = 50;   // easy tier
+        elseif ($elapsed < 60000)  $points = 100;  // medium tier
+        else                       $points = 200;  // hard tier
     }
 
     $newBlitzIdx = $currentBlitzIdx + 1;

@@ -60,7 +60,7 @@ const GameInstructions = (function () {
     },
     blitz: {
       title: '⚡ Bible Blitz',
-      text: '90 seconds, rapid fire! Answer as many True/False Bible questions as you can at your own pace. Earn 300 pts per correct answer in the first 30s (3×), 200 pts from 30–60s (2×), and 100 pts in the final 30s (1×). Highest total score wins!'
+      text: '90 seconds, rapid fire! Questions get harder as time ticks down. First 30s: ⭐ Easy questions worth 50 pts each. 30–60s: 🔥 Medium questions worth 100 pts. Final 30s: 💀 Hard questions worth 200 pts. Highest total score wins!'
     },
     bowl: {
       title: '🏆 Bible Bowl (Teams)',
