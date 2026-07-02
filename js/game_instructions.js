@@ -65,8 +65,11 @@ const GameInstructions = (function () {
     bowl: {
       title: '🏆 Bible Bowl (Teams)',
       text: 'Team vs Team trivia showdown! Players are split into Team 1 and Team 2. Everyone answers the same questions at the same time — your score adds to your team\'s total. The team with the highest combined score wins the Bible Bowl!'
+    },
+    hotseat: {
+      title: '🎯 Hot Seat Challenge',
+      text: 'One player at a time sits in the 🔥 Hot Seat and answers Bible trivia! Everyone else bets Correct or Wrong before they answer. Nail it? Earn regular points. Right bet? +150 pts! Each player takes a turn — who is the ultimate Bible scholar?'
     }
-  };
   };
 
   function render(format, containerId) {

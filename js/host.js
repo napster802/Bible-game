@@ -283,6 +283,7 @@ const HostGame = (function () {
     const isWordhunt  = gameFormat === 'wordhunt';
     const isBlitz     = gameFormat === 'blitz';
     const isBowl      = gameFormat === 'bowl';
+    const isHotseat   = gameFormat === 'hotseat';
     const noTrivia    = isImpostor || isDraw || isScrab || isWordhunt || isBlitz;
     const triviaSettings = document.getElementById('host-trivia-settings');
     const csvBox         = document.getElementById('host-csv-upload-box');
@@ -295,6 +296,7 @@ const HostGame = (function () {
     const whRows         = document.getElementById('host-wordhunt-rows');
     const blitzHint      = document.getElementById('host-blitz-hint');
     const bowlPanel      = document.getElementById('host-bowl-panel');
+    const hotseatPanel   = document.getElementById('host-hotseat-panel');
     if (triviaSettings) triviaSettings.style.display = noTrivia ? 'none' : '';
     if (csvBox)         csvBox.style.display         = noTrivia ? 'none' : '';
     if (impHint)        impHint.style.display        = isImpostor ? '' : 'none';
@@ -306,6 +308,15 @@ const HostGame = (function () {
     if (whRows)         whRows.style.display         = isWordhunt ? '' : 'none';
     if (blitzHint)      blitzHint.style.display      = isBlitz ? '' : 'none';
     if (bowlPanel)      bowlPanel.style.display      = isBowl ? '' : 'none';
+    if (hotseatPanel)   hotseatPanel.style.display   = isHotseat ? '' : 'none';
+  }
+
+  function setHsQCount(count) {
+    action('set_hs_q_count', { value: count });
+  }
+
+  function hsForceAdvance() {
+    action('hs_force_advance', {}).then(() => Multiplayer.poll());
   }
 
   function bowlAssignTeam(targetDeviceId, teamId) {
@@ -611,6 +622,8 @@ const HostGame = (function () {
     wordhuntProceed,
     bowlAssignTeam,
     bowlAutoAssign,
+    setHsQCount,
+    hsForceAdvance,
     get roomCode() { return roomCode; }
   };
 })();

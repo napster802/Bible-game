@@ -36,7 +36,7 @@ define('DB_PATH', __DIR__ . '/../data/game.db');
 // Bump whenever migrateSchema()'s $columns table gains/changes entries, so
 // existing deployments pick up the new columns exactly once instead of never
 // (see the PRAGMA user_version guard around migrateSchema() in initDB()).
-define('SCHEMA_VERSION', 5);
+define('SCHEMA_VERSION', 6);
 
 function getDB(): PDO {
     static $db = null;
@@ -234,6 +234,17 @@ function initDB(PDO $db): void {
             UNIQUE(room_code, round, word)
         );
         CREATE INDEX IF NOT EXISTS idx_wordhunt_claims_room ON wordhunt_claims(room_code, id);
+        CREATE TABLE IF NOT EXISTS hs_bets (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            room_code     TEXT NOT NULL,
+            seater_id     TEXT NOT NULL,
+            bettor_id     TEXT NOT NULL,
+            q_idx         INTEGER NOT NULL,
+            bet_correct   INTEGER NOT NULL,
+            created_at    INTEGER NOT NULL,
+            UNIQUE(room_code, bettor_id, q_idx)
+        );
+        CREATE INDEX IF NOT EXISTS idx_hs_bets_room ON hs_bets(room_code, q_idx);
     ");
     // ALTER TABLE attempts (in migrateSchema) momentarily need a stronger lock
     // than plain reads/writes, even when the column already exists and the
@@ -295,6 +306,11 @@ function migrateSchema(PDO $db): void {
             'wordhunt_pass_streak'     => "INTEGER DEFAULT 0",
             'wordhunt_turn_idx'        => "INTEGER DEFAULT 0",
             'blitz_start_time'         => "INTEGER DEFAULT 0",
+            'hs_seat_order'            => "TEXT DEFAULT '[]'",
+            'hs_seat_idx'              => "INTEGER DEFAULT 0",
+            'hs_q_count'               => "INTEGER DEFAULT 3",
+            'hs_q_start_time'          => "INTEGER DEFAULT 0",
+            'hs_time_limit'            => "INTEGER DEFAULT 25",
         ],
         'profiles' => [
             'wallet'                => "INTEGER DEFAULT 0",
@@ -361,6 +377,7 @@ function cleanStale(PDO $db): void {
     $db->prepare("DELETE FROM drawing_guess_log WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM scrab_plays WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM wordhunt_claims WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
+    $db->prepare("DELETE FROM hs_bets WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM rooms WHERE created_at < ?")->execute([$cutoff]);
 }
 
@@ -382,7 +399,7 @@ function cleanAbandonedLobbies(PDO $db): void {
     $placeholders = implode(',', array_fill(0, count($codes), '?'));
     foreach ([
         'answers', 'players', 'room_events', 'impostor_clues', 'impostor_votes',
-        'drawing_strokes', 'drawing_guesses', 'drawing_guess_log', 'scrab_plays', 'wordhunt_claims',
+        'drawing_strokes', 'drawing_guesses', 'drawing_guess_log', 'scrab_plays', 'wordhunt_claims', 'hs_bets',
     ] as $table) {
         $db->prepare("DELETE FROM $table WHERE room_code IN ($placeholders)")->execute($codes);
     }

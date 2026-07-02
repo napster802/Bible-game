@@ -18,7 +18,7 @@ $db = getDB();
 $stmt = $db->prepare("SELECT * FROM rooms WHERE code = ?");
 $stmt->execute([$code]);
 $room = $stmt->fetch();
-if (!$room || ($room['status'] !== 'playing' && $room['status'] !== 'blitz_active')) jsonOut(['success' => false, 'error' => 'Not in playing state'], 400);
+if (!$room || !in_array($room['status'], ['playing', 'blitz_active', 'hs_question'], true)) jsonOut(['success' => false, 'error' => 'Not in playing state'], 400);
 
 // Blitz has its own per-player question index flow
 if ($room['status'] === 'blitz_active') {
@@ -55,6 +55,18 @@ if ($room['status'] === 'blitz_active') {
     $db->commit();
 
     jsonOut(['success' => true, 'points' => $points, 'is_correct' => $isCorrect, 'next_q_idx' => $newBlitzIdx]);
+}
+
+if ($room['status'] === 'hs_question') {
+    // Only the current seater can answer
+    $seatOrder = json_decode($room['hs_seat_order'], true) ?: [];
+    $hsQCount  = max(1, (int)$room['hs_q_count']);
+    $curQIdx   = (int)$room['current_q_idx'];
+    if ($qIdx !== $curQIdx) jsonOut(['success' => false, 'error' => 'Wrong question index'], 400);
+    $seatIdx  = (int)floor($curQIdx / $hsQCount) % max(1, count($seatOrder));
+    $seaterId = $seatOrder[$seatIdx] ?? '';
+    if ($deviceId !== $seaterId) jsonOut(['success' => false, 'error' => 'You are not in the Hot Seat'], 403);
+    // Fall through to standard scoring below
 }
 
 if ((int)$room['current_q_idx'] !== $qIdx) jsonOut(['success' => false, 'error' => 'Wrong question index'], 400);

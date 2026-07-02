@@ -128,6 +128,40 @@ switch ($action) {
             break;
         }
 
+        if ($room['game_format'] === 'hotseat') {
+            $contestantStmt2 = $db->prepare("SELECT device_id FROM players WHERE room_code = ? AND is_host = 0 ORDER BY joined_at ASC");
+            $contestantStmt2->execute([$code]);
+            $hsContestants = $contestantStmt2->fetchAll(PDO::FETCH_COLUMN);
+            if (count($hsContestants) < 2) jsonOut(['success' => false, 'error' => 'Need at least 2 players for Hot Seat Challenge'], 400);
+            shuffle($hsContestants);
+
+            $hsQCount = max(1, (int)$room['hs_q_count']);
+            $totalHsCount = count($hsContestants) * $hsQCount;
+
+            // Same pool selection as classic
+            $hsDiff = $room['difficulty'];
+            if ($room['quiz_mode'] === 'book') {
+                if (!$room['book'] || !$room['category']) jsonOut(['success' => false, 'error' => 'Pick a book and category first'], 400);
+                $hsPoolSize = (int)$room['pool_size'];
+                if ($hsPoolSize <= 0) jsonOut(['success' => false, 'error' => 'No questions available'], 400);
+                $hsPool = range(0, $hsPoolSize - 1);
+            } else {
+                $hsPool = range(0, 49);
+            }
+            $hsExclude = array_flip(array_map('intval', $input['exclude_indices'] ?? []));
+            $hsFresh = array_values(array_filter($hsPool, fn($i) => !isset($hsExclude[$i])));
+            if (empty($hsFresh)) jsonOut(['success' => false, 'error' => 'All questions played. Clear progress or change pool.'], 400);
+            shuffle($hsFresh);
+            $hsIndices = array_slice($hsFresh, 0, min($totalHsCount, count($hsFresh)));
+            $actualHsCount = count($hsIndices);
+
+            $db->prepare("DELETE FROM answers WHERE room_code = ?")->execute([$code]);
+            $db->prepare("DELETE FROM hs_bets WHERE room_code = ?")->execute([$code]);
+            $db->prepare("UPDATE rooms SET status = 'hs_question', current_q_idx = 0, q_start_time = ?, hs_seat_order = ?, hs_seat_idx = 0, hs_q_start_time = ?, q_indices = ?, question_count = ?, time_limit = ?, updated_at = ? WHERE code = ?")
+               ->execute([$now, json_encode($hsContestants), $now, json_encode($hsIndices), $actualHsCount, 25, $now, $code]);
+            break;
+        }
+
         $diff   = $room['difficulty'];
         $count  = (int)$room['question_count'];
         // Memory boards need real time to flip/match 6 pairs, well beyond the
@@ -223,7 +257,7 @@ switch ($action) {
     case 'set_game_format':
         if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
         $value = $input['value'] ?? 'classic';
-        $format = in_array($value, ['classic', 'truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor', 'draw', 'scrab', 'wordhunt', 'blitz', 'bowl'], true) ? $value : 'classic';
+        $format = in_array($value, ['classic', 'truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor', 'draw', 'scrab', 'wordhunt', 'blitz', 'bowl', 'hotseat'], true) ? $value : 'classic';
         $db->prepare("UPDATE rooms SET game_format = ?, updated_at = ? WHERE code = ?")
            ->execute([$format, $now, $code]);
         break;
@@ -234,6 +268,31 @@ switch ($action) {
         $rounds = in_array($value, [1, 2], true) ? $value : 1;
         $db->prepare("UPDATE rooms SET draw_rounds_total = ?, updated_at = ? WHERE code = ?")
            ->execute([$rounds, $now, $code]);
+        break;
+
+    // ---- Hot Seat Challenge ----
+    case 'set_hs_q_count':
+        if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
+        $v = (int)($input['value'] ?? 3);
+        $v = in_array($v, [3, 5, 7], true) ? $v : 3;
+        $db->prepare("UPDATE rooms SET hs_q_count = ?, updated_at = ? WHERE code = ?")->execute([$v, $now, $code]);
+        break;
+
+    case 'hs_force_advance':
+        if (!in_array($room['status'], ['hs_question', 'hs_reveal'], true)) jsonOut(['success' => false, 'error' => 'Not in hot seat state'], 400);
+        if ($room['status'] === 'hs_question') {
+            $db->prepare("UPDATE rooms SET status = 'hs_reveal', updated_at = ? WHERE code = ?")->execute([$now, $code]);
+        } else {
+            // hs_reveal → advance
+            $nextQIdx = (int)$room['current_q_idx'] + 1;
+            $qIndices = json_decode($room['q_indices'], true) ?: [];
+            if ($nextQIdx >= count($qIndices)) {
+                $db->prepare("UPDATE rooms SET status = 'finished', updated_at = ? WHERE code = ?")->execute([$now, $code]);
+            } else {
+                $db->prepare("UPDATE rooms SET status = 'hs_question', current_q_idx = ?, q_start_time = ?, hs_q_start_time = ?, updated_at = ? WHERE code = ?")
+                   ->execute([$nextQIdx, $now, $now, $now, $code]);
+            }
+        }
         break;
 
     // ---- Bible Bowl (Teams) ----

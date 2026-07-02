@@ -147,6 +147,66 @@ if ($status === 'blitz_active') {
     }
 }
 
+// === AUTO-ADVANCE: Hot Seat hs_question -> hs_reveal -> hs_question/finished ===
+if ($status === 'hs_question') {
+    $hsElapsed = $now - (int)$room['hs_q_start_time'];
+    if ($hsElapsed >= ((int)$room['time_limit'] + 2) * 1000) { // time_limit + 2s grace
+        $db->prepare("UPDATE rooms SET status = 'hs_reveal', updated_at = ? WHERE code = ? AND status = 'hs_question'")
+           ->execute([$now, $code]);
+        $status = 'hs_reveal';
+    }
+}
+if ($status === 'hs_reveal') {
+    $hsRevealStart = (int)$room['updated_at'];
+    if ($now - $hsRevealStart >= 4000) { // 4s reveal
+        $nextQIdx = (int)$room['current_q_idx'] + 1;
+        $qIndices = json_decode($room['q_indices'], true) ?: [];
+        if ($nextQIdx >= count($qIndices)) {
+            // Award bettors before finishing
+            hsAwardBettors($db, $code, $room);
+            $db->prepare("UPDATE rooms SET status = 'finished', updated_at = ? WHERE code = ? AND status = 'hs_reveal'")
+               ->execute([$now, $code]);
+            $status = 'finished';
+        } else {
+            // Award bettors for current question before advancing
+            hsAwardBettors($db, $code, $room);
+            $db->prepare("UPDATE rooms SET status = 'hs_question', current_q_idx = ?, q_start_time = ?, hs_q_start_time = ?, updated_at = ? WHERE code = ? AND status = 'hs_reveal'")
+               ->execute([$nextQIdx, $now, $now, $now, $code]);
+            $status = 'hs_question';
+        }
+    }
+}
+
+function hsAwardBettors(PDO $db, string $code, array $room): void {
+    $curQIdx = (int)$room['current_q_idx'];
+    // Get seater's answer
+    $ansStmt = $db->prepare("SELECT is_correct FROM answers WHERE room_code = ? AND q_idx = ? LIMIT 1");
+    $ansStmt->execute([$code, $curQIdx]);
+    $ansRow = $ansStmt->fetch();
+    if (!$ansRow) return; // Seater didn't answer — no bets awarded
+    $seaterCorrect = (bool)$ansRow['is_correct'];
+
+    // Get all bets for this question
+    $betStmt = $db->prepare("SELECT bettor_id, bet_correct FROM hs_bets WHERE room_code = ? AND q_idx = ?");
+    $betStmt->execute([$code, $curQIdx]);
+    $bets = $betStmt->fetchAll();
+    $alreadyAwarded = $db->prepare("SELECT 1 FROM hs_bets WHERE room_code = ? AND q_idx = ? AND bet_correct = -1 LIMIT 1");
+    $alreadyAwarded->execute([$code, $curQIdx]);
+    if ($alreadyAwarded->fetchColumn()) return; // Already awarded
+
+    foreach ($bets as $bet) {
+        $wonBet = (bool)$bet['bet_correct'] === $seaterCorrect;
+        if ($wonBet) {
+            $db->prepare("UPDATE players SET score = score + 150, correct_count = correct_count + 1 WHERE room_code = ? AND device_id = ?")
+               ->execute([$code, $bet['bettor_id']]);
+        }
+    }
+    // Mark awarded by setting a sentinel row
+    $now2 = (int)(microtime(true) * 1000);
+    $db->prepare("INSERT OR IGNORE INTO hs_bets (room_code, seater_id, bettor_id, q_idx, bet_correct, created_at) VALUES (?, '__awarded__', '__sentinel__', ?, -1, ?)")
+       ->execute([$code, $curQIdx, $now2]);
+}
+
 // Re-fetch fresh room row after any updates
 $stmt2 = $db->prepare("SELECT * FROM rooms WHERE code = ?");
 $stmt2->execute([$code]);
@@ -206,7 +266,7 @@ if ($currentQIdx >= 0 && !empty($qIndices)) {
         'difficulty' => $room['difficulty']
     ];
 
-    if (in_array($status, ['answer_reveal', 'leaderboard', 'finished'], true)) {
+    if (in_array($status, ['answer_reveal', 'leaderboard', 'finished', 'hs_reveal'], true)) {
         $countCorrectStmt = $db->prepare("SELECT COUNT(*) FROM answers WHERE room_code = ? AND q_idx = ? AND is_correct = 1");
         $countCorrectStmt->execute([$code, $currentQIdx]);
 
@@ -247,7 +307,7 @@ $answeredNowStmt = $db->prepare("SELECT COUNT(*) FROM answers WHERE room_code = 
 $answeredNowStmt->execute([$code, $currentQIdx]);
 $answeredCount = (int)$answeredNowStmt->fetchColumn();
 
-$revealedNow = in_array($status, ['answer_reveal', 'leaderboard', 'finished'], true);
+$revealedNow = in_array($status, ['answer_reveal', 'leaderboard', 'finished', 'hs_reveal'], true);
 $impRound = (int)$room['impostor_round'];
 
 $playersOut = [];
@@ -320,7 +380,56 @@ if ($room['game_format'] === 'bowl') {
 $impostorAliveCount = 0;
 foreach ($playersOut as $p) { if (!$p['is_host'] && !$p['eliminated']) $impostorAliveCount++; }
 
-$timeElapsedMs = $status === 'playing' ? max(0, $now - (int)$room['q_start_time']) : 0;
+$timeElapsedMs = in_array($status, ['playing', 'hs_question'], true) ? max(0, $now - (int)$room['q_start_time']) : 0;
+
+// === HOT SEAT CHALLENGE: seater info, bet counts, reveal data ===
+$hsSeater = null;
+$amISeater = false;
+$myHsBet = null;
+$hsBetCount = 0;
+$hsRevealData = null;
+$hsElapsedMs = null;
+$hsQPerSeater = (int)($room['hs_q_count'] ?? 3);
+if (in_array($status, ['hs_question', 'hs_reveal', 'finished'], true) && $room['game_format'] === 'hotseat') {
+    $seatOrder = json_decode($room['hs_seat_order'] ?? '[]', true) ?: [];
+    $curQIdx   = (int)$room['current_q_idx'];
+    $seatIdx   = max(0, count($seatOrder) > 0 ? (int)floor($curQIdx / max(1, $hsQPerSeater)) % count($seatOrder) : 0);
+    $seaterId  = $seatOrder[$seatIdx] ?? '';
+    $amISeater = $seaterId === $deviceId;
+    $hsElapsedMs = max(0, $now - (int)$room['hs_q_start_time']);
+
+    foreach ($playersOut as $p) {
+        if ($p['device_id'] === $seaterId) { $hsSeater = ['device_id' => $p['device_id'], 'name' => $p['name'], 'avatar' => $p['avatar']]; break; }
+    }
+
+    // My bet for current question
+    $myBetStmt = $db->prepare("SELECT bet_correct FROM hs_bets WHERE room_code = ? AND bettor_id = ? AND q_idx = ? AND bet_correct >= 0");
+    $myBetStmt->execute([$code, $deviceId, $curQIdx]);
+    $myBetRow = $myBetStmt->fetch();
+    $myHsBet = $myBetRow !== false ? (bool)$myBetRow['bet_correct'] : null;
+
+    // Total bet count (excluding sentinel)
+    $betCntStmt = $db->prepare("SELECT COUNT(*) FROM hs_bets WHERE room_code = ? AND q_idx = ? AND bet_correct >= 0");
+    $betCntStmt->execute([$code, $curQIdx]);
+    $hsBetCount = (int)$betCntStmt->fetchColumn();
+
+    if ($status === 'hs_reveal') {
+        // Get seater's answer
+        $ansRevStmt = $db->prepare("SELECT choice_idx, is_correct FROM answers WHERE room_code = ? AND q_idx = ? LIMIT 1");
+        $ansRevStmt->execute([$code, $curQIdx]);
+        $ansRev = $ansRevStmt->fetch();
+        // Get all bets + outcomes
+        $betsRevStmt = $db->prepare("SELECT b.bettor_id, b.bet_correct, p.name FROM hs_bets b JOIN players p ON p.room_code=b.room_code AND p.device_id=b.bettor_id WHERE b.room_code=? AND b.q_idx=? AND b.bet_correct>=0");
+        $betsRevStmt->execute([$code, $curQIdx]);
+        $betsRev = $betsRevStmt->fetchAll();
+        $seaterAnsweredCorrect = $ansRev ? (bool)$ansRev['is_correct'] : null;
+        $hsRevealData = [
+            'seater_correct' => $seaterAnsweredCorrect,
+            'seater_choice_idx' => $ansRev ? (int)$ansRev['choice_idx'] : null,
+            'bets' => array_map(fn($b) => ['name' => $b['name'], 'bet_correct' => (bool)$b['bet_correct'], 'won' => $seaterAnsweredCorrect !== null && (bool)$b['bet_correct'] === $seaterAnsweredCorrect], $betsRev)
+        ];
+    }
+}
 
 // === WORD IMPOSTOR: per-device role + reveal-gated clues/votes ===
 $amIImpostor = false;
@@ -917,6 +1026,13 @@ jsonOut([
     'my_blitz_q_idx'    => $myPlayer ? (int)($myPlayer['blitz_q_idx'] ?? 0) : 0,
     'bowl_teams'        => $bowlTeams,
     'my_team_id'        => $myTeamId,
+    'hs_seater'         => $hsSeater,
+    'am_i_seater'       => $amISeater,
+    'my_hs_bet'         => $myHsBet,
+    'hs_bet_count'      => $hsBetCount,
+    'hs_reveal_data'    => $hsRevealData,
+    'hs_elapsed_ms'     => $hsElapsedMs,
+    'hs_q_per_seater'   => $hsQPerSeater,
     'events'            => $eventsOut,
     'server_time'       => $now
 ]);

@@ -155,6 +155,7 @@
               <option value="wordhunt">🔍 Bible Word Hunt</option>
               <option value="blitz">⚡ Bible Blitz</option>
               <option value="bowl">🏆 Bible Bowl (Teams)</option>
+              <option value="hotseat">🎯 Hot Seat Challenge</option>
             </select>
           </div>
           <div class="instructions-box" id="host-instructions-box"></div>
@@ -242,6 +243,17 @@
             </div>
           </div>
           <p class="hint-text" id="host-blitz-hint" style="display:none;">⚡ 90-second rapid fire! Answer as many True/False Bible questions as possible — your own pace, your own questions, 3× bonus in the first 30 seconds!</p>
+          <div id="host-hotseat-panel" style="display:none;">
+            <p class="hint-text">🎯 Hot Seat — 2+ players. Each player takes a turn answering while everyone else bets Correct or Wrong! Bettors earn 150 pts for a right bet.</p>
+            <div class="setting-row">
+              <span>Questions per Seater</span>
+              <select class="select-input" onchange="HostGame.setHsQCount(+this.value)">
+                <option value="3" selected>3 Questions</option>
+                <option value="5">5 Questions</option>
+                <option value="7">7 Questions</option>
+              </select>
+            </div>
+          </div>
           <div id="host-bowl-panel" style="display:none;">
             <p class="hint-text">🏆 Bible Bowl — needs at least 2 players. Assign players to teams, then compete on the same questions at the same time. Highest team score wins!</p>
             <div class="bowl-team-header">
@@ -885,6 +897,57 @@
           <button class="btn btn-blitz-false" onclick="Multiplayer.blitzAnswer(false)">✗ FALSE</button>
         </div>
         <div class="blitz-counter" id="blitz-counter">0 answered</div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: HOT SEAT QUESTION ==================== -->
+    <div class="screen" id="screen-hs-question">
+      <div class="screen-header">
+        <div class="hs-header-info">
+          <div class="hs-fire-badge" id="hs-seater-badge">🔥 <span id="hs-seater-name">Player</span> is in the Hot Seat!</div>
+          <div class="hs-q-progress" id="hs-q-progress">Q 1 of 3</div>
+        </div>
+      </div>
+      <div class="screen-body">
+        <div class="hs-timer-bar"><div class="hs-timer-fill" id="hs-timer-fill"></div></div>
+        <div class="hs-question-card" id="hs-question-card">Loading question…</div>
+
+        <!-- Seater view: 4 answer choices -->
+        <div id="hs-seater-choices" style="display:none;">
+          <p class="hint-text" style="text-align:center;margin-bottom:0.5rem;">You're in the Hot Seat! Answer this question:</p>
+          <div class="choices-grid" id="hs-choices-grid">
+            <button class="choice choice-a" id="hsc0"></button>
+            <button class="choice choice-b" id="hsc1"></button>
+            <button class="choice choice-c" id="hsc2"></button>
+            <button class="choice choice-d" id="hsc3"></button>
+          </div>
+          <p class="hint-text" id="hs-seater-answered" style="display:none;text-align:center;margin-top:0.5rem;">✓ Answer locked in! Waiting for reveal…</p>
+        </div>
+
+        <!-- Bettor view: Correct or Wrong bet -->
+        <div id="hs-bettor-view" style="display:none;">
+          <p class="hs-bet-prompt" id="hs-bet-prompt">Will <span id="hs-bet-seater-name">Player</span> get it right?</p>
+          <div class="hs-bet-buttons" id="hs-bet-buttons">
+            <button class="btn-hs-bet bet-correct" onclick="Multiplayer.submitHsBet(true)">✓ CORRECT</button>
+            <button class="btn-hs-bet bet-wrong" onclick="Multiplayer.submitHsBet(false)">✗ WRONG</button>
+          </div>
+          <div class="hs-bet-placed" id="hs-bet-placed" style="display:none;"></div>
+          <p class="hs-bet-count" id="hs-bet-count">0 bets placed</p>
+        </div>
+
+        <div class="admin-bar" id="hs-host-bar" style="display:none;">
+          <button class="admin-btn" onclick="HostGame.hsForceAdvance()" title="Force Advance">⏭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: HOT SEAT REVEAL ==================== -->
+    <div class="screen" id="screen-hs-reveal">
+      <div class="screen-body" style="padding-top:1rem;">
+        <div class="hs-fire-badge" id="hs-rev-seater-badge">🔥 <span id="hs-rev-seater-name">Player</span></div>
+        <div class="hs-reveal-verdict" id="hs-reveal-verdict"></div>
+        <div class="hs-bet-results" id="hs-bet-results"></div>
+        <p class="hint-text" style="text-align:center;margin-top:1rem;">Next question in <span id="hs-rev-countdown">4</span>s…</p>
       </div>
     </div>
 

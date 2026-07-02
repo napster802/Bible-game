@@ -180,6 +180,7 @@ const Multiplayer = (function () {
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     if (localTickTimer) { clearInterval(localTickTimer); localTickTimer = null; }
     if (blitzTicker) { clearInterval(blitzTicker); blitzTicker = null; }
+    if (hsTicker) { clearInterval(hsTicker); hsTicker = null; }
     const fab = document.getElementById('social-fab');
     if (fab) fab.style.display = 'none';
     const panel = document.getElementById('social-panel');
@@ -219,6 +220,7 @@ const Multiplayer = (function () {
   }
 
   function handleState(data) {
+    currentData = data;
     if (!data || !data.success) {
       giveUpOrRetry(data && data.error ? data.error : 'Room error');
       return;
@@ -322,6 +324,16 @@ const Multiplayer = (function () {
         enterBlitz(data);
       } else {
         updateBlitz(data);
+      }
+    } else if (status === 'hs_question') {
+      if (lastStatus !== 'hs_question') {
+        enterHsQuestion(data);
+      } else {
+        updateHsQuestion(data);
+      }
+    } else if (status === 'hs_reveal') {
+      if (lastStatus !== 'hs_reveal') {
+        enterHsReveal(data);
       }
     } else if (status === 'finished') {
       if (lastStatus !== 'finished') {
@@ -716,6 +728,177 @@ const Multiplayer = (function () {
     [trueBtn, falseBtn].forEach(b => { if (b) b.classList.remove('correct', 'wrong'); });
     if (trueBtn) { trueBtn.disabled = false; trueBtn.onclick = () => submitTrueFalse(true, tf, question); }
     if (falseBtn) { falseBtn.disabled = false; falseBtn.onclick = () => submitTrueFalse(false, tf, question); }
+  }
+
+  // ---------------- HOT SEAT CHALLENGE ----------------
+  let hsTicker = null;
+  let hsAnsweredThisQ = false;
+  let hsBetPlaced = false;
+
+  function enterHsQuestion(data) {
+    hsAnsweredThisQ = false;
+    hsBetPlaced = false;
+    App.goTo('hs-question');
+    renderHsQuestion(data);
+    if (hsTicker) clearInterval(hsTicker);
+    hsTicker = setInterval(() => updateHsTimerBar(data), 100);
+  }
+
+  function renderHsQuestion(data) {
+    const seater = data.hs_seater || {};
+    const amISeater = !!data.am_i_seater;
+    const q = data.current_question ? lookupQuestion(data.current_question) : null;
+    const qIdx = data.current_question ? data.current_question.q_idx : 0;
+    const qPerSeater = data.hs_q_per_seater || 3;
+    const totalSeaters = data.players ? data.players.filter(p => !p.is_host).length : 1;
+    const seaterNum = Math.floor(qIdx / qPerSeater) + 1;
+    const qInSeat = (qIdx % qPerSeater) + 1;
+
+    const seaterName = seater.name || 'Player';
+    const seaterBadge = document.getElementById('hs-seater-badge');
+    const seaterNameEl = document.getElementById('hs-seater-name');
+    if (seaterNameEl) seaterNameEl.textContent = seaterName;
+    if (seaterBadge) seaterBadge.title = `${seaterName} is in the Hot Seat`;
+
+    const progEl = document.getElementById('hs-q-progress');
+    if (progEl) progEl.textContent = `Q ${qInSeat} of ${qPerSeater} • Seater ${seaterNum}/${totalSeaters}`;
+
+    const questionCard = document.getElementById('hs-question-card');
+    if (questionCard && q) questionCard.textContent = q.question;
+
+    const seaterView = document.getElementById('hs-seater-choices');
+    const bettorView = document.getElementById('hs-bettor-view');
+    const hostBar = document.getElementById('hs-host-bar');
+
+    if (isHost) {
+      if (seaterView) seaterView.style.display = 'none';
+      if (bettorView) bettorView.style.display = 'none';
+      if (hostBar) hostBar.style.display = '';
+      return;
+    }
+
+    if (amISeater) {
+      if (seaterView) seaterView.style.display = '';
+      if (bettorView) bettorView.style.display = 'none';
+      if (q) {
+        for (let i = 0; i < 4; i++) {
+          const btn = document.getElementById(`hsc${i}`);
+          if (btn) {
+            btn.textContent = q.choices[i];
+            btn.className = `choice choice-${'abcd'[i]}`;
+            btn.disabled = hsAnsweredThisQ;
+            btn.onclick = hsAnsweredThisQ ? null : () => submitHsSeat(i, q, qIdx);
+          }
+        }
+      }
+      const seaterAnsweredEl = document.getElementById('hs-seater-answered');
+      if (seaterAnsweredEl) seaterAnsweredEl.style.display = hsAnsweredThisQ ? '' : 'none';
+    } else {
+      if (seaterView) seaterView.style.display = 'none';
+      if (bettorView) bettorView.style.display = '';
+      const betSeaterName = document.getElementById('hs-bet-seater-name');
+      if (betSeaterName) betSeaterName.textContent = seaterName;
+      const betButtons = document.getElementById('hs-bet-buttons');
+      const betPlaced = document.getElementById('hs-bet-placed');
+      const betCount = document.getElementById('hs-bet-count');
+      const myBet = data.my_hs_bet;
+      hsBetPlaced = myBet !== null && myBet !== undefined;
+      if (betButtons) betButtons.style.display = hsBetPlaced ? 'none' : '';
+      if (betPlaced) {
+        betPlaced.style.display = hsBetPlaced ? '' : 'none';
+        betPlaced.textContent = hsBetPlaced
+          ? `You bet: ${myBet ? '✓ Correct' : '✗ Wrong'}`
+          : '';
+      }
+      if (betCount) betCount.textContent = `${data.hs_bet_count || 0} bet${(data.hs_bet_count || 0) !== 1 ? 's' : ''} placed`;
+    }
+  }
+
+  function updateHsQuestion(data) {
+    const betCount = document.getElementById('hs-bet-count');
+    if (betCount) betCount.textContent = `${data.hs_bet_count || 0} bet${(data.hs_bet_count || 0) !== 1 ? 's' : ''} placed`;
+    updateHsTimerBar(data);
+  }
+
+  function updateHsTimerBar(data) {
+    const fill = document.getElementById('hs-timer-fill');
+    if (!fill || !data || !data.hs_elapsed_ms) return;
+    const timeLimit = (data.room.time_limit || 25) * 1000;
+    const pct = Math.max(0, Math.min(100, 100 - (data.hs_elapsed_ms / timeLimit * 100)));
+    fill.style.width = pct + '%';
+  }
+
+  function submitHsSeat(choiceIdx, q, qIdx) {
+    if (hsAnsweredThisQ) return;
+    hsAnsweredThisQ = true;
+    const elapsedMs = (Date.now() - (window._hsQStartClient || Date.now()));
+    const timeTaken = Math.min(25, elapsedMs / 1000);
+    const correctIdx = q.choices.indexOf(q.answer);
+    const isCorrect = choiceIdx === correctIdx;
+    for (let i = 0; i < 4; i++) {
+      const btn = document.getElementById(`hsc${i}`);
+      if (!btn) continue;
+      btn.disabled = true;
+      if (i === correctIdx) btn.classList.add('correct');
+      else if (i === choiceIdx) btn.classList.add(isCorrect ? 'correct' : 'wrong');
+    }
+    const seaterAnsweredEl = document.getElementById('hs-seater-answered');
+    if (seaterAnsweredEl) seaterAnsweredEl.style.display = '';
+    fetch('api/submit_answer.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ room_code: roomCode, device_id: deviceId, q_idx: qIdx, choice_idx: choiceIdx, is_correct: isCorrect, time_taken: timeTaken })
+    }).catch(() => {});
+  }
+
+  function submitHsBet(betCorrect) {
+    if (hsBetPlaced) return;
+    hsBetPlaced = true;
+    const qIdx = currentData && currentData.current_question ? currentData.current_question.q_idx : 0;
+    const betButtons = document.getElementById('hs-bet-buttons');
+    const betPlaced = document.getElementById('hs-bet-placed');
+    if (betButtons) betButtons.style.display = 'none';
+    if (betPlaced) { betPlaced.style.display = ''; betPlaced.textContent = `You bet: ${betCorrect ? '✓ Correct' : '✗ Wrong'}`; }
+    fetch('api/hs_bet.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ room_code: roomCode, device_id: deviceId, q_idx: qIdx, bet_correct: betCorrect })
+    }).catch(() => {});
+  }
+
+  function enterHsReveal(data) {
+    if (hsTicker) { clearInterval(hsTicker); hsTicker = null; }
+    App.goTo('hs-reveal');
+    const seater = data.hs_seater || {};
+    const revEl = document.getElementById('hs-rev-seater-name');
+    if (revEl) revEl.textContent = seater.name || 'Player';
+
+    const reveal = data.hs_reveal_data;
+    const verdictEl = document.getElementById('hs-reveal-verdict');
+    if (verdictEl && reveal) {
+      const correct = reveal.seater_correct;
+      verdictEl.textContent = correct === null ? '⏱ Time\'s up!' : correct ? '✓ Correct!' : '✗ Wrong!';
+      verdictEl.className = 'hs-reveal-verdict ' + (correct ? 'correct' : 'wrong');
+    }
+
+    const resultsEl = document.getElementById('hs-bet-results');
+    if (resultsEl && reveal && reveal.bets && reveal.bets.length) {
+      const won = reveal.bets.filter(b => b.won);
+      const lost = reveal.bets.filter(b => !b.won);
+      resultsEl.innerHTML =
+        (won.length ? `<div class="hs-bet-won">+150 pts: ${won.map(b => escapeHtml(b.name)).join(', ')}</div>` : '') +
+        (lost.length ? `<div class="hs-bet-lost">No pts: ${lost.map(b => escapeHtml(b.name)).join(', ')}</div>` : '');
+    } else if (resultsEl) {
+      resultsEl.innerHTML = '<p class="hint-text" style="text-align:center;">No bets were placed</p>';
+    }
+
+    let countdown = 4;
+    const cntEl = document.getElementById('hs-rev-countdown');
+    const revTimer = setInterval(() => {
+      countdown--;
+      if (cntEl) cntEl.textContent = countdown;
+      if (countdown <= 0) clearInterval(revTimer);
+    }, 1000);
   }
 
   // ---------------- BIBLE BLITZ ----------------
@@ -2591,6 +2774,8 @@ const Multiplayer = (function () {
         document.getElementById('results-sub').textContent = `🕎 Bible Scrabble • ${rounds} Turn${rounds !== 1 ? 's' : ''} • Multiplayer`;
       } else if (currentGameFormat === 'bowl') {
         document.getElementById('results-sub').textContent = `🏆 Bible Bowl (Teams) • ${data.room.question_count} Questions • Multiplayer`;
+      } else if (currentGameFormat === 'hotseat') {
+        document.getElementById('results-sub').textContent = `🎯 Hot Seat Challenge • ${data.room.question_count} Questions • Multiplayer`;
       } else {
         const bookLabel = currentBook === 'ALL'
           ? (currentTestament === 'ot' ? 'Old Testament' : currentTestament === 'nt' ? 'New Testament' : 'All Books')
@@ -3541,6 +3726,7 @@ const Multiplayer = (function () {
     sendReaction,
     sendChat,
     blitzAnswer,
+    submitHsBet,
     setRoomCode(code) { roomCode = code; },
     get roomCode() { return roomCode; },
     get deviceId() { return deviceId; },
