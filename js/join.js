@@ -21,7 +21,10 @@ const JoinGame = (function () {
     impostor:    { icon: '🕵️', label: 'Word Impostor' },
     draw:        { icon: '🎨', label: 'Sketch & Guess' },
     scrab:       { icon: '🕎', label: 'Bible Scrabble' },
-    wordhunt:    { icon: '🔍', label: 'Bible Word Hunt' }
+    wordhunt:    { icon: '🔍', label: 'Bible Word Hunt' },
+    blitz:       { icon: '⚡', label: 'Bible Blitz' },
+    bowl:        { icon: '🏆', label: 'Bible Bowl (Teams)' },
+    hotseat:     { icon: '🎯', label: 'Hot Seat Challenge' }
   };
 
   let roomListTimer = null;

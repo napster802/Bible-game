@@ -3657,6 +3657,8 @@ label,
 .blitz-answer-flash.correct { background: rgba(46,139,87,0.3); color: #2e8b57; }
 .blitz-answer-flash.wrong { background: rgba(192,57,43,0.3); color: #e74c3c; }
 .blitz-counter { text-align: center; color: var(--text2); font-size: 0.8rem; margin-top: 0.5rem; }
+.blitz-q-text { font-size: 0.95rem; color: var(--text2); margin: 0 0 0.35rem; }
+.blitz-proposed { font-size: 1.05rem; font-weight: 600; margin: 0; color: var(--gold); }
 .blitz-score-badge {
   font-size: 0.9rem; font-weight: 700; color: var(--gold);
   text-align: right;

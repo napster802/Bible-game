@@ -962,7 +962,10 @@ const Multiplayer = (function () {
     blitzCorrectAnswer = useCorrect;
 
     const card = document.getElementById('blitz-question-card');
-    if (card) card.textContent = `Proposed answer: ${statement}`;
+    if (card) {
+      const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      card.innerHTML = `<p class="blitz-q-text">${esc(qObj.question)}</p><p class="blitz-proposed">Proposed answer: <strong>${esc(statement)}</strong></p>`;
+    }
 
     const counter = document.getElementById('blitz-counter');
     if (counter) counter.textContent = `${blitzAnswered} answered`;
