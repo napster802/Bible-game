@@ -267,7 +267,7 @@ const HostGame = (function () {
   }
 
   function setGameFormat(format) {
-    gameFormat = ['truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor', 'draw', 'scrab', 'wordhunt'].includes(format) ? format : 'classic';
+    gameFormat = ['truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor', 'draw', 'scrab', 'wordhunt', 'blitz'].includes(format) ? format : 'classic';
     if (typeof GameInstructions !== 'undefined') GameInstructions.render(gameFormat, 'host-instructions-box');
     toggleLobbySettingsForFormat();
     action('set_game_format', { value: gameFormat });
@@ -281,7 +281,8 @@ const HostGame = (function () {
     const isDraw      = gameFormat === 'draw';
     const isScrab     = gameFormat === 'scrab';
     const isWordhunt  = gameFormat === 'wordhunt';
-    const noTrivia    = isImpostor || isDraw || isScrab || isWordhunt;
+    const isBlitz     = gameFormat === 'blitz';
+    const noTrivia    = isImpostor || isDraw || isScrab || isWordhunt || isBlitz;
     const triviaSettings = document.getElementById('host-trivia-settings');
     const csvBox         = document.getElementById('host-csv-upload-box');
     const impHint        = document.getElementById('host-impostor-hint');
@@ -291,6 +292,7 @@ const HostGame = (function () {
     const scrabTimeRow   = document.getElementById('host-scrab-time-row');
     const whHint         = document.getElementById('host-wordhunt-hint');
     const whRows         = document.getElementById('host-wordhunt-rows');
+    const blitzHint      = document.getElementById('host-blitz-hint');
     if (triviaSettings) triviaSettings.style.display = noTrivia ? 'none' : '';
     if (csvBox)         csvBox.style.display         = noTrivia ? 'none' : '';
     if (impHint)        impHint.style.display        = isImpostor ? '' : 'none';
@@ -300,6 +302,7 @@ const HostGame = (function () {
     if (scrabTimeRow)   scrabTimeRow.style.display   = isScrab ? '' : 'none';
     if (whHint)         whHint.style.display         = isWordhunt ? '' : 'none';
     if (whRows)         whRows.style.display         = isWordhunt ? '' : 'none';
+    if (blitzHint)      blitzHint.style.display      = isBlitz ? '' : 'none';
   }
 
   function setScrabTimeLimit(seconds) {

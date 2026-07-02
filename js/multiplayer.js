@@ -87,6 +87,15 @@ const Multiplayer = (function () {
   let memoryBoardCards = [];
   let memoryLocked = false;
 
+  // Bible Blitz state
+  let blitzQIdx = 0;
+  let blitzAnswered = 0;
+  let blitzScore = 0;
+  let blitzTicker = null;
+  let blitzAnswering = false;
+  let blitzStartTime = 0;
+  let blitzCorrectAnswer = false;
+
   const POWERUP_COSTS = { fifty: 800, double: 1500, freeze: 1000, steal: 2000 };
   const POWERUP_LABELS = { fifty: '50/50', double: '2x Points', freeze: 'Freeze', steal: 'Steal' };
 
@@ -147,6 +156,12 @@ const Multiplayer = (function () {
     lastEventId = 0;
     lastData = null;
     consecutiveFailures = 0;
+    blitzQIdx = 0;
+    blitzAnswered = 0;
+    blitzScore = 0;
+    blitzAnswering = false;
+    blitzStartTime = 0;
+    if (blitzTicker) { clearInterval(blitzTicker); blitzTicker = null; }
     stop();
     const fab = document.getElementById('social-fab');
     if (fab) fab.style.display = 'flex';
@@ -164,6 +179,7 @@ const Multiplayer = (function () {
   function stop() {
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     if (localTickTimer) { clearInterval(localTickTimer); localTickTimer = null; }
+    if (blitzTicker) { clearInterval(blitzTicker); blitzTicker = null; }
     const fab = document.getElementById('social-fab');
     if (fab) fab.style.display = 'none';
     const panel = document.getElementById('social-panel');
@@ -300,6 +316,12 @@ const Multiplayer = (function () {
         // Defensive: first poll may have been on the timer boundary before PHP computed unclaimed
         wordhuntUnclaimed = data.wordhunt_unclaimed;
         highlightUnclaimedCells();
+      }
+    } else if (status === 'blitz_active') {
+      if (lastStatus !== 'blitz_active') {
+        enterBlitz(data);
+      } else {
+        updateBlitz(data);
       }
     } else if (status === 'finished') {
       if (lastStatus !== 'finished') {
@@ -655,6 +677,136 @@ const Multiplayer = (function () {
     [trueBtn, falseBtn].forEach(b => { if (b) b.classList.remove('correct', 'wrong'); });
     if (trueBtn) { trueBtn.disabled = false; trueBtn.onclick = () => submitTrueFalse(true, tf, question); }
     if (falseBtn) { falseBtn.disabled = false; falseBtn.onclick = () => submitTrueFalse(false, tf, question); }
+  }
+
+  // ---------------- BIBLE BLITZ ----------------
+  function enterBlitz(data) {
+    blitzStartTime = data.room.blitz_start_time || (Date.now() - (data.blitz_elapsed_ms || 0));
+    blitzQIdx = data.my_blitz_q_idx || 0;
+    blitzAnswered = 0;
+    blitzScore = 0;
+    blitzAnswering = false;
+    App.goTo('blitz-active');
+
+    if (blitzTicker) clearInterval(blitzTicker);
+    blitzTicker = setInterval(() => {
+      const elapsed = Date.now() - blitzStartTime;
+      const remaining = Math.max(0, 90000 - elapsed);
+      const secs = Math.ceil(remaining / 1000);
+      const mins = Math.floor(secs / 60);
+      const s = secs % 60;
+
+      const timerText = document.getElementById('blitz-timer-text');
+      if (timerText) timerText.textContent = `${mins}:${String(s).padStart(2, '0')}`;
+
+      const fill = document.getElementById('blitz-timer-fill');
+      if (fill) fill.style.width = `${(remaining / 90000) * 100}%`;
+
+      const multBadge = document.getElementById('blitz-multiplier-badge');
+      if (multBadge) {
+        if (elapsed < 30000) {
+          multBadge.textContent = '3×';
+          multBadge.className = 'blitz-multiplier-badge';
+        } else if (elapsed < 60000) {
+          multBadge.textContent = '2×';
+          multBadge.className = 'blitz-multiplier-badge x2';
+        } else {
+          multBadge.textContent = '1×';
+          multBadge.className = 'blitz-multiplier-badge x1';
+        }
+      }
+    }, 100);
+
+    renderBlitzQuestion();
+  }
+
+  function renderBlitzQuestion() {
+    // Use same QUESTION_DB approach as truefalse but with blitz-specific seed
+    const seed = `${roomCode}-blitz-${blitzQIdx}`;
+    const hash1 = seededHash(seed);
+    const difficulty = currentDifficulty || 'medium';
+    const pool = (typeof QUESTION_DB !== 'undefined' && QUESTION_DB[difficulty]) ? QUESTION_DB[difficulty] : [];
+    if (!pool.length) return;
+
+    const qObj = pool[hash1 % pool.length];
+    const useCorrect = seededHash(seed + '-tf') % 2 === 0;
+    let statement;
+    if (useCorrect) {
+      statement = qObj.answer;
+    } else {
+      const wrongChoices = qObj.choices.filter(c => c !== qObj.answer);
+      statement = wrongChoices[seededHash(seed + '-w') % wrongChoices.length];
+    }
+    blitzCorrectAnswer = useCorrect;
+
+    const card = document.getElementById('blitz-question-card');
+    if (card) card.textContent = `Proposed answer: ${statement}`;
+
+    const counter = document.getElementById('blitz-counter');
+    if (counter) counter.textContent = `${blitzAnswered} answered`;
+
+    // Hide flash, show choices
+    const flash = document.getElementById('blitz-answer-flash');
+    if (flash) flash.style.display = 'none';
+    const choices = document.getElementById('blitz-choices');
+    if (choices) choices.style.display = 'flex';
+  }
+
+  function blitzAnswer(playerSaidTrue) {
+    if (blitzAnswering) return;
+    blitzAnswering = true;
+
+    const elapsed = Date.now() - blitzStartTime;
+    if (elapsed >= 90000) { blitzAnswering = false; return; }
+
+    const isCorrect = (playerSaidTrue === blitzCorrectAnswer);
+
+    let multiplier = 1;
+    if (elapsed < 30000) multiplier = 3;
+    else if (elapsed < 60000) multiplier = 2;
+    const pts = isCorrect ? 100 * multiplier : 0;
+    if (isCorrect) blitzScore += pts;
+
+    const scoreBadge = document.getElementById('blitz-score-badge');
+    if (scoreBadge) scoreBadge.textContent = `${blitzScore} pts`;
+
+    // Show flash
+    const choices = document.getElementById('blitz-choices');
+    if (choices) choices.style.display = 'none';
+    const flash = document.getElementById('blitz-answer-flash');
+    if (flash) {
+      flash.style.display = '';
+      flash.className = 'blitz-answer-flash ' + (isCorrect ? 'correct' : 'wrong');
+      flash.textContent = isCorrect ? `✓ CORRECT! +${pts}` : '✗ WRONG';
+    }
+
+    // Fire-and-forget submit
+    const qIdxAtSubmit = blitzQIdx;
+    api('submit_answer.php', {
+      room_code: roomCode,
+      device_id: deviceId,
+      is_correct: isCorrect,
+      choice_idx: playerSaidTrue ? 1 : 0,
+      time_taken: elapsed / 1000,
+      q_idx: qIdxAtSubmit
+    }).catch(() => {});
+
+    blitzAnswered++;
+    blitzQIdx++;
+
+    setTimeout(() => {
+      blitzAnswering = false;
+      renderBlitzQuestion();
+    }, 400);
+  }
+
+  function updateBlitz(data) {
+    // Update live score from server data if we have it
+    const myPlayer = data.players ? data.players.find(p => p.device_id === deviceId) : null;
+    if (myPlayer) {
+      const scoreBadge = document.getElementById('blitz-score-badge');
+      if (scoreBadge) scoreBadge.textContent = `${myPlayer.score} pts`;
+    }
   }
 
   // ---------------- WORD SCRAMBLE ----------------
@@ -3322,6 +3474,7 @@ const Multiplayer = (function () {
     toggleSocialPanel,
     sendReaction,
     sendChat,
+    blitzAnswer,
     setRoomCode(code) { roomCode = code; },
     get roomCode() { return roomCode; },
     get deviceId() { return deviceId; },

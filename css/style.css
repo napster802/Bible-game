@@ -3625,6 +3625,52 @@ label,
   flex-wrap: wrap;
 }
 
+/* ── Bible Blitz ──────────────────────────────────────────── */
+.blitz-timer-bar {
+  width: 100%; height: 12px; background: var(--bg3);
+  border-radius: 6px; overflow: hidden; position: relative;
+  margin-bottom: 0.5rem;
+}
+.blitz-timer-fill {
+  height: 100%; width: 100%;
+  background: linear-gradient(90deg, var(--gold), #e74c3c);
+  transform-origin: left; transition: width 0.1s linear;
+}
+.blitz-timer-text {
+  position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%);
+  font-size: 0.7rem; font-weight: 700; color: #fff;
+}
+.blitz-multiplier-badge {
+  text-align: center; font-size: 2rem; font-weight: 900;
+  color: var(--gold); margin-bottom: 0.5rem;
+}
+.blitz-multiplier-badge.x2 { color: #3498db; }
+.blitz-multiplier-badge.x1 { color: var(--text2); }
+.blitz-choices { display: flex; gap: 1rem; margin-top: 1rem; }
+.btn-blitz-true { flex: 1; background: var(--green); color: #fff; font-size: 1.1rem; font-weight: 700; padding: 1rem; border-radius: var(--radius); border: none; cursor: pointer; }
+.btn-blitz-false { flex: 1; background: var(--red); color: #fff; font-size: 1.1rem; font-weight: 700; padding: 1rem; border-radius: var(--radius); border: none; cursor: pointer; }
+.blitz-answer-flash {
+  text-align: center; font-size: 1.5rem; font-weight: 900;
+  padding: 0.5rem; border-radius: var(--radius);
+  margin-bottom: 0.5rem;
+}
+.blitz-answer-flash.correct { background: rgba(46,139,87,0.3); color: #2e8b57; }
+.blitz-answer-flash.wrong { background: rgba(192,57,43,0.3); color: #e74c3c; }
+.blitz-counter { text-align: center; color: var(--text2); font-size: 0.8rem; margin-top: 0.5rem; }
+.blitz-score-badge {
+  font-size: 0.9rem; font-weight: 700; color: var(--gold);
+  text-align: right;
+}
+.question-card {
+  background: var(--bg3);
+  border-radius: var(--radius);
+  padding: 1rem 1.2rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.4;
+}
+
 /* ── Print / PDF Export ───────────────────────────────────── */
 @media print {
   body {

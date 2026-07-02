@@ -57,7 +57,12 @@ const GameInstructions = (function () {
     wordhunt: {
       title: '🔍 Bible Word Hunt',
       text: 'A 10×20 grid hides Bible words in 8 directions — left, right, up, down & diagonals! Swipe from the first letter to the last to claim a word. In Race mode everyone hunts at once; first to swipe it scores. Longer words score more. 3 rounds, highest total wins!'
+    },
+    blitz: {
+      title: '⚡ Bible Blitz',
+      text: '90 seconds, rapid fire! Answer as many True/False Bible questions as you can at your own pace. Earn 300 pts per correct answer in the first 30s (3×), 200 pts from 30–60s (2×), and 100 pts in the final 30s (1×). Highest total score wins!'
     }
+  };
   };
 
   function render(format, containerId) {
