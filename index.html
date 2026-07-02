@@ -915,7 +915,7 @@
 
         <!-- Seater view: 4 answer choices -->
         <div id="hs-seater-choices" style="display:none;">
-          <p class="hint-text" style="text-align:center;margin-bottom:0.5rem;">You're in the Hot Seat! Answer this question:</p>
+          <p class="hint-text" id="hs-seater-prompt" style="text-align:center;margin-bottom:0.5rem;">🔥 You're in the Hot Seat! Answer this question:</p>
           <div class="choices-grid" id="hs-choices-grid">
             <button class="choice choice-a" id="hsc0"></button>
             <button class="choice choice-b" id="hsc1"></button>
@@ -925,9 +925,29 @@
           <p class="hint-text" id="hs-seater-answered" style="display:none;text-align:center;margin-top:0.5rem;">✓ Answer locked in! Waiting for reveal…</p>
         </div>
 
-        <!-- Bettor view: Correct or Wrong bet -->
+        <!-- Bettor view: see options + wager coins + bet correct/wrong -->
         <div id="hs-bettor-view" style="display:none;">
-          <p class="hs-bet-prompt" id="hs-bet-prompt">Will <span id="hs-bet-seater-name">Player</span> get it right?</p>
+          <p class="hint-text" style="text-align:center;margin-bottom:0.4rem;font-size:0.8rem;opacity:0.7;">Seater's options (read-only):</p>
+          <div class="choices-grid hs-bettor-choices" id="hs-bettor-choices-grid">
+            <div class="choice choice-a hs-ro-choice" id="hbc0"></div>
+            <div class="choice choice-b hs-ro-choice" id="hbc1"></div>
+            <div class="choice choice-c hs-ro-choice" id="hbc2"></div>
+            <div class="choice choice-d hs-ro-choice" id="hbc3"></div>
+          </div>
+          <div class="hs-wallet-area" id="hs-wallet-area">
+            <div class="hs-wallet-row">🪙 Your coins: <strong id="hs-my-wallet">0</strong></div>
+            <div class="hs-bet-slider-wrap" id="hs-bet-selector" style="display:none;">
+              <div class="hs-bet-slider-row">
+                <span>Wager</span>
+                <input type="range" id="hs-bet-slider" min="1" max="10" value="5"
+                       oninput="Multiplayer.hsUpdateBetSlider(+this.value)">
+                <span id="hs-bet-pct">5</span>%
+                <span class="hs-bet-coins">= <strong id="hs-bet-preview">0</strong> 🪙</span>
+              </div>
+            </div>
+            <p class="hint-text" id="hs-no-coins-msg" style="display:none;text-align:center;font-size:0.8rem;">You have no coins to wager yet</p>
+          </div>
+          <p class="hs-bet-prompt">Will <span id="hs-bet-seater-name">Player</span> get it right?</p>
           <div class="hs-bet-buttons" id="hs-bet-buttons">
             <button class="btn-hs-bet bet-correct" onclick="Multiplayer.submitHsBet(true)">✓ CORRECT</button>
             <button class="btn-hs-bet bet-wrong" onclick="Multiplayer.submitHsBet(false)">✗ WRONG</button>

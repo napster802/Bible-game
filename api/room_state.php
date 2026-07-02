@@ -186,25 +186,47 @@ function hsAwardBettors(PDO $db, string $code, array $room): void {
     if (!$ansRow) return; // Seater didn't answer — no bets awarded
     $seaterCorrect = (bool)$ansRow['is_correct'];
 
-    // Get all bets for this question
-    $betStmt = $db->prepare("SELECT bettor_id, bet_correct FROM hs_bets WHERE room_code = ? AND q_idx = ?");
-    $betStmt->execute([$code, $curQIdx]);
-    $bets = $betStmt->fetchAll();
     $alreadyAwarded = $db->prepare("SELECT 1 FROM hs_bets WHERE room_code = ? AND q_idx = ? AND bet_correct = -1 LIMIT 1");
     $alreadyAwarded->execute([$code, $curQIdx]);
     if ($alreadyAwarded->fetchColumn()) return; // Already awarded
 
-    foreach ($bets as $bet) {
-        $wonBet = (bool)$bet['bet_correct'] === $seaterCorrect;
-        if ($wonBet) {
-            $db->prepare("UPDATE players SET score = score + 150, correct_count = correct_count + 1 WHERE room_code = ? AND device_id = ?")
-               ->execute([$code, $bet['bettor_id']]);
-        }
-    }
-    // Mark awarded by setting a sentinel row
+    // Get all bets with coin amounts
+    $betStmt = $db->prepare("SELECT bettor_id, bet_correct, bet_amount FROM hs_bets WHERE room_code = ? AND q_idx = ? AND bet_correct >= 0");
+    $betStmt->execute([$code, $curQIdx]);
+    $bets = $betStmt->fetchAll();
+
     $now2 = (int)(microtime(true) * 1000);
-    $db->prepare("INSERT OR IGNORE INTO hs_bets (room_code, seater_id, bettor_id, q_idx, bet_correct, created_at) VALUES (?, '__awarded__', '__sentinel__', ?, -1, ?)")
+    foreach ($bets as $bet) {
+        $wonBet   = (bool)$bet['bet_correct'] === $seaterCorrect;
+        $betAmt   = max(0, (int)($bet['bet_amount'] ?? 0));
+        if ($wonBet) {
+            // Return 2× bet to wallet (they had it deducted on submit)
+            if ($betAmt > 0) {
+                $db->prepare("UPDATE profiles SET wallet = wallet + ? WHERE device_id = ?")
+                   ->execute([2 * $betAmt, $bet['bettor_id']]);
+            }
+            // In-game pts: use bet amount if coins were wagered, else flat 150
+            $ptsEarned = $betAmt > 0 ? $betAmt : 150;
+            $db->prepare("UPDATE players SET score = score + ?, correct_count = correct_count + 1 WHERE room_code = ? AND device_id = ?")
+               ->execute([$ptsEarned, $code, $bet['bettor_id']]);
+        }
+        // Losing bets: coins already deducted from wallet at bet time — nothing to do
+    }
+    // Idempotency sentinel
+    $db->prepare("INSERT OR IGNORE INTO hs_bets (room_code, seater_id, bettor_id, q_idx, bet_correct, bet_amount, created_at) VALUES (?, '__awarded__', '__sentinel__', ?, -1, 0, ?)")
        ->execute([$code, $curQIdx, $now2]);
+}
+
+function bowlRedistributeTeamScores(PDO $db, string $code): void {
+    // For each team, sum all player scores then divide equally
+    $teamStmt = $db->prepare("SELECT team_id, COUNT(*) as cnt, SUM(score) as total FROM players WHERE room_code = ? AND is_host = 0 AND team_id > 0 GROUP BY team_id");
+    $teamStmt->execute([$code]);
+    $teams = $teamStmt->fetchAll();
+    foreach ($teams as $team) {
+        $share = (int)round((int)$team['total'] / max(1, (int)$team['cnt']));
+        $db->prepare("UPDATE players SET score = ? WHERE room_code = ? AND team_id = ? AND is_host = 0")
+           ->execute([$share, $code, (int)$team['team_id']]);
+    }
 }
 
 // Re-fetch fresh room row after any updates
@@ -213,6 +235,15 @@ $stmt2->execute([$code]);
 $room = $stmt2->fetch();
 $status = $room['status'];
 $currentQIdx = (int)$room['current_q_idx'];
+
+// === BIBLE BOWL: redistribute team scores equally before wallet credit ===
+if ($status === 'finished' && (int)$room['points_awarded'] === 0 && $room['game_format'] === 'bowl') {
+    bowlRedistributeTeamScores($db, $code);
+    // Re-fetch after redistribution so wallet crediting uses the new scores
+    $stmt2b = $db->prepare("SELECT * FROM rooms WHERE code = ?");
+    $stmt2b->execute([$code]);
+    $room = $stmt2b->fetch();
+}
 
 // === WALLET CREDITING: finished -> award points once, server-side only ===
 // Points are only ever credited here, from a completed multiplayer room,
@@ -403,10 +434,20 @@ if (in_array($status, ['hs_question', 'hs_reveal', 'finished'], true) && $room['
     }
 
     // My bet for current question
-    $myBetStmt = $db->prepare("SELECT bet_correct FROM hs_bets WHERE room_code = ? AND bettor_id = ? AND q_idx = ? AND bet_correct >= 0");
+    $myBetStmt = $db->prepare("SELECT bet_correct, bet_amount FROM hs_bets WHERE room_code = ? AND bettor_id = ? AND q_idx = ? AND bet_correct >= 0");
     $myBetStmt->execute([$code, $deviceId, $curQIdx]);
     $myBetRow = $myBetStmt->fetch();
     $myHsBet = $myBetRow !== false ? (bool)$myBetRow['bet_correct'] : null;
+    $myHsBetAmount = $myBetRow !== false ? (int)$myBetRow['bet_amount'] : 0;
+
+    // Current wallet (for bet slider in bettor UI)
+    $myWallet = 0;
+    if (!$isHost && !$amISeater) {
+        $wStmt = $db->prepare("SELECT wallet FROM profiles WHERE device_id = ?");
+        $wStmt->execute([$deviceId]);
+        $wRow = $wStmt->fetch();
+        $myWallet = $wRow ? max(0, (int)$wRow['wallet']) : 0;
+    }
 
     // Total bet count (excluding sentinel)
     $betCntStmt = $db->prepare("SELECT COUNT(*) FROM hs_bets WHERE room_code = ? AND q_idx = ? AND bet_correct >= 0");
@@ -418,15 +459,20 @@ if (in_array($status, ['hs_question', 'hs_reveal', 'finished'], true) && $room['
         $ansRevStmt = $db->prepare("SELECT choice_idx, is_correct FROM answers WHERE room_code = ? AND q_idx = ? LIMIT 1");
         $ansRevStmt->execute([$code, $curQIdx]);
         $ansRev = $ansRevStmt->fetch();
-        // Get all bets + outcomes
-        $betsRevStmt = $db->prepare("SELECT b.bettor_id, b.bet_correct, p.name FROM hs_bets b JOIN players p ON p.room_code=b.room_code AND p.device_id=b.bettor_id WHERE b.room_code=? AND b.q_idx=? AND b.bet_correct>=0");
+        // Get all bets + outcomes + coin amounts
+        $betsRevStmt = $db->prepare("SELECT b.bettor_id, b.bet_correct, b.bet_amount, p.name FROM hs_bets b JOIN players p ON p.room_code=b.room_code AND p.device_id=b.bettor_id WHERE b.room_code=? AND b.q_idx=? AND b.bet_correct>=0");
         $betsRevStmt->execute([$code, $curQIdx]);
         $betsRev = $betsRevStmt->fetchAll();
         $seaterAnsweredCorrect = $ansRev ? (bool)$ansRev['is_correct'] : null;
         $hsRevealData = [
-            'seater_correct' => $seaterAnsweredCorrect,
+            'seater_correct'    => $seaterAnsweredCorrect,
             'seater_choice_idx' => $ansRev ? (int)$ansRev['choice_idx'] : null,
-            'bets' => array_map(fn($b) => ['name' => $b['name'], 'bet_correct' => (bool)$b['bet_correct'], 'won' => $seaterAnsweredCorrect !== null && (bool)$b['bet_correct'] === $seaterAnsweredCorrect], $betsRev)
+            'bets'              => array_map(fn($b) => [
+                'name'        => $b['name'],
+                'bet_correct' => (bool)$b['bet_correct'],
+                'bet_amount'  => (int)($b['bet_amount'] ?? 0),
+                'won'         => $seaterAnsweredCorrect !== null && (bool)$b['bet_correct'] === $seaterAnsweredCorrect
+            ], $betsRev)
         ];
     }
 }
@@ -1029,6 +1075,8 @@ jsonOut([
     'hs_seater'         => $hsSeater,
     'am_i_seater'       => $amISeater,
     'my_hs_bet'         => $myHsBet,
+    'my_hs_bet_amount'  => $myHsBetAmount ?? 0,
+    'my_hs_wallet'      => $myWallet ?? 0,
     'hs_bet_count'      => $hsBetCount,
     'hs_reveal_data'    => $hsRevealData,
     'hs_elapsed_ms'     => $hsElapsedMs,

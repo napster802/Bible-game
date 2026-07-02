@@ -3810,6 +3810,27 @@ label,
 .hs-bet-won  { background: rgba(39,174,96,0.15); color: #2ecc71; }
 .hs-bet-lost { background: rgba(192,57,43,0.12); color: #e74c3c; }
 
+/* ── Hot Seat bettor read-only choices + wallet UI ──────────── */
+.hs-bettor-choices { pointer-events: none; opacity: 0.85; }
+.hs-ro-choice {
+  font-size: 0.85rem; padding: 0.45rem 0.6rem;
+  border: 1px solid rgba(255,255,255,0.15); border-radius: 8px;
+  background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.8);
+  text-align: center;
+}
+.hs-wallet-area {
+  margin: 0.6rem 0; padding: 0.6rem 0.8rem;
+  background: rgba(255,255,255,0.06); border-radius: 10px;
+}
+.hs-wallet-row { font-size: 0.9rem; margin-bottom: 0.35rem; }
+.hs-bet-slider-wrap { margin-top: 0.2rem; }
+.hs-bet-slider-row {
+  display: flex; align-items: center; gap: 0.4rem;
+  font-size: 0.85rem; flex-wrap: wrap;
+}
+.hs-bet-slider-row input[type=range] { flex: 1; min-width: 80px; }
+.hs-bet-coins { font-size: 0.82rem; color: var(--gold, #f4d03f); }
+
 /* ── Print / PDF Export ───────────────────────────────────── */
 @media print {
   body {

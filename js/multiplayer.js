@@ -99,6 +99,10 @@ const Multiplayer = (function () {
   const POWERUP_COSTS = { fifty: 800, double: 1500, freeze: 1000, steal: 2000 };
   const POWERUP_LABELS = { fifty: '50/50', double: '2x Points', freeze: 'Freeze', steal: 'Steal' };
 
+  // Hot Seat betting state
+  let hsSelectedBetPct = 5;
+  let hsCurrentWallet  = 0;
+
   function api(path, body) {
     const opts = body
       ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
@@ -745,20 +749,18 @@ const Multiplayer = (function () {
   }
 
   function renderHsQuestion(data) {
-    const seater = data.hs_seater || {};
+    const seater    = data.hs_seater || {};
     const amISeater = !!data.am_i_seater;
-    const q = data.current_question ? lookupQuestion(data.current_question) : null;
-    const qIdx = data.current_question ? data.current_question.q_idx : 0;
-    const qPerSeater = data.hs_q_per_seater || 3;
+    const q         = data.current_question ? lookupQuestion(data.current_question) : null;
+    const qIdx      = data.current_question ? data.current_question.q_idx : 0;
+    const qPerSeater   = data.hs_q_per_seater || 3;
     const totalSeaters = data.players ? data.players.filter(p => !p.is_host).length : 1;
-    const seaterNum = Math.floor(qIdx / qPerSeater) + 1;
-    const qInSeat = (qIdx % qPerSeater) + 1;
+    const seaterNum    = Math.floor(qIdx / qPerSeater) + 1;
+    const qInSeat      = (qIdx % qPerSeater) + 1;
 
-    const seaterName = seater.name || 'Player';
-    const seaterBadge = document.getElementById('hs-seater-badge');
+    const seaterName   = seater.name || 'Player';
     const seaterNameEl = document.getElementById('hs-seater-name');
     if (seaterNameEl) seaterNameEl.textContent = seaterName;
-    if (seaterBadge) seaterBadge.title = `${seaterName} is in the Hot Seat`;
 
     const progEl = document.getElementById('hs-q-progress');
     if (progEl) progEl.textContent = `Q ${qInSeat} of ${qPerSeater} • Seater ${seaterNum}/${totalSeaters}`;
@@ -768,49 +770,91 @@ const Multiplayer = (function () {
 
     const seaterView = document.getElementById('hs-seater-choices');
     const bettorView = document.getElementById('hs-bettor-view');
-    const hostBar = document.getElementById('hs-host-bar');
+    const hostBar    = document.getElementById('hs-host-bar');
 
     if (isHost) {
       if (seaterView) seaterView.style.display = 'none';
       if (bettorView) bettorView.style.display = 'none';
-      if (hostBar) hostBar.style.display = '';
+      if (hostBar)    hostBar.style.display     = '';
       return;
     }
 
     if (amISeater) {
+      // Seater: show their interactive choice buttons
       if (seaterView) seaterView.style.display = '';
       if (bettorView) bettorView.style.display = 'none';
+      const seaterPrompt = document.getElementById('hs-seater-prompt');
+      if (seaterPrompt) seaterPrompt.style.display = '';
       if (q) {
         for (let i = 0; i < 4; i++) {
           const btn = document.getElementById(`hsc${i}`);
           if (btn) {
             btn.textContent = q.choices[i];
-            btn.className = `choice choice-${'abcd'[i]}`;
-            btn.disabled = hsAnsweredThisQ;
-            btn.onclick = hsAnsweredThisQ ? null : () => submitHsSeat(i, q, qIdx);
+            btn.className   = `choice choice-${'abcd'[i]}`;
+            btn.disabled    = hsAnsweredThisQ;
+            btn.onclick     = hsAnsweredThisQ ? null : () => submitHsSeat(i, q, qIdx);
           }
         }
       }
       const seaterAnsweredEl = document.getElementById('hs-seater-answered');
       if (seaterAnsweredEl) seaterAnsweredEl.style.display = hsAnsweredThisQ ? '' : 'none';
     } else {
+      // Bettor: show read-only choices + bet UI
       if (seaterView) seaterView.style.display = 'none';
       if (bettorView) bettorView.style.display = '';
+      const seaterPrompt = document.getElementById('hs-seater-prompt');
+      if (seaterPrompt) seaterPrompt.style.display = 'none';
+
+      // Populate read-only choice display so bettors see what the seater can pick
+      if (q) {
+        for (let i = 0; i < 4; i++) {
+          const div = document.getElementById(`hbc${i}`);
+          if (div) div.textContent = q.choices[i];
+        }
+      }
+
+      // Wallet + bet amount selector
+      hsCurrentWallet = data.my_hs_wallet || 0;
+      const walletEl   = document.getElementById('hs-my-wallet');
+      const betSel     = document.getElementById('hs-bet-selector');
+      const noCoinsEl  = document.getElementById('hs-no-coins-msg');
+      if (walletEl) walletEl.textContent = hsCurrentWallet.toLocaleString();
+      if (betSel)   betSel.style.display  = (hsCurrentWallet > 0 && !hsBetPlaced) ? '' : 'none';
+      if (noCoinsEl) noCoinsEl.style.display = (hsCurrentWallet === 0 && !hsBetPlaced) ? '' : 'none';
+      // Init slider to current selection
+      const slider = document.getElementById('hs-bet-slider');
+      if (slider) { slider.value = hsSelectedBetPct; hsUpdateBetSlider(hsSelectedBetPct); }
+
+      // Bet buttons state
       const betSeaterName = document.getElementById('hs-bet-seater-name');
       if (betSeaterName) betSeaterName.textContent = seaterName;
       const betButtons = document.getElementById('hs-bet-buttons');
-      const betPlaced = document.getElementById('hs-bet-placed');
-      const betCount = document.getElementById('hs-bet-count');
-      const myBet = data.my_hs_bet;
+      const betPlaced  = document.getElementById('hs-bet-placed');
+      const betCount   = document.getElementById('hs-bet-count');
+      const myBet      = data.my_hs_bet;
       hsBetPlaced = myBet !== null && myBet !== undefined;
       if (betButtons) betButtons.style.display = hsBetPlaced ? 'none' : '';
       if (betPlaced) {
         betPlaced.style.display = hsBetPlaced ? '' : 'none';
-        betPlaced.textContent = hsBetPlaced
-          ? `You bet: ${myBet ? '✓ Correct' : '✗ Wrong'}`
-          : '';
+        if (hsBetPlaced) {
+          const betAmt = data.my_hs_bet_amount || 0;
+          betPlaced.textContent = betAmt > 0
+            ? `You bet ${betAmt} 🪙: ${myBet ? '✓ Correct' : '✗ Wrong'}`
+            : `You bet: ${myBet ? '✓ Correct' : '✗ Wrong'}`;
+        }
       }
       if (betCount) betCount.textContent = `${data.hs_bet_count || 0} bet${(data.hs_bet_count || 0) !== 1 ? 's' : ''} placed`;
+    }
+  }
+
+  function hsUpdateBetSlider(pct) {
+    hsSelectedBetPct = pct;
+    const pctEl     = document.getElementById('hs-bet-pct');
+    const previewEl = document.getElementById('hs-bet-preview');
+    if (pctEl) pctEl.textContent = pct;
+    if (previewEl) {
+      const amt = hsCurrentWallet > 0 ? Math.max(1, Math.floor(hsCurrentWallet * pct / 100)) : 0;
+      previewEl.textContent = amt.toLocaleString();
     }
   }
 
@@ -862,7 +906,7 @@ const Multiplayer = (function () {
     fetch('api/hs_bet.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ room_code: roomCode, device_id: deviceId, q_idx: qIdx, bet_correct: betCorrect })
+      body: JSON.stringify({ room_code: roomCode, device_id: deviceId, q_idx: qIdx, bet_correct: betCorrect, bet_pct: hsSelectedBetPct })
     }).catch(() => {});
   }
 
@@ -885,9 +929,17 @@ const Multiplayer = (function () {
     if (resultsEl && reveal && reveal.bets && reveal.bets.length) {
       const won = reveal.bets.filter(b => b.won);
       const lost = reveal.bets.filter(b => !b.won);
+      const wonLines = won.map(b => {
+        const coins = b.bet_amount > 0 ? `+${(b.bet_amount).toLocaleString()} 🪙` : '+150 pts';
+        return `<span>${escapeHtml(b.name)} <strong>${coins}</strong></span>`;
+      });
+      const lostLines = lost.map(b => {
+        const coins = b.bet_amount > 0 ? `-${(b.bet_amount).toLocaleString()} 🪙` : 'No pts';
+        return `<span>${escapeHtml(b.name)} <strong>${coins}</strong></span>`;
+      });
       resultsEl.innerHTML =
-        (won.length ? `<div class="hs-bet-won">+150 pts: ${won.map(b => escapeHtml(b.name)).join(', ')}</div>` : '') +
-        (lost.length ? `<div class="hs-bet-lost">No pts: ${lost.map(b => escapeHtml(b.name)).join(', ')}</div>` : '');
+        (wonLines.length ? `<div class="hs-bet-won">${wonLines.join(' · ')}</div>` : '') +
+        (lostLines.length ? `<div class="hs-bet-lost">${lostLines.join(' · ')}</div>` : '');
     } else if (resultsEl) {
       resultsEl.innerHTML = '<p class="hint-text" style="text-align:center;">No bets were placed</p>';
     }
@@ -3793,6 +3845,7 @@ const Multiplayer = (function () {
     sendChat,
     blitzAnswer,
     submitHsBet,
+    hsUpdateBetSlider,
     setRoomCode(code) { roomCode = code; },
     get roomCode() { return roomCode; },
     get deviceId() { return deviceId; },
