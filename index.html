@@ -154,6 +154,7 @@
               <option value="scrab">🕎 Bible Scrabble</option>
               <option value="wordhunt">🔍 Bible Word Hunt</option>
               <option value="blitz">⚡ Bible Blitz</option>
+              <option value="bowl">🏆 Bible Bowl (Teams)</option>
             </select>
           </div>
           <div class="instructions-box" id="host-instructions-box"></div>
@@ -241,6 +242,14 @@
             </div>
           </div>
           <p class="hint-text" id="host-blitz-hint" style="display:none;">⚡ 90-second rapid fire! Answer as many True/False Bible questions as possible — your own pace, your own questions, 3× bonus in the first 30 seconds!</p>
+          <div id="host-bowl-panel" style="display:none;">
+            <p class="hint-text">🏆 Bible Bowl — needs at least 2 players. Assign players to teams, then compete on the same questions at the same time. Highest team score wins!</p>
+            <div class="bowl-team-header">
+              <span>Team Assignment</span>
+              <button class="btn btn-secondary" style="padding:0.25rem 0.6rem;font-size:0.8rem;" onclick="HostGame.bowlAutoAssign()">⚡ Auto-Assign</button>
+            </div>
+            <div id="host-bowl-player-list" class="bowl-assign-list"></div>
+          </div>
         </div>
 
         <div class="host-csv-upload" id="host-csv-upload-box">
@@ -347,6 +356,19 @@
       <div class="pts-bar">
         <span class="pts-label">Score:</span>
         <span class="pts-val" id="pts-val">0</span>
+      </div>
+
+      <!-- Bible Bowl team score strip (hidden unless bowl format) -->
+      <div id="bowl-score-strip" style="display:none;">
+        <div class="bowl-strip-team bowl-t1">
+          <span class="bowl-strip-name">Team 1</span>
+          <span class="bowl-strip-score" id="bowl-t1-score">0</span>
+        </div>
+        <div class="bowl-strip-vs">VS</div>
+        <div class="bowl-strip-team bowl-t2">
+          <span class="bowl-strip-name">Team 2</span>
+          <span class="bowl-strip-score" id="bowl-t2-score">0</span>
+        </div>
       </div>
 
       <!-- Power-Up Bar (multiplayer contestants only) -->
@@ -872,6 +894,7 @@
         <h2 class="results-title">Game Over!</h2>
         <p class="results-sub" id="results-sub"></p>
         <div class="imp-elim-banner" id="results-imp-banner" style="display:none"></div>
+        <div id="results-bowl-banner" style="display:none;"></div>
       </div>
       <div class="podium" id="podium"></div>
       <div class="results-table-wrap">

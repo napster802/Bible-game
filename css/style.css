@@ -3671,6 +3671,53 @@ label,
   line-height: 1.4;
 }
 
+/* ── Bible Bowl (Teams) ────────────────────────────────────── */
+.bowl-t1 { --bowl-c: #3498db; --bowl-bg: rgba(52,152,219,0.18); }
+.bowl-t2 { --bowl-c: #e74c3c; --bowl-bg: rgba(231,76, 60,0.18); }
+
+#bowl-score-strip {
+  display: flex; align-items: center; gap: 0.4rem;
+  margin: 0.3rem 0.5rem 0;
+}
+.bowl-strip-team {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  padding: 0.3rem 0.5rem;
+  background: var(--bowl-bg); border: 1px solid var(--bowl-c);
+  border-radius: var(--radius);
+}
+.bowl-strip-name { font-size: 0.7rem; font-weight: 700; color: var(--bowl-c); text-transform: uppercase; }
+.bowl-strip-score { font-size: 1.1rem; font-weight: 900; color: var(--bowl-c); }
+.bowl-strip-vs { font-size: 0.75rem; font-weight: 700; color: var(--text2); }
+.bowl-team-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 0.4rem; font-size: 0.85rem; font-weight: 700;
+}
+.bowl-assign-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.bowl-assign-row {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.4rem 0.6rem; background: var(--bg3); border-radius: var(--radius);
+}
+.bowl-assign-name { flex: 1; font-size: 0.9rem; }
+.bowl-team-btn {
+  padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 700;
+  border: 1.5px solid transparent; background: var(--bg2); color: var(--text2); cursor: pointer;
+}
+.bowl-team-btn.bowl-btn-active.bowl-t1 { background: #3498db; border-color: #3498db; color: #fff; }
+.bowl-team-btn.bowl-btn-active.bowl-t2 { background: #e74c3c; border-color: #e74c3c; color: #fff; }
+.bowl-winner-banner {
+  text-align: center; font-size: 1.2rem; font-weight: 900;
+  padding: 0.6rem 1rem; border-radius: var(--radius); margin-bottom: 0.5rem;
+  background: var(--bowl-bg, rgba(255,215,0,0.15));
+  border: 2px solid var(--bowl-c, var(--gold));
+  color: var(--bowl-c, var(--gold));
+}
+.bowl-team-badge {
+  display: inline-block; margin-left: 0.3rem;
+  font-size: 0.65rem; font-weight: 800; padding: 0 0.3rem;
+  border-radius: 3px; vertical-align: middle;
+  background: var(--bowl-c); color: #fff;
+}
+
 /* ── Print / PDF Export ───────────────────────────────────── */
 @media print {
   body {

@@ -353,9 +353,33 @@ const Multiplayer = (function () {
     renderPlayerList('host-player-list', data.players, true);
     renderPlayerList('join-wait-player-list', data.players, false);
 
+    if (isHost && data.room.game_format === 'bowl') {
+      renderBowlAssignList(data.players);
+    }
+
     if (!isHost && typeof GameInstructions !== 'undefined') {
       GameInstructions.render(data.room.game_format || 'classic', 'join-instructions-box');
     }
+  }
+
+  function renderBowlAssignList(players) {
+    const container = document.getElementById('host-bowl-player-list');
+    if (!container) return;
+    const contestants = players.filter(p => !p.is_host);
+    container.innerHTML = contestants.map(p => {
+      const t = p.team_id || 0;
+      const cls1 = t === 1 ? 'bowl-btn-active bowl-t1' : 'bowl-btn-inactive';
+      const cls2 = t === 2 ? 'bowl-btn-active bowl-t2' : 'bowl-btn-inactive';
+      const avatarHtml = (p.avatar && p.avatar.startsWith('data:'))
+        ? `<img src="${p.avatar}" style="width:1.5rem;height:1.5rem;border-radius:50%;object-fit:cover;">`
+        : `<span>${p.avatar}</span>`;
+      return `<div class="bowl-assign-row">
+        ${avatarHtml}
+        <span class="bowl-assign-name">${escapeHtml(p.name)}</span>
+        <button class="bowl-team-btn ${cls1}" onclick="HostGame.bowlAssignTeam('${p.device_id}', 1)">Team 1</button>
+        <button class="bowl-team-btn ${cls2}" onclick="HostGame.bowlAssignTeam('${p.device_id}', 2)">Team 2</button>
+      </div>`;
+    }).join('');
   }
 
   function renderPlayerList(containerId, players, allowRemove) {
@@ -614,8 +638,23 @@ const Multiplayer = (function () {
       applyFreezeState(data);
     }
 
+    updateBowlScoreStrip(data);
     setMpStatusBadge(data);
     startLocalTicker();
+  }
+
+  function updateBowlScoreStrip(data) {
+    const strip = document.getElementById('bowl-score-strip');
+    if (!strip) return;
+    const isBowl = (data.room && data.room.game_format === 'bowl') && data.bowl_teams;
+    strip.style.display = isBowl ? '' : 'none';
+    if (!isBowl) return;
+    const t1 = data.bowl_teams.find(t => t.team === 1);
+    const t2 = data.bowl_teams.find(t => t.team === 2);
+    const s1 = document.getElementById('bowl-t1-score');
+    const s2 = document.getElementById('bowl-t2-score');
+    if (s1) s1.textContent = t1 ? t1.score : 0;
+    if (s2) s2.textContent = t2 ? t2.score : 0;
   }
 
   // ---------------- LIGHTNING TRUE/FALSE ----------------
@@ -1723,6 +1762,30 @@ const Multiplayer = (function () {
     banner.style.display = 'block';
   }
 
+  function renderBowlResultBanner(data) {
+    const banner = document.getElementById('results-bowl-banner');
+    if (!banner) return;
+    if (data.room.game_format !== 'bowl' || !data.bowl_teams) {
+      banner.style.display = 'none';
+      return;
+    }
+    const t1 = data.bowl_teams.find(t => t.team === 1) || { score: 0 };
+    const t2 = data.bowl_teams.find(t => t.team === 2) || { score: 0 };
+    const myTid = data.my_team_id || 0;
+    let winnerHtml;
+    if (t1.score > t2.score) {
+      winnerHtml = `<div class="bowl-winner-banner bowl-t1">🏆 Team 1 Wins! (${t1.score} vs ${t2.score})</div>`;
+    } else if (t2.score > t1.score) {
+      winnerHtml = `<div class="bowl-winner-banner bowl-t2">🏆 Team 2 Wins! (${t2.score} vs ${t1.score})</div>`;
+    } else {
+      winnerHtml = `<div class="bowl-winner-banner">🤝 It's a Tie! (${t1.score} — ${t2.score})</div>`;
+    }
+    const myTeamWon = (myTid === 1 && t1.score > t2.score) || (myTid === 2 && t2.score > t1.score);
+    const personalLine = myTid ? `<p style="text-align:center;margin-top:0.3rem;font-size:0.9rem;">${myTeamWon ? '🎉 Your team won!' : (t1.score === t2.score ? '' : '💪 Great effort!')}</p>` : '';
+    banner.innerHTML = winnerHtml + personalLine;
+    banner.style.display = 'block';
+  }
+
   // ---------------- SKETCH & GUESS ----------------
   const DRAW_GUESS_POINTS = [300, 200, 100];
 
@@ -2526,6 +2589,8 @@ const Multiplayer = (function () {
       } else if (currentGameFormat === 'scrab') {
         const rounds = Math.max(1, (data.room.scrab_round || 1));
         document.getElementById('results-sub').textContent = `🕎 Bible Scrabble • ${rounds} Turn${rounds !== 1 ? 's' : ''} • Multiplayer`;
+      } else if (currentGameFormat === 'bowl') {
+        document.getElementById('results-sub').textContent = `🏆 Bible Bowl (Teams) • ${data.room.question_count} Questions • Multiplayer`;
       } else {
         const bookLabel = currentBook === 'ALL'
           ? (currentTestament === 'ot' ? 'Old Testament' : currentTestament === 'nt' ? 'New Testament' : 'All Books')
@@ -2537,6 +2602,7 @@ const Multiplayer = (function () {
           `${sourceLabel} • ${data.room.question_count} Questions • Multiplayer`;
       }
       renderImpostorResultBanner(data);
+      renderBowlResultBanner(data);
       renderPodium(sorted);
       renderResultsTable(sorted, data.room.question_count);
       if (sorted[0] && sorted[0].score > 0 && App.startConfetti) App.startConfetti();
@@ -2589,7 +2655,7 @@ const Multiplayer = (function () {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${i + 1}</td>
-        <td>${escapeHtml(p.name)}</td>
+        <td>${escapeHtml(p.name)}${p.team_id ? `<span class="bowl-team-badge bowl-t${p.team_id}">T${p.team_id}</span>` : ''}</td>
         <td>${p.score}</td>
         <td>${p.correct}</td>
         <td>${accuracy}%</td>

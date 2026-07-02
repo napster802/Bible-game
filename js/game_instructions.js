@@ -61,6 +61,10 @@ const GameInstructions = (function () {
     blitz: {
       title: '⚡ Bible Blitz',
       text: '90 seconds, rapid fire! Answer as many True/False Bible questions as you can at your own pace. Earn 300 pts per correct answer in the first 30s (3×), 200 pts from 30–60s (2×), and 100 pts in the final 30s (1×). Highest total score wins!'
+    },
+    bowl: {
+      title: '🏆 Bible Bowl (Teams)',
+      text: 'Team vs Team trivia showdown! Players are split into Team 1 and Team 2. Everyone answers the same questions at the same time — your score adds to your team\'s total. The team with the highest combined score wins the Bible Bowl!'
     }
   };
   };

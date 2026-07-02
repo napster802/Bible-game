@@ -282,6 +282,7 @@ const HostGame = (function () {
     const isScrab     = gameFormat === 'scrab';
     const isWordhunt  = gameFormat === 'wordhunt';
     const isBlitz     = gameFormat === 'blitz';
+    const isBowl      = gameFormat === 'bowl';
     const noTrivia    = isImpostor || isDraw || isScrab || isWordhunt || isBlitz;
     const triviaSettings = document.getElementById('host-trivia-settings');
     const csvBox         = document.getElementById('host-csv-upload-box');
@@ -293,6 +294,7 @@ const HostGame = (function () {
     const whHint         = document.getElementById('host-wordhunt-hint');
     const whRows         = document.getElementById('host-wordhunt-rows');
     const blitzHint      = document.getElementById('host-blitz-hint');
+    const bowlPanel      = document.getElementById('host-bowl-panel');
     if (triviaSettings) triviaSettings.style.display = noTrivia ? 'none' : '';
     if (csvBox)         csvBox.style.display         = noTrivia ? 'none' : '';
     if (impHint)        impHint.style.display        = isImpostor ? '' : 'none';
@@ -303,6 +305,15 @@ const HostGame = (function () {
     if (whHint)         whHint.style.display         = isWordhunt ? '' : 'none';
     if (whRows)         whRows.style.display         = isWordhunt ? '' : 'none';
     if (blitzHint)      blitzHint.style.display      = isBlitz ? '' : 'none';
+    if (bowlPanel)      bowlPanel.style.display      = isBowl ? '' : 'none';
+  }
+
+  function bowlAssignTeam(targetDeviceId, teamId) {
+    action('bowl_assign_team', { target_device_id: targetDeviceId, team_id: teamId });
+  }
+
+  function bowlAutoAssign() {
+    action('bowl_auto_assign', {}).then(() => Multiplayer.poll());
   }
 
   function setScrabTimeLimit(seconds) {
@@ -598,6 +609,8 @@ const HostGame = (function () {
     wordhuntForceNext,
     wordhuntForceEnd,
     wordhuntProceed,
+    bowlAssignTeam,
+    bowlAutoAssign,
     get roomCode() { return roomCode; }
   };
 })();

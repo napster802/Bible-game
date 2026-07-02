@@ -292,12 +292,30 @@ foreach ($players as $p) {
         'best_streak'  => (int)$p['best_streak'],
         'frozen'       => ((int)$p['frozen_until']) > $now,
         'eliminated'   => (bool)$p['eliminated'],
-        'impostor_acted' => $impostorActed
+        'impostor_acted' => $impostorActed,
+        'team_id'      => (int)($p['team_id'] ?? 0)
     ];
 }
 
 $contestantCount = 0;
 foreach ($playersOut as $p) { if (!$p['is_host']) $contestantCount++; }
+
+// === BIBLE BOWL: compute team scores ===
+$bowlTeams = null;
+$myTeamId = 0;
+if ($room['game_format'] === 'bowl') {
+    $teams = [1 => ['team' => 1, 'name' => 'Team 1', 'score' => 0, 'players' => []], 2 => ['team' => 2, 'name' => 'Team 2', 'score' => 0, 'players' => []]];
+    foreach ($playersOut as $p) {
+        if ($p['is_host']) continue;
+        $tid = (int)($p['team_id'] ?? 0);
+        if ($tid === 1 || $tid === 2) {
+            $teams[$tid]['score'] += $p['score'];
+            $teams[$tid]['players'][] = ['name' => $p['name'], 'avatar' => $p['avatar'], 'score' => $p['score'], 'device_id' => $p['device_id']];
+        }
+        if ($deviceId === $p['device_id']) $myTeamId = $tid;
+    }
+    $bowlTeams = array_values($teams);
+}
 
 $impostorAliveCount = 0;
 foreach ($playersOut as $p) { if (!$p['is_host'] && !$p['eliminated']) $impostorAliveCount++; }
@@ -897,6 +915,8 @@ jsonOut([
     'blitz_elapsed_ms'  => $status === 'blitz_active' ? max(0, $now - (int)$room['blitz_start_time']) : null,
     'blitz_total_ms'    => 90000,
     'my_blitz_q_idx'    => $myPlayer ? (int)($myPlayer['blitz_q_idx'] ?? 0) : 0,
+    'bowl_teams'        => $bowlTeams,
+    'my_team_id'        => $myTeamId,
     'events'            => $eventsOut,
     'server_time'       => $now
 ]);

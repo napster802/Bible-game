@@ -36,7 +36,7 @@ define('DB_PATH', __DIR__ . '/../data/game.db');
 // Bump whenever migrateSchema()'s $columns table gains/changes entries, so
 // existing deployments pick up the new columns exactly once instead of never
 // (see the PRAGMA user_version guard around migrateSchema() in initDB()).
-define('SCHEMA_VERSION', 4);
+define('SCHEMA_VERSION', 5);
 
 function getDB(): PDO {
     static $db = null;
@@ -312,6 +312,7 @@ function migrateSchema(PDO $db): void {
             'eliminated'     => "INTEGER DEFAULT 0",
             'scrab_rack'     => "TEXT DEFAULT '[]'",
             'blitz_q_idx'    => "INTEGER DEFAULT 0",
+            'team_id'        => "INTEGER DEFAULT 0",
         ],
     ];
     foreach ($columns as $table => $cols) {

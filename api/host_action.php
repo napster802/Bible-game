@@ -90,6 +90,23 @@ switch ($action) {
             break;
         }
 
+        if ($room['game_format'] === 'bowl') {
+            // Auto-assign teams for any unassigned contestants, alternating 1/2
+            $contestantStmt = $db->prepare("SELECT device_id, team_id FROM players WHERE room_code = ? AND is_host = 0 ORDER BY joined_at ASC");
+            $contestantStmt->execute([$code]);
+            $contestants = $contestantStmt->fetchAll();
+            if (count($contestants) < 2) jsonOut(['success' => false, 'error' => 'Need at least 2 players to start Bible Bowl'], 400);
+            $teamCycle = 1;
+            foreach ($contestants as $p) {
+                if ((int)$p['team_id'] === 0) {
+                    $db->prepare("UPDATE players SET team_id = ? WHERE room_code = ? AND device_id = ?")
+                       ->execute([$teamCycle, $code, $p['device_id']]);
+                    $teamCycle = $teamCycle === 1 ? 2 : 1;
+                }
+            }
+            // Fall through to standard trivia flow below
+        }
+
         if ($room['game_format'] === 'impostor') {
             $contestantStmt = $db->prepare("SELECT device_id FROM players WHERE room_code = ? AND is_host = 0");
             $contestantStmt->execute([$code]);
@@ -206,7 +223,7 @@ switch ($action) {
     case 'set_game_format':
         if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
         $value = $input['value'] ?? 'classic';
-        $format = in_array($value, ['classic', 'truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor', 'draw', 'scrab', 'wordhunt', 'blitz'], true) ? $value : 'classic';
+        $format = in_array($value, ['classic', 'truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor', 'draw', 'scrab', 'wordhunt', 'blitz', 'bowl'], true) ? $value : 'classic';
         $db->prepare("UPDATE rooms SET game_format = ?, updated_at = ? WHERE code = ?")
            ->execute([$format, $now, $code]);
         break;
@@ -217,6 +234,29 @@ switch ($action) {
         $rounds = in_array($value, [1, 2], true) ? $value : 1;
         $db->prepare("UPDATE rooms SET draw_rounds_total = ?, updated_at = ? WHERE code = ?")
            ->execute([$rounds, $now, $code]);
+        break;
+
+    // ---- Bible Bowl (Teams) ----
+    case 'bowl_assign_team':
+        if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
+        $targetId = trim($input['target_device_id'] ?? '');
+        $teamId   = (int)($input['team_id'] ?? 0);
+        if (!$targetId || !in_array($teamId, [1, 2], true)) jsonOut(['success' => false, 'error' => 'Invalid params'], 400);
+        $db->prepare("UPDATE players SET team_id = ? WHERE room_code = ? AND device_id = ? AND is_host = 0")
+           ->execute([$teamId, $code, $targetId]);
+        break;
+
+    case 'bowl_auto_assign':
+        if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
+        $contestantStmt = $db->prepare("SELECT device_id FROM players WHERE room_code = ? AND is_host = 0 ORDER BY joined_at ASC");
+        $contestantStmt->execute([$code]);
+        $contestants = $contestantStmt->fetchAll(PDO::FETCH_COLUMN);
+        $teamCycle = 1;
+        foreach ($contestants as $pid) {
+            $db->prepare("UPDATE players SET team_id = ? WHERE room_code = ? AND device_id = ?")
+               ->execute([$teamCycle, $code, $pid]);
+            $teamCycle = $teamCycle === 1 ? 2 : 1;
+        }
         break;
 
     // ---- Word Impostor: host-driven transitions (no timer fallback) ----
