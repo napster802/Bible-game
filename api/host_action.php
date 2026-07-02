@@ -81,6 +81,15 @@ switch ($action) {
             break;
         }
 
+        if ($room['game_format'] === 'blitz') {
+            $db->prepare("UPDATE rooms SET status = 'blitz_active', blitz_start_time = ?, updated_at = ? WHERE code = ?")
+               ->execute([$now, $now, $code]);
+            // Reset all contestants' blitz_q_idx to 0
+            $db->prepare("UPDATE players SET blitz_q_idx = 0 WHERE room_code = ? AND is_host = 0")
+               ->execute([$code]);
+            break;
+        }
+
         if ($room['game_format'] === 'impostor') {
             $contestantStmt = $db->prepare("SELECT device_id FROM players WHERE room_code = ? AND is_host = 0");
             $contestantStmt->execute([$code]);
@@ -197,7 +206,7 @@ switch ($action) {
     case 'set_game_format':
         if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
         $value = $input['value'] ?? 'classic';
-        $format = in_array($value, ['classic', 'truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor', 'draw', 'scrab', 'wordhunt'], true) ? $value : 'classic';
+        $format = in_array($value, ['classic', 'truefalse', 'scramble', 'survival', 'memory', 'twotruths', 'higherlower', 'versefill', 'emojiclue', 'impostor', 'draw', 'scrab', 'wordhunt', 'blitz'], true) ? $value : 'classic';
         $db->prepare("UPDATE rooms SET game_format = ?, updated_at = ? WHERE code = ?")
            ->execute([$format, $now, $code]);
         break;

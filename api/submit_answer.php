@@ -18,7 +18,45 @@ $db = getDB();
 $stmt = $db->prepare("SELECT * FROM rooms WHERE code = ?");
 $stmt->execute([$code]);
 $room = $stmt->fetch();
-if (!$room || $room['status'] !== 'playing') jsonOut(['success' => false, 'error' => 'Not in playing state'], 400);
+if (!$room || ($room['status'] !== 'playing' && $room['status'] !== 'blitz_active')) jsonOut(['success' => false, 'error' => 'Not in playing state'], 400);
+
+// Blitz has its own per-player question index flow
+if ($room['status'] === 'blitz_active') {
+    $playerStmt2 = $db->prepare("SELECT * FROM players WHERE room_code = ? AND device_id = ?");
+    $playerStmt2->execute([$code, $deviceId]);
+    $playerRow2 = $playerStmt2->fetch();
+    if ($playerRow2 && (int)$playerRow2['is_host'] === 1) jsonOut(['success' => false, 'error' => 'The host does not play'], 403);
+
+    $now = nowMs();
+    $elapsed = $now - (int)$room['blitz_start_time'];
+    $currentBlitzIdx = $playerRow2 ? (int)$playerRow2['blitz_q_idx'] : 0;
+    if ($qIdx !== $currentBlitzIdx) jsonOut(['success' => false, 'error' => 'Wrong blitz question index'], 400);
+
+    $points = 0;
+    if ($isCorrect && $elapsed < 90000) {
+        if ($elapsed < 30000) $multiplier = 3;
+        elseif ($elapsed < 60000) $multiplier = 2;
+        else $multiplier = 1;
+        $points = 100 * $multiplier;
+    }
+
+    $newBlitzIdx = $currentBlitzIdx + 1;
+
+    $db->beginTransaction();
+    $db->prepare("INSERT OR IGNORE INTO answers (room_code, device_id, q_idx, choice_idx, is_correct, points, time_taken, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+       ->execute([$code, $deviceId, $qIdx, $choiceIdx, $isCorrect ? 1 : 0, $points, $timeTaken, $now]);
+    if ($isCorrect) {
+        $db->prepare("UPDATE players SET score = score + ?, correct_count = correct_count + 1, blitz_q_idx = ?, last_ping = ? WHERE room_code = ? AND device_id = ?")
+           ->execute([$points, $newBlitzIdx, $now, $code, $deviceId]);
+    } else {
+        $db->prepare("UPDATE players SET wrong_count = wrong_count + 1, blitz_q_idx = ?, last_ping = ? WHERE room_code = ? AND device_id = ?")
+           ->execute([$newBlitzIdx, $now, $code, $deviceId]);
+    }
+    $db->commit();
+
+    jsonOut(['success' => true, 'points' => $points, 'is_correct' => $isCorrect, 'next_q_idx' => $newBlitzIdx]);
+}
+
 if ((int)$room['current_q_idx'] !== $qIdx) jsonOut(['success' => false, 'error' => 'Wrong question index'], 400);
 
 $playerStmt = $db->prepare("SELECT * FROM players WHERE room_code = ? AND device_id = ?");

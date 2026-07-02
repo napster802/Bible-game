@@ -153,6 +153,7 @@
               <option value="draw">🎨 Sketch &amp; Guess</option>
               <option value="scrab">🕎 Bible Scrabble</option>
               <option value="wordhunt">🔍 Bible Word Hunt</option>
+              <option value="blitz">⚡ Bible Blitz</option>
             </select>
           </div>
           <div class="instructions-box" id="host-instructions-box"></div>
@@ -239,6 +240,7 @@
               </select>
             </div>
           </div>
+          <p class="hint-text" id="host-blitz-hint" style="display:none;">⚡ 90-second rapid fire! Answer as many True/False Bible questions as possible — your own pace, your own questions, 3× bonus in the first 30 seconds!</p>
         </div>
 
         <div class="host-csv-upload" id="host-csv-upload-box">
@@ -840,6 +842,27 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: BIBLE BLITZ ==================== -->
+    <div class="screen" id="screen-blitz-active">
+      <div class="screen-header">
+        <div class="blitz-timer-bar" id="blitz-timer-bar">
+          <div class="blitz-timer-fill" id="blitz-timer-fill"></div>
+          <span class="blitz-timer-text" id="blitz-timer-text">1:30</span>
+        </div>
+        <div class="blitz-score-badge" id="blitz-score-badge">0 pts</div>
+      </div>
+      <div class="screen-body" style="padding:1rem;">
+        <div class="blitz-multiplier-badge" id="blitz-multiplier-badge">3×</div>
+        <div class="question-card" id="blitz-question-card" style="margin-bottom:1rem;"></div>
+        <div class="blitz-answer-flash" id="blitz-answer-flash" style="display:none;"></div>
+        <div class="blitz-choices" id="blitz-choices">
+          <button class="btn btn-blitz-true" onclick="Multiplayer.blitzAnswer(true)">✓ TRUE</button>
+          <button class="btn btn-blitz-false" onclick="Multiplayer.blitzAnswer(false)">✗ FALSE</button>
+        </div>
+        <div class="blitz-counter" id="blitz-counter">0 answered</div>
       </div>
     </div>
 

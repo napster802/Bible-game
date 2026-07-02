@@ -137,6 +137,16 @@ if ($status === 'draw_active') {
     }
 }
 
+// === AUTO-ADVANCE: blitz_active -> finished (Bible Blitz, 90s timer) ===
+if ($status === 'blitz_active') {
+    $blitzElapsed = $now - (int)$room['blitz_start_time'];
+    if ($blitzElapsed >= 92000) { // 90s + 2s grace
+        $db->prepare("UPDATE rooms SET status = 'finished', updated_at = ? WHERE code = ? AND status = 'blitz_active'")
+           ->execute([$now, $code]);
+        $status = 'finished';
+    }
+}
+
 // Re-fetch fresh room row after any updates
 $stmt2 = $db->prepare("SELECT * FROM rooms WHERE code = ?");
 $stmt2->execute([$code]);
@@ -822,7 +832,8 @@ jsonOut([
         'scrab_round'         => (int)($room['scrab_round'] ?? 1),
         'wordhunt_round'      => (int)($room['wordhunt_round'] ?? 0),
         'wordhunt_mode'       => $room['wordhunt_mode'] ?? 'race',
-        'wordhunt_rounds_total' => (int)($room['wordhunt_rounds_total'] ?? 3)
+        'wordhunt_rounds_total' => (int)($room['wordhunt_rounds_total'] ?? 3),
+        'blitz_start_time'  => (int)($room['blitz_start_time'] ?? 0)
     ],
     'players'           => $playersOut,
     'player_count'      => count($playersOut),
@@ -883,6 +894,9 @@ jsonOut([
     'wordhunt_round'           => $wordhuntRoundNum,
     'wordhunt_rounds_total'    => $wordhuntRoundsTotal,
     'wordhunt_round_scores'    => $wordhuntRoundScores,
+    'blitz_elapsed_ms'  => $status === 'blitz_active' ? max(0, $now - (int)$room['blitz_start_time']) : null,
+    'blitz_total_ms'    => 90000,
+    'my_blitz_q_idx'    => $myPlayer ? (int)($myPlayer['blitz_q_idx'] ?? 0) : 0,
     'events'            => $eventsOut,
     'server_time'       => $now
 ]);

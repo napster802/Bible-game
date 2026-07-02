@@ -294,6 +294,7 @@ function migrateSchema(PDO $db): void {
             'wordhunt_turn_start'      => "INTEGER DEFAULT 0",
             'wordhunt_pass_streak'     => "INTEGER DEFAULT 0",
             'wordhunt_turn_idx'        => "INTEGER DEFAULT 0",
+            'blitz_start_time'         => "INTEGER DEFAULT 0",
         ],
         'profiles' => [
             'wallet'                => "INTEGER DEFAULT 0",
@@ -310,6 +311,7 @@ function migrateSchema(PDO $db): void {
             'frozen_until'   => "INTEGER DEFAULT 0",
             'eliminated'     => "INTEGER DEFAULT 0",
             'scrab_rack'     => "TEXT DEFAULT '[]'",
+            'blitz_q_idx'    => "INTEGER DEFAULT 0",
         ],
     ];
     foreach ($columns as $table => $cols) {
