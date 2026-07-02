@@ -2954,7 +2954,23 @@ const Multiplayer = (function () {
         const r = w.row + i * w.dr;
         const c = w.col + i * w.dc;
         const cell = table.querySelector(`td[data-row="${r}"][data-col="${c}"]`);
-        if (cell) cell.classList.add('wh-unclaimed');
+        if (!cell) continue;
+        cell.classList.add('wh-unclaimed');
+        const first = i === 0, last = i === w.len - 1;
+        if (w.dr === 0) {
+          // Horizontal: top+bottom run the full word; left cap on first, right cap on last
+          cell.classList.add('wh-unc-t', 'wh-unc-b');
+          if (first) cell.classList.add('wh-unc-l');
+          if (last)  cell.classList.add('wh-unc-r');
+        } else if (w.dc === 0) {
+          // Vertical: left+right run the full word; top cap on first, bottom cap on last
+          cell.classList.add('wh-unc-l', 'wh-unc-r');
+          if (first) cell.classList.add('wh-unc-t');
+          if (last)  cell.classList.add('wh-unc-b');
+        } else {
+          // Diagonal: cells share only corners, so each cell gets a full border
+          cell.classList.add('wh-unc-t', 'wh-unc-r', 'wh-unc-b', 'wh-unc-l');
+        }
       }
     });
   }

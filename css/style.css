@@ -3591,6 +3591,11 @@ label,
   letter-spacing: 0.03em;
 }
 .wh-unclaimed { background: rgba(231,76,60,0.35) !important; color: #ff6b6b !important; font-weight: 700 !important; }
+/* Directional outline borders for unclaimed word groups */
+.wh-unc-t { border-top:    2.5px solid #e74c3c !important; }
+.wh-unc-r { border-right:  2.5px solid #e74c3c !important; }
+.wh-unc-b { border-bottom: 2.5px solid #e74c3c !important; }
+.wh-unc-l { border-left:   2.5px solid #e74c3c !important; }
 
 /* Host proceed controls on round result */
 .wordhunt-round-controls {
