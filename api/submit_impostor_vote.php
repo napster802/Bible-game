@@ -38,7 +38,25 @@ $checkStmt = $db->prepare("SELECT 1 FROM impostor_votes WHERE room_code = ? AND 
 $checkStmt->execute([$code, $deviceId, $round]);
 if ($checkStmt->fetchColumn()) jsonOut(['success' => false, 'error' => 'Already voted this round'], 400);
 
-$db->prepare("INSERT OR IGNORE INTO impostor_votes (room_code, device_id, round, target_device_id, submitted_at) VALUES (?, ?, ?, ?, ?)")
-   ->execute([$code, $deviceId, $round, $targetId, nowMs()]);
+// Elder: vote counts as 2 (auto-triggered, one-use)
+$voteWeight = 1;
+$cls  = $voter['imp_class']      ?? null;
+$used = (int)($voter['imp_class_used'] ?? 1);
+$now  = nowMs();
+
+if ($cls === 'elder' && $used === 0) {
+    $voteWeight = 2;
+    $db->prepare("UPDATE players SET imp_class_used = 1 WHERE room_code = ? AND device_id = ?")
+       ->execute([$code, $deviceId]);
+}
+
+// Ranger: vote is anonymous — mark imp_class_used so voted-avatars tracker hides them
+if ($cls === 'ranger' && $used === 0) {
+    $db->prepare("UPDATE players SET imp_class_used = 1 WHERE room_code = ? AND device_id = ?")
+       ->execute([$code, $deviceId]);
+}
+
+$db->prepare("INSERT OR IGNORE INTO impostor_votes (room_code, device_id, round, target_device_id, vote_weight, submitted_at) VALUES (?, ?, ?, ?, ?, ?)")
+   ->execute([$code, $deviceId, $round, $targetId, $voteWeight, $now]);
 
 jsonOut(['success' => true]);

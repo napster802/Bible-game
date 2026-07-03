@@ -2806,6 +2806,70 @@ label,
   margin-left: auto;
 }
 
+/* ── Word Impostor: Class System ─────────────────────── */
+.imp-class-card {
+  text-align: center;
+  padding: 1.2rem;
+  background: var(--card);
+  border-radius: 12px;
+  margin-bottom: 1rem;
+  border: 2px solid rgba(130,80,200,0.4);
+}
+.imp-class-icon {
+  font-size: 3rem;
+  display: block;
+  margin-bottom: 0.3rem;
+}
+.imp-class-name {
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+.imp-class-desc {
+  font-size: 0.85rem;
+  color: var(--text2);
+  margin-top: 0.4rem;
+}
+.imp-class-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+.imp-class-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--card);
+  border-radius: 8px;
+}
+.imp-class-row-class {
+  margin-left: auto;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.btn-class-ability {
+  width: 100%;
+  margin-top: 0.8rem;
+  background: rgba(130,80,200,0.2);
+  border: 2px solid #8850c8;
+  color: #c49aff;
+  border-radius: 10px;
+  padding: 0.6rem 1rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.btn-class-ability:disabled { opacity: 0.4; cursor: default; }
+.btn-class-ability.used { opacity: 0.35; text-decoration: line-through; }
+.imp-vote-btn.spotlight {
+  border-color: #e74c3c;
+  box-shadow: 0 0 8px rgba(231,76,60,0.45);
+}
+.imp-spotlight-tag { color: #e74c3c; font-size: 0.72rem; margin-left: 0.3rem; }
+.imp-apostle-tag   { color: var(--gold, #f0c040); font-size: 0.72rem; margin-left: 0.3rem; }
+.imp-class-used-label { font-size: 0.72rem; color: var(--text2); opacity: 0.55; }
+
 /* ── Sketch & Guess ───────────────────────────────────── */
 .draw-word-choices {
   display: grid;

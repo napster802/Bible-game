@@ -122,9 +122,31 @@ switch ($action) {
             $impostorId2 = $impostorCount === 2 ? $pool[random_int(0, count($pool) - 1)] : null;
             $wordPairIdx = random_int(0, 129); // js/impostor_data.js ImpostorData.PAIRS has exactly 130 entries
 
-            $db->prepare("UPDATE players SET eliminated = 0 WHERE room_code = ?")->execute([$code]);
-            $db->prepare("UPDATE rooms SET status = 'imp_clue', impostor_word_pair_idx = ?, impostor_id = ?, impostor_id_2 = ?, impostor_round = 1, impostor_result = NULL, impostor_last_elim_id = NULL, impostor_last_skipped = 0, updated_at = ? WHERE code = ?")
-               ->execute([$wordPairIdx, $impostorId, $impostorId2, $now, $code]);
+            $db->prepare("UPDATE players SET eliminated = 0, imp_class = NULL, imp_class_used = 0 WHERE room_code = ?")->execute([$code]);
+
+            $startStatus = 'imp_clue';
+            if ((int)$room['imp_classes_enabled'] === 1) {
+                $impostorIds = array_filter([$impostorId, $impostorId2]);
+                $crewIds = array_values(array_diff($contestants, $impostorIds));
+                $crewClasses = ['doctor', 'prophet', 'guardian', 'elder', 'scribe', 'apostle', 'shepherd', 'watchman', 'ranger', 'healer'];
+                $impostorClasses = ['shadow', 'mimic', 'saboteur', 'spy', 'phantom'];
+                shuffle($crewClasses);
+                shuffle($impostorClasses);
+                foreach ($crewIds as $i => $pid) {
+                    $cls = $crewClasses[$i % count($crewClasses)];
+                    $db->prepare("UPDATE players SET imp_class = ? WHERE room_code = ? AND device_id = ?")
+                       ->execute([$cls, $code, $pid]);
+                }
+                foreach (array_values($impostorIds) as $i => $pid) {
+                    $cls = $impostorClasses[$i % count($impostorClasses)];
+                    $db->prepare("UPDATE players SET imp_class = ? WHERE room_code = ? AND device_id = ?")
+                       ->execute([$cls, $code, $pid]);
+                }
+                $startStatus = 'imp_class_reveal';
+            }
+
+            $db->prepare("UPDATE rooms SET status = ?, impostor_word_pair_idx = ?, impostor_id = ?, impostor_id_2 = ?, impostor_round = 1, impostor_result = NULL, impostor_last_elim_id = NULL, impostor_last_skipped = 0, impostor_last_phantom = 0, impostor_last_shepherd = 0, impostor_last_healer = 0, imp_shielded_id = NULL, imp_spotlight_id = NULL, imp_nullified_vote_id = NULL, imp_shadow_new_id = NULL, updated_at = ? WHERE code = ?")
+               ->execute([$startStatus, $wordPairIdx, $impostorId, $impostorId2, $now, $code]);
             break;
         }
 
@@ -327,8 +349,21 @@ switch ($action) {
     case 'impostor_next_round':
         if ($room['status'] !== 'imp_elim') jsonOut(['success' => false, 'error' => 'Not in elimination state'], 400);
         $nextRound = (int)$room['impostor_round'] + 1;
-        $db->prepare("UPDATE rooms SET status = 'imp_clue', impostor_round = ?, updated_at = ? WHERE code = ?")
+        $db->prepare("UPDATE rooms SET status = 'imp_clue', impostor_round = ?, imp_shielded_id = NULL, imp_spotlight_id = NULL, imp_nullified_vote_id = NULL, imp_shadow_new_id = NULL, updated_at = ? WHERE code = ?")
            ->execute([$nextRound, $now, $code]);
+        break;
+
+    case 'imp_start_clue_phase':
+        if ($room['status'] !== 'imp_class_reveal') jsonOut(['success' => false, 'error' => 'Not in class reveal state'], 400);
+        $db->prepare("UPDATE rooms SET status = 'imp_clue', imp_shielded_id = NULL, imp_spotlight_id = NULL, imp_nullified_vote_id = NULL, updated_at = ? WHERE code = ?")
+           ->execute([$now, $code]);
+        break;
+
+    case 'set_imp_classes':
+        if ($room['status'] !== 'lobby') jsonOut(['success' => false, 'error' => 'Game in progress'], 400);
+        $enabled = (int)($input['enabled'] ?? 0) === 1 ? 1 : 0;
+        $db->prepare("UPDATE rooms SET imp_classes_enabled = ?, updated_at = ? WHERE code = ?")
+           ->execute([$enabled, $now, $code]);
         break;
 
     case 'impostor_resolve_tiebreak':

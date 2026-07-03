@@ -159,6 +159,13 @@
             </select>
           </div>
           <div class="instructions-box" id="host-instructions-box"></div>
+          <div class="setting-row" id="imp-classes-row" style="display:none;">
+            <span>Class Powers</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="imp-classes-toggle" onchange="HostGame.setImpClasses(this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
           <div class="setting-row" id="host-draw-rounds-row" style="display:none;">
             <span>Rounds per Player</span>
             <select id="host-draw-rounds-select" class="select-input" onchange="HostGame.setDrawRounds(this.value)">
@@ -554,6 +561,27 @@
       </div>
     </div>
 
+    <!-- ==================== SCREEN: IMPOSTOR CLASS REVEAL ==================== -->
+    <div class="screen" id="screen-imp-class-reveal">
+      <div class="screen-header"><h2>🎭 Your Class</h2></div>
+      <div class="screen-body">
+        <div id="imp-cr-player-view">
+          <div class="imp-class-card" id="imp-cr-class-card"></div>
+          <div class="imp-word-card" id="imp-cr-word-card">
+            <p class="hint-text">Your Secret Word</p>
+            <div class="imp-word" id="imp-cr-word">—</div>
+            <div class="imp-role-badge" id="imp-cr-role-badge"></div>
+          </div>
+        </div>
+        <div id="imp-cr-host-view" style="display:none;">
+          <div class="imp-class-grid" id="imp-cr-class-grid"></div>
+          <div class="imp-answerkey" id="imp-cr-answerkey"></div>
+          <button class="btn btn-primary btn-xl" onclick="HostGame.impStartCluePhase()">▶ Begin Round 1</button>
+        </div>
+        <p class="hint-text" id="imp-cr-waiting-text" style="display:none;">Waiting for the host to begin…</p>
+      </div>
+    </div>
+
     <!-- ==================== SCREEN: IMPOSTOR CLUE ==================== -->
     <div class="screen" id="screen-imp-clue">
       <div class="screen-header">
@@ -578,6 +606,7 @@
           <div class="host-monitor-list" id="imp-clue-host-monitor-list"></div>
           <button class="btn btn-secondary" onclick="HostGame.forceAdvanceImpostor()">⏭ Force Advance (skip stragglers)</button>
         </div>
+        <div id="imp-class-action-clue"></div>
       </div>
     </div>
 
@@ -599,6 +628,7 @@
           <button class="btn btn-primary btn-xl" onclick="HostGame.startImpostorVoting()">🗳️ Start Voting →</button>
         </div>
         <p class="hint-text" id="imp-reveal-waiting-text" style="display:none">Waiting for the host to open voting…</p>
+        <div id="imp-class-action-reveal"></div>
       </div>
     </div>
 
@@ -619,6 +649,7 @@
           <div class="host-monitor-list" id="imp-vote-host-monitor-list"></div>
           <button class="btn btn-secondary" id="imp-vote-proceed-btn" onclick="HostGame.forceAdvanceImpostor()">⏭ Force Advance (skip stragglers)</button>
         </div>
+        <div id="imp-class-action-vote"></div>
       </div>
     </div>
 
@@ -634,6 +665,7 @@
           <button class="btn btn-primary btn-xl" onclick="HostGame.nextImpostorRound()">Next Round →</button>
         </div>
         <p class="hint-text" id="imp-elim-waiting-text" style="display:none">Waiting for the host to continue…</p>
+        <div id="imp-class-action-elim"></div>
       </div>
     </div>
 

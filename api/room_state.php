@@ -356,6 +356,7 @@ foreach ($players as $p) {
     // Word Impostor reuses the host-monitor "has acted this round" concept
     // for clue submission / voting, instead of the answers table.
     $impostorActed = false;
+    $impostorActedHidden = false;
     if ($room['game_format'] === 'impostor') {
         if ($status === 'imp_clue') {
             $actedStmt = $db->prepare("SELECT 1 FROM impostor_clues WHERE room_code = ? AND device_id = ? AND round = ?");
@@ -365,6 +366,10 @@ foreach ($players as $p) {
             $actedStmt = $db->prepare("SELECT 1 FROM impostor_votes WHERE room_code = ? AND device_id = ? AND round = ?");
             $actedStmt->execute([$code, $p['device_id'], $impRound]);
             $impostorActed = (bool)$actedStmt->fetchColumn();
+            // Ranger: hide from voted-avatars tracker when their ability auto-triggered
+            if ((int)$room['imp_classes_enabled'] === 1 && ($p['imp_class'] ?? null) === 'ranger' && (int)($p['imp_class_used'] ?? 0) === 1) {
+                $impostorActedHidden = true;
+            }
         }
     }
 
@@ -383,7 +388,8 @@ foreach ($players as $p) {
         'best_streak'  => (int)$p['best_streak'],
         'frozen'       => ((int)$p['frozen_until']) > $now,
         'eliminated'   => (bool)$p['eliminated'],
-        'impostor_acted' => $impostorActed,
+        'impostor_acted'        => $impostorActed,
+        'impostor_acted_hidden' => $impostorActedHidden,
         'team_id'      => (int)($p['team_id'] ?? 0)
     ];
 }
@@ -489,6 +495,16 @@ $myImpostorClue = null;
 $myImpostorVote = null;
 $impostorCrewList = null;
 $impostorImpostorList = null;
+// Class system fields
+$myImpClass = null;
+$myImpClassUsed = false;
+$myProphetPeek = null;
+$myMimicClue = null;
+$mySpyTally = null;
+$myShadowNotif = null;
+$impSpotlightId = null;
+$impPlayerClasses = null;
+$myImpScribeWord = null;
 
 if ($room['game_format'] === 'impostor') {
     $impostorIds = impostorIdsOf($room);
@@ -527,34 +543,58 @@ if ($room['game_format'] === 'impostor') {
     // submitted one (imp_reveal), then stay visible through voting/elimination
     // so players can keep re-reading them while they discuss/vote.
     if (in_array($status, ['imp_reveal', 'imp_vote', 'imp_tiebreak', 'imp_elim', 'finished'], true)) {
-        $cluesStmt = $db->prepare("SELECT ic.device_id, p.name, p.avatar, ic.clue FROM impostor_clues ic
+        $cluesStmt = $db->prepare("SELECT ic.device_id, p.name, p.avatar, ic.clue, p.imp_class FROM impostor_clues ic
                                     JOIN players p ON p.room_code = ic.room_code AND p.device_id = ic.device_id
                                     WHERE ic.room_code = ? AND ic.round = ? ORDER BY ic.submitted_at ASC");
         $cluesStmt->execute([$code, $impRound]);
-        $impostorClues = $cluesStmt->fetchAll();
+        $classesOn = (int)$room['imp_classes_enabled'] === 1;
+        $impostorClues = array_map(fn($c) => [
+            'device_id'  => $c['device_id'],
+            'name'       => $c['name'],
+            'avatar'     => $c['avatar'],
+            'clue'       => $c['clue'],
+            'is_apostle' => $classesOn && $c['imp_class'] === 'apostle',
+        ], $cluesStmt->fetchAll());
     }
 
     // Vote tallies stay hidden during voting itself (no live bias) and only
     // surface once a round has actually resolved.
     if (in_array($status, ['imp_tiebreak', 'imp_elim', 'finished'], true)) {
-        $tallyStmt = $db->prepare("SELECT iv.target_device_id, p.name, p.avatar, COUNT(*) AS cnt FROM impostor_votes iv
+        $tallyStmt = $db->prepare("SELECT iv.target_device_id, p.name, p.avatar, SUM(iv.vote_weight) AS cnt FROM impostor_votes iv
                                     JOIN players p ON p.room_code = iv.room_code AND p.device_id = iv.target_device_id
                                     WHERE iv.room_code = ? AND iv.round = ? GROUP BY iv.target_device_id ORDER BY cnt DESC");
         $tallyStmt->execute([$code, $impRound]);
         $impostorVoteTally = $tallyStmt->fetchAll();
     }
 
-    if (in_array($status, ['imp_elim', 'finished'], true) && $room['impostor_last_elim_id']) {
-        $lastElimStmt = $db->prepare("SELECT device_id, name, avatar FROM players WHERE room_code = ? AND device_id = ?");
-        $lastElimStmt->execute([$code, $room['impostor_last_elim_id']]);
-        $lastElimRow = $lastElimStmt->fetch();
-        if ($lastElimRow) {
+    if (in_array($status, ['imp_elim', 'finished'], true)) {
+        if ((int)$room['impostor_last_healer']) {
+            // Healer saved the target — no elimination occurred
             $impostorLastElim = [
-                'device_id'    => $lastElimRow['device_id'],
-                'name'         => $lastElimRow['name'],
-                'avatar'       => $lastElimRow['avatar'],
-                'was_impostor' => in_array($lastElimRow['device_id'], $impostorIds, true)
+                'device_id'       => null,
+                'name'            => null,
+                'avatar'          => null,
+                'was_impostor'    => false,
+                'saved_by_healer' => true,
+                'role_auto_revealed' => false,
             ];
+        } elseif ($room['impostor_last_elim_id']) {
+            $lastElimStmt = $db->prepare("SELECT device_id, name, avatar FROM players WHERE room_code = ? AND device_id = ?");
+            $lastElimStmt->execute([$code, $room['impostor_last_elim_id']]);
+            $lastElimRow = $lastElimStmt->fetch();
+            if ($lastElimRow) {
+                $wasImpostor = in_array($lastElimRow['device_id'], $impostorIds, true);
+                // Phantom deceives everyone: always shows 'was crew'
+                if ((int)$room['impostor_last_phantom']) $wasImpostor = false;
+                $impostorLastElim = [
+                    'device_id'          => $lastElimRow['device_id'],
+                    'name'               => $lastElimRow['name'],
+                    'avatar'             => $lastElimRow['avatar'],
+                    'was_impostor'       => $wasImpostor,
+                    'saved_by_healer'    => false,
+                    'role_auto_revealed' => (bool)$room['impostor_last_shepherd'],
+                ];
+            }
         }
     }
 
@@ -570,6 +610,55 @@ if ($room['game_format'] === 'impostor') {
             'name'      => $r['name'],
             'avatar'    => $r['avatar']
         ], $revealStmt->fetchAll());
+    }
+
+    // === Class system data (only when enabled) ===
+    if ((int)$room['imp_classes_enabled'] === 1 && $myPlayer) {
+        $myImpClass    = $myPlayer['imp_class'] ?? null;
+        $myImpClassUsed = (bool)($myPlayer['imp_class_used'] ?? false);
+        $impSpotlightId = $room['imp_spotlight_id'] ?? null;
+
+        // Prophet: persistent peek result
+        if ($myImpClass === 'prophet' && $myImpClassUsed) {
+            $peekStmt = $db->prepare("SELECT p.name, ip.is_impostor FROM imp_class_peeks ip JOIN players p ON p.room_code = ip.room_code AND p.device_id = ip.target_id WHERE ip.room_code = ? AND ip.peeker_id = ? ORDER BY ip.id DESC LIMIT 1");
+            $peekStmt->execute([$code, $deviceId]);
+            $peekRow = $peekStmt->fetch();
+            if ($peekRow) $myProphetPeek = ['target_name' => $peekRow['name'], 'is_impostor' => (bool)$peekRow['is_impostor']];
+        }
+
+        // Mimic: persistent clue peek
+        if ($myImpClass === 'mimic' && $myImpClassUsed) {
+            $mimicStmt = $db->prepare("SELECT ip.clue, p.name FROM imp_mimic_peeks ip JOIN players p ON p.room_code = ip.room_code AND p.device_id = ip.target_id WHERE ip.room_code = ? AND ip.mimic_id = ? ORDER BY ip.id DESC LIMIT 1");
+            $mimicStmt->execute([$code, $deviceId]);
+            $mimicRow = $mimicStmt->fetch();
+            if ($mimicRow) $myMimicClue = ['target_name' => $mimicRow['name'], 'clue' => $mimicRow['clue']];
+        }
+
+        // Spy: re-read tally so it persists across reconnects
+        if ($myImpClass === 'spy' && $myImpClassUsed) {
+            $spyStmt = $db->prepare("SELECT v.target_device_id, p.name, p.avatar, SUM(v.vote_weight) AS cnt FROM impostor_votes v JOIN players p ON p.room_code = v.room_code AND p.device_id = v.target_device_id WHERE v.room_code = ? AND v.round = ? GROUP BY v.target_device_id ORDER BY cnt DESC");
+            $spyStmt->execute([$code, $impRound]);
+            $mySpyTally = $spyStmt->fetchAll();
+        }
+
+        // Shadow notification: this player just became the impostor
+        if ($room['imp_shadow_new_id'] === $deviceId) $myShadowNotif = true;
+
+        // Scribe: flag so frontend shows the impostor word too
+        if ($myImpClass === 'scribe' && !$amIImpostor) $myImpScribeWord = true;
+
+        // Host sees every player's class assignment
+        if ($isHost) {
+            $classGridStmt = $db->prepare("SELECT device_id, name, avatar, imp_class, imp_class_used FROM players WHERE room_code = ? AND is_host = 0 ORDER BY joined_at ASC");
+            $classGridStmt->execute([$code]);
+            $impPlayerClasses = array_map(fn($r) => [
+                'device_id'  => $r['device_id'],
+                'name'       => $r['name'],
+                'avatar'     => $r['avatar'],
+                'class'      => $r['imp_class'],
+                'class_used' => (bool)$r['imp_class_used'],
+            ], $classGridStmt->fetchAll());
+        }
     }
 }
 
@@ -1000,6 +1089,7 @@ jsonOut([
         'impostor_word_pair_idx'  => (int)$room['impostor_word_pair_idx'],
         'impostor_result'        => $room['impostor_result'],
         'impostor_last_skipped'  => (bool)$room['impostor_last_skipped'],
+        'imp_classes_enabled'    => (bool)$room['imp_classes_enabled'],
         'draw_round'        => (int)$room['draw_round'],
         'draw_rounds_total' => (int)$room['draw_rounds_total'],
         'scrab_round'         => (int)($room['scrab_round'] ?? 1),
@@ -1031,6 +1121,15 @@ jsonOut([
     'my_impostor_vote'    => $myImpostorVote,
     'impostor_crew_list'      => $impostorCrewList,
     'impostor_impostor_list'  => $impostorImpostorList,
+    'my_imp_class'            => $myImpClass,
+    'my_imp_class_used'       => $myImpClassUsed,
+    'my_prophet_peek'         => $myProphetPeek,
+    'my_mimic_clue'           => $myMimicClue,
+    'my_spy_tally'            => $mySpyTally,
+    'my_shadow_notif'         => $myShadowNotif,
+    'imp_spotlight_id'        => $impSpotlightId,
+    'imp_player_classes'      => $impPlayerClasses,
+    'my_imp_scribe_word'      => $myImpScribeWord,
     'draw_current_drawer'  => $drawCurrentDrawer,
     'am_i_drawer'           => $amIDrawer,
     'my_draw_word_choices'  => $myDrawWordChoices,

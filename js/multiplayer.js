@@ -263,11 +263,17 @@ const Multiplayer = (function () {
       if (lastStatus !== 'leaderboard' || lastQIdx !== qIdx) {
         enterLeaderboard(data);
       }
+    } else if (status === 'imp_class_reveal') {
+      if (lastStatus !== 'imp_class_reveal') {
+        enterImpClassReveal(data);
+      }
+      handleImpClassNotifications(data);
     } else if (status === 'imp_clue') {
       if (lastStatus !== 'imp_clue' || lastImpRound !== data.room.impostor_round) {
         enterImpClue(data);
       }
       updateImpClueProgress(data);
+      handleImpClassNotifications(data);
     } else if (status === 'imp_reveal') {
       if (lastStatus !== 'imp_reveal' || lastImpRound !== data.room.impostor_round) {
         enterImpReveal(data);
@@ -1749,12 +1755,236 @@ const Multiplayer = (function () {
     `;
   }
 
+  // ── WORD IMPOSTOR CLASS SYSTEM ─────────────────────────────────────
+  let impShadowShown = false; // avoid repeated "you are now impostor" toasts
+
+  const IMP_CLASS_DATA = {
+    doctor:   { icon: '🏥', name: 'Doctor',   side: 'crew',     desc: 'Revive ONE eliminated Crew member back into the game.' },
+    prophet:  { icon: '🔮', name: 'Prophet',  side: 'crew',     desc: 'Privately learn if one living player is Crew or Impostor.' },
+    guardian: { icon: '🛡️', name: 'Guardian', side: 'crew',     desc: 'Shield one player this round — their elimination is nullified if voted out.' },
+    elder:    { icon: '👑', name: 'Elder',    side: 'crew',     desc: 'Your vote automatically counts as 2 this round.' },
+    scribe:   { icon: '📜', name: 'Scribe',   side: 'crew',     desc: 'You see BOTH the Crew word and the Impostor word from the start.' },
+    apostle:  { icon: '⭐', name: 'Apostle',  side: 'crew',     desc: 'Your clue shows a ⭐ verified badge visible to all players.' },
+    shepherd: { icon: '🐑', name: 'Shepherd', side: 'crew',     desc: 'When voted out, your true role is instantly revealed to all.' },
+    watchman: { icon: '👁️', name: 'Watchman', side: 'crew',     desc: 'Spotlight one player — their name shows 🚨 in the vote list.' },
+    ranger:   { icon: '🏹', name: 'Ranger',   side: 'crew',     desc: 'Your vote is anonymous — you will not appear in the voted tracker.' },
+    healer:   { icon: '💊', name: 'Healer',   side: 'crew',     desc: 'Automatically survive one elimination vote.' },
+    shadow:   { icon: '👤', name: 'Shadow',   side: 'impostor', desc: 'Transfer the Impostor role to a Crew member — you become Crew.' },
+    mimic:    { icon: '🎭', name: 'Mimic',    side: 'impostor', desc: 'Privately peek at one player\'s submitted clue before the reveal.' },
+    saboteur: { icon: '💣', name: 'Saboteur', side: 'impostor', desc: 'Nullify one player\'s vote this round — it appears but is not counted.' },
+    spy:      { icon: '🔭', name: 'Spy',      side: 'impostor', desc: 'See the full vote tally privately before the host reveals it.' },
+    phantom:  { icon: '👻', name: 'Phantom',  side: 'impostor', desc: 'When voted out, the banner falsely shows "was Crew" — fools everyone.' },
+  };
+
+  function renderImpClassCard(cls) {
+    const d = IMP_CLASS_DATA[cls];
+    if (!d) return '';
+    const sideColor = d.side === 'impostor' ? '#c49aff' : '#7ec8e3';
+    return `<div class="imp-class-card">
+      <span class="imp-class-icon">${d.icon}</span>
+      <span class="imp-class-name" style="color:${sideColor}">${d.name}</span>
+      <p class="imp-class-desc">${d.desc}</p>
+    </div>`;
+  }
+
+  function enterImpClassReveal(data) {
+    App.goTo('imp-class-reveal');
+    const pair = ImpostorData.PAIRS[data.room.impostor_word_pair_idx];
+    const playerView = document.getElementById('imp-cr-player-view');
+    const hostView   = document.getElementById('imp-cr-host-view');
+    const waitingText = document.getElementById('imp-cr-waiting-text');
+
+    if (isHost) {
+      if (playerView) playerView.style.display = 'none';
+      if (hostView)   hostView.style.display = 'block';
+      if (waitingText) waitingText.style.display = 'none';
+      // Host class grid
+      const grid = document.getElementById('imp-cr-class-grid');
+      if (grid) {
+        const classes = data.imp_player_classes || [];
+        grid.innerHTML = classes.map(p => {
+          const d2 = IMP_CLASS_DATA[p.class] || {};
+          return `<div class="imp-class-row">
+            ${avatarHtmlFor(p)}<span>${escapeHtml(p.name)}</span>
+            <span class="imp-class-row-class">${d2.icon || ''} ${escapeHtml(d2.name || p.class || '—')}</span>
+          </div>`;
+        }).join('');
+      }
+      renderImpHostAnswerKey('imp-cr-answerkey', data);
+    } else {
+      if (playerView) playerView.style.display = 'block';
+      if (hostView)   hostView.style.display = 'none';
+      if (waitingText) waitingText.style.display = 'block';
+      // Class card
+      const cardEl = document.getElementById('imp-cr-class-card');
+      if (cardEl) cardEl.innerHTML = renderImpClassCard(data.my_imp_class);
+      // Word
+      const wordEl = document.getElementById('imp-cr-word');
+      if (wordEl) wordEl.textContent = pair ? (data.am_i_impostor ? pair.wordB : pair.wordA) : '—';
+      // Also show impostor word for Scribe
+      if (data.my_imp_scribe_word && pair) {
+        if (wordEl) wordEl.textContent += ` / ${pair.wordB}`;
+      }
+      renderImpRoleBadge('imp-cr-role-badge', data);
+    }
+  }
+
+  function renderImpClassAbilityButtons(screenId, data) {
+    const containerId = `imp-class-action-${screenId}`;
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = '';
+    if (isHost) return;
+    const cls = data.my_imp_class;
+    const used = data.my_imp_class_used;
+    if (!cls || !data.room.imp_classes_enabled) return;
+
+    const d2 = IMP_CLASS_DATA[cls] || {};
+    const living = data.players.filter(p => !p.is_host && !p.eliminated);
+    const eliminated = data.players.filter(p => !p.is_host && p.eliminated);
+
+    const makeBtn = (label, onclick) => {
+      const btn = document.createElement('button');
+      btn.className = 'btn-class-ability' + (used ? ' used' : '');
+      btn.disabled = used;
+      btn.innerHTML = `${d2.icon || ''} ${label}`;
+      if (!used) btn.onclick = onclick;
+      container.appendChild(btn);
+    };
+
+    // Screen: clue
+    if (screenId === 'clue') {
+      if (cls === 'prophet') {
+        makeBtn('Use Prophet — peek a player\'s role', () => showImpClassTargetPicker('Peek which player?', 'prophet_peek', p => p.device_id !== deviceId));
+      } else if (cls === 'shadow') {
+        makeBtn('Use Shadow — transfer Impostor role', () => showImpClassTargetPicker('Transfer Impostor to?', 'shadow_transfer', p => p.device_id !== deviceId));
+      } else if (cls === 'mimic') {
+        makeBtn('Use Mimic — peek a player\'s clue', () => showImpClassTargetPicker('Peek whose clue?', 'mimic_peek', p => p.device_id !== deviceId));
+      }
+      // Show persistent prophet peek result
+      if (cls === 'prophet' && used && data.my_prophet_peek) {
+        const r = data.my_prophet_peek;
+        const info = document.createElement('p');
+        info.className = 'hint-text';
+        info.textContent = `🔮 ${r.target_name} is ${r.is_impostor ? 'an IMPOSTOR' : 'Crew'}.`;
+        container.appendChild(info);
+      }
+      // Show persistent mimic result
+      if (cls === 'mimic' && used && data.my_mimic_clue) {
+        const r = data.my_mimic_clue;
+        const info = document.createElement('p');
+        info.className = 'hint-text';
+        info.textContent = `🎭 ${r.target_name}'s clue: "${r.clue}"`;
+        container.appendChild(info);
+      }
+    }
+
+    // Screen: reveal
+    if (screenId === 'reveal') {
+      if (cls === 'watchman') {
+        makeBtn('Use Watchman — spotlight a player', () => showImpClassTargetPicker('Spotlight who?', 'watchman_spot', p => p.device_id !== deviceId));
+      }
+    }
+
+    // Screen: vote
+    if (screenId === 'vote') {
+      if (cls === 'guardian') {
+        makeBtn('Use Guardian — shield a player', () => showImpClassTargetPicker('Shield who?', 'guardian_shield', () => true));
+      } else if (cls === 'saboteur') {
+        makeBtn('Use Saboteur — nullify a vote', () => showImpClassTargetPicker('Nullify whose vote?', 'saboteur_nullify', p => p.device_id !== deviceId));
+      } else if (cls === 'spy') {
+        makeBtn('Use Spy — see vote tally now', () => useImpClass('spy_tally', null));
+      }
+      // Show persistent spy tally
+      if (cls === 'spy' && used && data.my_spy_tally && data.my_spy_tally.length) {
+        const tallyEl = document.createElement('div');
+        tallyEl.className = 'hint-text';
+        tallyEl.innerHTML = '<strong>🔭 Private Tally:</strong><br>' +
+          data.my_spy_tally.map(t => `${avatarHtmlFor(t)} ${escapeHtml(t.name)}: ${t.cnt} vote${t.cnt > 1 ? 's' : ''}`).join('<br>');
+        container.appendChild(tallyEl);
+      }
+    }
+
+    // Screen: elim
+    if (screenId === 'elim') {
+      if (cls === 'doctor') {
+        const targets = eliminated.filter(p => !data.am_i_impostor || true); // Doctor can revive any eliminated crew
+        if (targets.length > 0) {
+          makeBtn('Use Doctor — revive a player', () => showImpClassTargetPicker('Revive who?', 'doctor_revive', p => p.eliminated && !data.impostor_impostor_list?.some(im => im.device_id === p.device_id)));
+        }
+      }
+    }
+  }
+
+  function showImpClassTargetPicker(title, action, filterFn) {
+    // Remove any existing picker
+    const existing = document.getElementById('imp-class-target-modal');
+    if (existing) existing.remove();
+
+    const data = lastData;
+    if (!data) return;
+    const targets = data.players.filter(p => !p.is_host && !p.eliminated && filterFn(p));
+    if (!targets.length) { App.showToast('No valid targets', 'error'); return; }
+
+    const modal = document.createElement('div');
+    modal.id = 'imp-class-target-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1rem;';
+    modal.innerHTML = `<div style="background:var(--card);border-radius:14px;padding:1.2rem;max-width:360px;width:100%;max-height:80vh;overflow-y:auto;">
+      <p style="font-weight:800;font-size:1.1rem;margin-bottom:0.8rem;">${title}</p>
+      <div id="imp-class-target-list"></div>
+      <button class="btn btn-secondary" style="margin-top:0.8rem;width:100%;" onclick="document.getElementById('imp-class-target-modal').remove()">Cancel</button>
+    </div>`;
+    document.body.appendChild(modal);
+
+    const list = modal.querySelector('#imp-class-target-list');
+    targets.forEach(p => {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-secondary';
+      btn.style.cssText = 'width:100%;margin-bottom:0.4rem;display:flex;align-items:center;gap:0.5rem;';
+      btn.innerHTML = `${avatarHtmlFor(p)} ${escapeHtml(p.name)}`;
+      btn.onclick = () => {
+        modal.remove();
+        useImpClass(action, p.device_id);
+      };
+      list.appendChild(btn);
+    });
+  }
+
+  function useImpClass(action, targetDeviceId) {
+    const payload = { room_code: roomCode, device_id: deviceId, action };
+    if (targetDeviceId) payload.target_device_id = targetDeviceId;
+    api('use_imp_class.php', payload).then(res => {
+      if (!res.success) { App.showToast(res.error || 'Could not use ability', 'error'); return; }
+      App.showToast('Ability activated!', 'success');
+      if (res.result) {
+        const r = res.result;
+        if (action === 'prophet_peek') App.showToast(`🔮 ${r.target_name} is ${r.is_impostor ? 'an IMPOSTOR' : 'Crew'}!`, 'success');
+        if (action === 'mimic_peek')   App.showToast(`🎭 ${r.target_name}'s clue: "${r.clue}"`, 'success');
+        if (action === 'spy_tally') {
+          const tallyText = (r.tally || []).map(t => `${t.name}: ${t.cnt}`).join(', ');
+          App.showToast(`🔭 Tally: ${tallyText || 'No votes yet'}`, 'success');
+        }
+      }
+      poll();
+    }).catch(() => App.showToast('Could not reach the host — try again.', 'error'));
+  }
+
+  function handleImpClassNotifications(data) {
+    // Shadow: notify player they are now the Impostor
+    if (data.my_shadow_notif && !impShadowShown) {
+      impShadowShown = true;
+      const pair = ImpostorData.PAIRS[data.room.impostor_word_pair_idx];
+      const word = pair ? pair.wordB : '—';
+      App.showToast(`⚠️ You are now the IMPOSTOR! Your impostor word is "${word}".`, 'success');
+    }
+  }
+
   function renderImpClueList(containerId, data) {
     const list = document.getElementById(containerId);
     if (!list) return;
     list.innerHTML = (data.impostor_clues || []).map(c => `
       <div class="imp-clue-item">
-        <span class="imp-clue-name">${avatarHtmlFor(c)} ${escapeHtml(c.name)}</span>
+        <span class="imp-clue-name">${avatarHtmlFor(c)} ${escapeHtml(c.name)}${c.is_apostle ? '<span class="imp-apostle-tag">⭐</span>' : ''}</span>
         <span class="imp-clue-text">"${escapeHtml(c.clue)}"</span>
       </div>
     `).join('');
@@ -1881,6 +2111,8 @@ const Multiplayer = (function () {
       if (submitBtn) { submitBtn.disabled = false; submitBtn.onclick = () => submitImpostorClue(round); }
       if (submittedText) submittedText.style.display = 'none';
     }
+
+    renderImpClassAbilityButtons('clue', data);
   }
 
   function updateImpClueProgress(data) {
@@ -1911,6 +2143,7 @@ const Multiplayer = (function () {
     if (isHost) renderImpHostAnswerKey('imp-reveal-answerkey', data);
     if (hostControls) hostControls.style.display = isHost ? 'block' : 'none';
     if (waitingText) waitingText.style.display = isHost ? 'none' : 'block';
+    renderImpClassAbilityButtons('reveal', data);
   }
 
   function enterImpVote(data) {
@@ -1951,6 +2184,7 @@ const Multiplayer = (function () {
     }
 
     renderImpVoteButtons(data);
+    renderImpClassAbilityButtons('vote', data);
   }
 
   // Visible to every player (not just the host monitor) so everyone can see,
@@ -1958,7 +2192,8 @@ const Multiplayer = (function () {
   function renderImpVotedAvatars(data) {
     const row = document.getElementById('imp-vote-voted-avatars');
     if (!row) return;
-    const voters = data.players.filter(p => !p.is_host && p.impostor_acted);
+    // Ranger with used ability is hidden from this tracker
+    const voters = data.players.filter(p => !p.is_host && p.impostor_acted && !p.impostor_acted_hidden);
     row.innerHTML = voters.map(p => `<span class="imp-voted-avatar-badge">${avatarHtmlFor(p)}</span>`).join('');
   }
 
@@ -1976,13 +2211,15 @@ const Multiplayer = (function () {
     if (!voteList) return;
     const round = data.room.impostor_round;
     const alreadyVoted = data.my_impostor_vote !== null;
+    const spotlightId = data.imp_spotlight_id || null;
     const targets = data.players.filter(p => !p.is_host && !p.eliminated && p.device_id !== deviceId);
     voteList.innerHTML = '';
     targets.forEach(p => {
       const isMyVote = data.my_impostor_vote === p.device_id;
+      const isSpotlit = spotlightId && p.device_id === spotlightId;
       const btn = document.createElement('button');
-      btn.className = 'imp-vote-btn' + (isMyVote ? ' voted' : '');
-      btn.innerHTML = `${avatarHtmlFor(p)}<span class="imp-vote-name">${escapeHtml(p.name)}</span>`;
+      btn.className = 'imp-vote-btn' + (isMyVote ? ' voted' : '') + (isSpotlit ? ' spotlight' : '');
+      btn.innerHTML = `${avatarHtmlFor(p)}<span class="imp-vote-name">${escapeHtml(p.name)}${isSpotlit ? '<span class="imp-spotlight-tag">🚨</span>' : ''}</span>`;
       btn.disabled = alreadyVoted;
       if (!alreadyVoted) btn.onclick = () => submitImpostorVote(round, p.device_id);
       voteList.appendChild(btn);
@@ -2007,12 +2244,19 @@ const Multiplayer = (function () {
     const waitingText = document.getElementById('imp-elim-waiting-text');
 
     if (banner) {
-      if (data.room.impostor_last_skipped) {
+      const elim = data.impostor_last_elim;
+      if (elim && elim.saved_by_healer) {
+        banner.textContent = '💊 Saved by the Healer! No one was eliminated this round.';
+      } else if (data.room.impostor_last_skipped) {
         banner.textContent = '🤷 No one was eliminated this round.';
-      } else if (data.impostor_last_elim) {
-        banner.textContent = data.impostor_last_elim.was_impostor
-          ? `💀 ${data.impostor_last_elim.name} was voted out — they were an Impostor! Keep watch for the rest.`
-          : `💀 ${data.impostor_last_elim.name} was voted out. The Impostor is still among you!`;
+      } else if (elim && elim.name) {
+        let msg = elim.was_impostor
+          ? `💀 ${elim.name} was voted out — they were an Impostor! Keep watch for the rest.`
+          : `💀 ${elim.name} was voted out. The Impostor is still among you!`;
+        if (elim.role_auto_revealed) {
+          msg += ` 🐑 (Shepherd: role revealed — ${elim.was_impostor ? 'Impostor' : 'Crew'})`;
+        }
+        banner.textContent = msg;
       } else {
         banner.textContent = '';
       }
@@ -2021,6 +2265,7 @@ const Multiplayer = (function () {
     if (isHost) renderImpHostAnswerKey('imp-elim-answerkey', data);
     if (hostControls) hostControls.style.display = isHost ? 'block' : 'none';
     if (waitingText) waitingText.style.display = isHost ? 'none' : 'block';
+    renderImpClassAbilityButtons('elim', data);
   }
 
   function enterImpTiebreak(data) {

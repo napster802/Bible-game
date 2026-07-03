@@ -36,7 +36,7 @@ define('DB_PATH', __DIR__ . '/../data/game.db');
 // Bump whenever migrateSchema()'s $columns table gains/changes entries, so
 // existing deployments pick up the new columns exactly once instead of never
 // (see the PRAGMA user_version guard around migrateSchema() in initDB()).
-define('SCHEMA_VERSION', 7);
+define('SCHEMA_VERSION', 8);
 
 function getDB(): PDO {
     static $db = null;
@@ -245,6 +245,25 @@ function initDB(PDO $db): void {
             UNIQUE(room_code, bettor_id, q_idx)
         );
         CREATE INDEX IF NOT EXISTS idx_hs_bets_room ON hs_bets(room_code, q_idx);
+        CREATE TABLE IF NOT EXISTS imp_class_peeks (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            room_code   TEXT NOT NULL,
+            peeker_id   TEXT NOT NULL,
+            target_id   TEXT NOT NULL,
+            is_impostor INTEGER NOT NULL,
+            created_at  INTEGER NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_imp_class_peeks_uniq ON imp_class_peeks(room_code, peeker_id, target_id);
+        CREATE TABLE IF NOT EXISTS imp_mimic_peeks (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            room_code   TEXT NOT NULL,
+            mimic_id    TEXT NOT NULL,
+            target_id   TEXT NOT NULL,
+            clue        TEXT NOT NULL,
+            round       INTEGER NOT NULL,
+            created_at  INTEGER NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_imp_mimic_peeks_uniq ON imp_mimic_peeks(room_code, mimic_id);
     ");
     // ALTER TABLE attempts (in migrateSchema) momentarily need a stronger lock
     // than plain reads/writes, even when the column already exists and the
@@ -311,6 +330,14 @@ function migrateSchema(PDO $db): void {
             'hs_q_count'               => "INTEGER DEFAULT 3",
             'hs_q_start_time'          => "INTEGER DEFAULT 0",
             'hs_time_limit'            => "INTEGER DEFAULT 25",
+            'imp_classes_enabled'      => "INTEGER DEFAULT 0",
+            'imp_shielded_id'          => "TEXT",
+            'imp_spotlight_id'         => "TEXT",
+            'imp_nullified_vote_id'    => "TEXT",
+            'imp_shadow_new_id'        => "TEXT",
+            'impostor_last_phantom'    => "INTEGER DEFAULT 0",
+            'impostor_last_shepherd'   => "INTEGER DEFAULT 0",
+            'impostor_last_healer'     => "INTEGER DEFAULT 0",
         ],
         'profiles' => [
             'wallet'                => "INTEGER DEFAULT 0",
@@ -329,9 +356,14 @@ function migrateSchema(PDO $db): void {
             'scrab_rack'     => "TEXT DEFAULT '[]'",
             'blitz_q_idx'    => "INTEGER DEFAULT 0",
             'team_id'        => "INTEGER DEFAULT 0",
+            'imp_class'      => "TEXT",
+            'imp_class_used' => "INTEGER DEFAULT 0",
         ],
         'hs_bets' => [
             'bet_amount' => "INTEGER DEFAULT 0",
+        ],
+        'impostor_votes' => [
+            'vote_weight' => "INTEGER DEFAULT 1",
         ],
     ];
     foreach ($columns as $table => $cols) {
@@ -381,6 +413,8 @@ function cleanStale(PDO $db): void {
     $db->prepare("DELETE FROM scrab_plays WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM wordhunt_claims WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM hs_bets WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
+    $db->prepare("DELETE FROM imp_class_peeks WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
+    $db->prepare("DELETE FROM imp_mimic_peeks WHERE room_code IN (SELECT code FROM rooms WHERE created_at < ?)")->execute([$cutoff]);
     $db->prepare("DELETE FROM rooms WHERE created_at < ?")->execute([$cutoff]);
 }
 
@@ -403,6 +437,7 @@ function cleanAbandonedLobbies(PDO $db): void {
     foreach ([
         'answers', 'players', 'room_events', 'impostor_clues', 'impostor_votes',
         'drawing_strokes', 'drawing_guesses', 'drawing_guess_log', 'scrab_plays', 'wordhunt_claims', 'hs_bets',
+        'imp_class_peeks', 'imp_mimic_peeks',
     ] as $table) {
         $db->prepare("DELETE FROM $table WHERE room_code IN ($placeholders)")->execute($codes);
     }
@@ -467,11 +502,51 @@ function applyImpostorElimination(PDO $db, string $code, ?string $eliminatedId):
     $impostorIds = impostorIdsOf($room);
     $round = (int)$room['impostor_round'];
 
+    // Class ability checks (only when someone would actually be eliminated)
+    $savedByHealer   = false;
+    $phantomDeceived = false;
+    $shepherdReveal  = false;
+    if ($eliminatedId !== null) {
+        // 1. Guardian shield
+        if ($room['imp_shielded_id'] === $eliminatedId) {
+            $eliminatedId = null;
+            $db->prepare("UPDATE rooms SET imp_shielded_id = NULL WHERE code = ?")->execute([$code]);
+        }
+    }
+    if ($eliminatedId !== null) {
+        $playerStmt = $db->prepare("SELECT imp_class, imp_class_used FROM players WHERE room_code = ? AND device_id = ?");
+        $playerStmt->execute([$code, $eliminatedId]);
+        $elPlayer = $playerStmt->fetch();
+        $cls  = $elPlayer['imp_class']      ?? null;
+        $used = (int)($elPlayer['imp_class_used'] ?? 1);
+
+        // 2. Healer: auto-survive elimination once
+        if ($cls === 'healer' && $used === 0) {
+            $db->prepare("UPDATE players SET imp_class_used = 1 WHERE room_code = ? AND device_id = ?")->execute([$code, $eliminatedId]);
+            $savedByHealer = true;
+            $eliminatedId  = null;
+        }
+        // 3. Phantom: eliminate but deceive about role (only impostors have Phantom)
+        if ($eliminatedId !== null && $cls === 'phantom' && $used === 0) {
+            $db->prepare("UPDATE players SET imp_class_used = 1 WHERE room_code = ? AND device_id = ?")->execute([$code, $eliminatedId]);
+            $phantomDeceived = true;
+        }
+        // 4. Shepherd: reveal role when eliminated
+        if ($eliminatedId !== null && $cls === 'shepherd') {
+            $shepherdReveal = true;
+        }
+    }
+
+    // Clear shield regardless of whether it triggered
+    if (!empty($room['imp_shielded_id'])) {
+        $db->prepare("UPDATE rooms SET imp_shielded_id = NULL WHERE code = ?")->execute([$code]);
+    }
+
     if ($eliminatedId !== null) {
         $db->prepare("UPDATE players SET eliminated = 1 WHERE room_code = ? AND device_id = ?")->execute([$code, $eliminatedId]);
-        $db->prepare("UPDATE rooms SET impostor_last_elim_id = ?, impostor_last_skipped = 0 WHERE code = ?")->execute([$eliminatedId, $code]);
+        $db->prepare("UPDATE rooms SET impostor_last_elim_id = ?, impostor_last_skipped = 0, impostor_last_phantom = ?, impostor_last_shepherd = ? WHERE code = ?")->execute([$eliminatedId, $phantomDeceived ? 1 : 0, $shepherdReveal ? 1 : 0, $code]);
     } else {
-        $db->prepare("UPDATE rooms SET impostor_last_elim_id = NULL, impostor_last_skipped = 1 WHERE code = ?")->execute([$code]);
+        $db->prepare("UPDATE rooms SET impostor_last_elim_id = NULL, impostor_last_skipped = ?, impostor_last_healer = ?, impostor_last_phantom = 0, impostor_last_shepherd = 0 WHERE code = ?")->execute([$savedByHealer ? 0 : 1, $savedByHealer ? 1 : 0, $code]);
     }
 
     $aliveIds = impostorAliveContestants($db, $code);
@@ -503,9 +578,21 @@ function applyImpostorElimination(PDO $db, string $code, ?string $eliminatedId):
 // Tallies this round's votes and either eliminates the sole top-voted
 // player, or - on a tie for most votes - hands the decision to the host
 // via the imp_tiebreak state instead of guessing.
+// Saboteur: excludes the nullified voter's vote (imp_nullified_vote_id).
+// Elder: uses SUM(vote_weight) so Elder's vote counts as 2.
 function resolveImpostorVotes(PDO $db, string $code, int $round): void {
-    $tallyStmt = $db->prepare("SELECT target_device_id, COUNT(*) AS cnt FROM impostor_votes WHERE room_code = ? AND round = ? GROUP BY target_device_id");
-    $tallyStmt->execute([$code, $round]);
+    $roomStmt = $db->prepare("SELECT imp_nullified_vote_id FROM rooms WHERE code = ?");
+    $roomStmt->execute([$code]);
+    $room = $roomStmt->fetch();
+    $nullifiedId = $room['imp_nullified_vote_id'] ?? null;
+
+    if ($nullifiedId) {
+        $tallyStmt = $db->prepare("SELECT target_device_id, SUM(vote_weight) AS cnt FROM impostor_votes WHERE room_code = ? AND round = ? AND device_id != ? GROUP BY target_device_id");
+        $tallyStmt->execute([$code, $round, $nullifiedId]);
+    } else {
+        $tallyStmt = $db->prepare("SELECT target_device_id, SUM(vote_weight) AS cnt FROM impostor_votes WHERE room_code = ? AND round = ? GROUP BY target_device_id");
+        $tallyStmt->execute([$code, $round]);
+    }
     $rows = $tallyStmt->fetchAll();
     if (empty($rows)) {
         applyImpostorElimination($db, $code, null);

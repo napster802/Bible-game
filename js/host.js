@@ -297,6 +297,7 @@ const HostGame = (function () {
     const blitzHint      = document.getElementById('host-blitz-hint');
     const bowlPanel      = document.getElementById('host-bowl-panel');
     const hotseatPanel   = document.getElementById('host-hotseat-panel');
+    const impClassesRow  = document.getElementById('imp-classes-row');
     if (triviaSettings) triviaSettings.style.display = noTrivia ? 'none' : '';
     if (csvBox)         csvBox.style.display         = noTrivia ? 'none' : '';
     if (impHint)        impHint.style.display        = isImpostor ? '' : 'none';
@@ -309,6 +310,7 @@ const HostGame = (function () {
     if (blitzHint)      blitzHint.style.display      = isBlitz ? '' : 'none';
     if (bowlPanel)      bowlPanel.style.display      = isBowl ? '' : 'none';
     if (hotseatPanel)   hotseatPanel.style.display   = isHotseat ? '' : 'none';
+    if (impClassesRow)  impClassesRow.style.display  = isImpostor ? '' : 'none';
   }
 
   function setHsQCount(count) {
@@ -450,6 +452,16 @@ const HostGame = (function () {
 
   function resolveImpostorTiebreak(targetDeviceId) {
     action('impostor_resolve_tiebreak', { target_device_id: targetDeviceId || '' });
+  }
+
+  function impStartCluePhase() {
+    action('imp_start_clue_phase').then(res => {
+      if (!res.success) App.showToast(res.error || 'Could not start clue phase', 'error');
+    });
+  }
+
+  function setImpClasses(enabled) {
+    action('set_imp_classes', { enabled: enabled ? 1 : 0 });
   }
 
   // ---- Sketch & Guess host controls ----
@@ -609,6 +621,8 @@ const HostGame = (function () {
     nextImpostorRound,
     forceAdvanceImpostor,
     resolveImpostorTiebreak,
+    impStartCluePhase,
+    setImpClasses,
     setDrawRounds,
     nextDrawTurn,
     forceAdvanceDraw,
