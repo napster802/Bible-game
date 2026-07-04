@@ -4511,6 +4511,77 @@ label,
   transition: background 0.12s;
 }
 .bible-icon-btn:active { background: rgba(212,175,55,0.2); }
+.abhil82-dl-btn { font-size: 1rem; }
+
+/* ── ABHIL82 Download Modal ──────────────────────────────── */
+.abhil82-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  background: rgba(0,0,0,0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.abhil82-modal {
+  background: var(--bg2);
+  border: 1px solid rgba(212,175,55,0.35);
+  border-radius: 16px;
+  width: min(420px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.55);
+}
+.abhil82-modal-hdr {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 1rem 0.6rem;
+  border-bottom: 1px solid rgba(128,128,128,0.15);
+}
+.abhil82-modal-icon { font-size: 1.4rem; }
+.abhil82-modal-title { flex: 1; margin: 0; font-size: 1rem; font-weight: 700; color: var(--gold); }
+.abhil82-close-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--text2); font-size: 1.1rem; padding: 0.2rem 0.4rem;
+  border-radius: 6px; transition: background 0.12s;
+}
+.abhil82-close-btn:hover { background: rgba(128,128,128,0.2); }
+.abhil82-modal-body { padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
+.abhil82-info {
+  margin: 0; font-size: 0.93rem; color: var(--text); font-weight: 600;
+}
+.abhil82-info.abhil82-ok  { color: #4caf50; }
+.abhil82-info.abhil82-error { color: #f44336; }
+.abhil82-desc { margin: 0; font-size: 0.82rem; color: var(--text2); line-height: 1.5; }
+.abhil82-pct  { margin: 0; font-size: 0.85rem; color: var(--text2); }
+.abhil82-chaps { margin: 0; font-size: 0.8rem; color: var(--text2); opacity: 0.8; }
+.abhil82-progress-wrap {
+  height: 8px; border-radius: 4px;
+  background: rgba(128,128,128,0.2); overflow: hidden;
+}
+.abhil82-progress-bar {
+  height: 100%; border-radius: 4px;
+  background: linear-gradient(90deg, var(--gold), #c8a400);
+  transition: width 0.4s ease;
+}
+.abhil82-btn-primary {
+  padding: 0.65rem 1rem; border: none; border-radius: 10px; cursor: pointer;
+  background: var(--gold); color: #1a2a4a; font-weight: 700; font-size: 0.9rem;
+  transition: opacity 0.15s;
+}
+.abhil82-btn-primary:active { opacity: 0.75; }
+.abhil82-btn-secondary {
+  padding: 0.55rem 1rem; border: 1px solid rgba(128,128,128,0.35); border-radius: 10px;
+  cursor: pointer; background: var(--bg3); color: var(--text2); font-size: 0.88rem;
+  transition: background 0.12s;
+}
+.abhil82-btn-secondary:active { background: rgba(128,128,128,0.2); }
+.abhil82-btn-cancel {
+  padding: 0.55rem 1rem; border: 1px solid rgba(244,67,54,0.4); border-radius: 10px;
+  cursor: pointer; background: rgba(244,67,54,0.1); color: #f44336; font-size: 0.88rem;
+}
 
 /* ── Floating highlight colour bar ──────────────────────── */
 .bible-hl-bar {

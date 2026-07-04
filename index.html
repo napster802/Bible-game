@@ -1366,6 +1366,7 @@
           <option value="kjv">📖 KJV Bible</option>
           <option value="abhil82">📖 ABHIL82 Hiligaynon</option>
         </select>
+        <button id="abhil82-dl-btn" class="bible-icon-btn abhil82-dl-btn" onclick="BibleReader.openAbhil82Setup()" title="Download actual ABHIL82 Bible text" style="display:none">⬇</button>
         <button class="bible-icon-btn" onclick="BibleReader.openSearch()" title="Search">🔍</button>
       </div>
       <div class="screen-body">
@@ -1435,6 +1436,20 @@
         </div>
         <div id="bible-search-status" class="bible-search-status"></div>
         <div id="bible-search-results" class="bible-search-results"></div>
+      </div>
+    </div>
+
+    <!-- ==================== ABHIL82 DOWNLOAD MODAL ==================== -->
+    <div id="abhil82-setup-modal" class="abhil82-modal-overlay" style="display:none" role="dialog" aria-modal="true">
+      <div class="abhil82-modal">
+        <div class="abhil82-modal-hdr">
+          <span class="abhil82-modal-icon">📖</span>
+          <h3 class="abhil82-modal-title">Download ABHIL82 Bible</h3>
+          <button class="abhil82-close-btn" onclick="BibleReader.closeAbhil82Setup()" aria-label="Close">✕</button>
+        </div>
+        <div id="abhil82-setup-body" class="abhil82-modal-body">
+          <!-- Injected by JS -->
+        </div>
       </div>
     </div>
 

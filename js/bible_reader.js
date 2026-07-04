@@ -107,6 +107,9 @@ const BibleReader = (function () {
     if (titleEl) titleEl.textContent = vname;
     const searchTitle = document.getElementById('bible-search-title');
     if (searchTitle) searchTitle.textContent = `🔍 Search ${curVersion === 'abhil82' ? 'ABHIL82' : 'KJV'}`;
+    // Show download button only for ABHIL82
+    const dlBtn = document.getElementById('abhil82-dl-btn');
+    if (dlBtn) dlBtn.style.display = curVersion === 'abhil82' ? '' : 'none';
   }
 
   // ── Open — Book List ──────────────────────────────────────
@@ -571,6 +574,193 @@ const BibleReader = (function () {
     return allBooks.find(b => b.book_num === bookNum)?.chapters || 1;
   }
 
+  // ── ABHIL82 Download ─────────────────────────────────────────
+  let dl = {
+    active: false,
+    cancelled: false,
+    booksDone: 0,
+    totalBooks: 66,
+    totalChapters: 1189,
+    chapsDone: 0,
+  };
+
+  const BOOK_CHAPTERS = [50,40,27,36,34,24,21,4,31,24,22,25,29,36,10,13,10,42,150,31,12,8,66,52,5,48,12,14,3,9,1,4,7,3,3,3,2,14,4,28,16,24,21,28,16,16,13,6,6,4,4,5,3,6,4,3,1,13,5,5,3,5,1,1,1,22];
+
+  function openAbhil82Setup() {
+    const modal = document.getElementById('abhil82-setup-modal');
+    if (modal) modal.style.display = 'flex';
+    renderSetupIdle('Checking…');
+    checkAbhil82Status();
+  }
+
+  function closeAbhil82Setup() {
+    const modal = document.getElementById('abhil82-setup-modal');
+    if (modal) modal.style.display = 'none';
+    if (dl.active) dl.cancelled = true;
+  }
+
+  async function checkAbhil82Status() {
+    try {
+      const r = await fetch('api/scrape_abhil82.php?action=check');
+      const d = await r.json();
+      const done = d.done_books || [];
+      dl.booksDone = done.length;
+      dl.chapsDone = done.reduce((s, n) => s + (BOOK_CHAPTERS[n-1] || 0), 0);
+      if (done.length === 0) {
+        renderSetupIdle('Ready to download. Requires internet connection on your device.');
+      } else if (done.length === 66) {
+        renderSetupDone('All 66 books downloaded. Click Finalize to apply.');
+      } else {
+        renderSetupResume(done);
+      }
+    } catch (e) {
+      renderSetupIdle('Could not check status. Make sure the server is running.');
+    }
+  }
+
+  function renderSetupIdle(msg) {
+    const body = document.getElementById('abhil82-setup-body');
+    if (!body) return;
+    body.innerHTML = `
+      <p class="abhil82-info">${escHtml(msg)}</p>
+      <p class="abhil82-desc">This will download 1,189 chapters (~31,000 verses) of the
+        ABHIL82 Hiligaynon Bible from bible.com. Requires ~5–8 minutes with good internet.</p>
+      <button class="abhil82-btn-primary" onclick="BibleReader.testThenStartDownload()">Test &amp; Start Download</button>
+    `;
+  }
+
+  function renderSetupResume(doneBooksArr) {
+    const body = document.getElementById('abhil82-setup-body');
+    if (!body) return;
+    const remaining = 66 - doneBooksArr.length;
+    body.innerHTML = `
+      <p class="abhil82-info">In progress: ${doneBooksArr.length}/66 books downloaded.</p>
+      <div class="abhil82-progress-wrap">
+        <div class="abhil82-progress-bar" style="width:${Math.round(doneBooksArr.length/66*100)}%"></div>
+      </div>
+      <p class="abhil82-pct">${Math.round(doneBooksArr.length/66*100)}% — ${remaining} books remaining</p>
+      <button class="abhil82-btn-primary" onclick="BibleReader.startAbhil82Download(${doneBooksArr.length+1})">Resume Download</button>
+      <button class="abhil82-btn-secondary" onclick="BibleReader.resetAbhil82()">Start Over</button>
+    `;
+  }
+
+  function renderSetupDone(msg) {
+    const body = document.getElementById('abhil82-setup-body');
+    if (!body) return;
+    body.innerHTML = `
+      <p class="abhil82-info">${escHtml(msg)}</p>
+      <div class="abhil82-progress-wrap"><div class="abhil82-progress-bar" style="width:100%"></div></div>
+      <button class="abhil82-btn-primary" onclick="BibleReader.finalizeAbhil82()">Finalize &amp; Apply</button>
+      <button class="abhil82-btn-secondary" onclick="BibleReader.resetAbhil82()">Re-download</button>
+    `;
+  }
+
+  function renderSetupProgress(bookNum, bookName, booksDone, chapsDone) {
+    const body = document.getElementById('abhil82-setup-body');
+    if (!body) return;
+    const pct = Math.round(booksDone / 66 * 100);
+    body.innerHTML = `
+      <p class="abhil82-info">Downloading… Book ${booksDone}/66</p>
+      <div class="abhil82-progress-wrap">
+        <div class="abhil82-progress-bar" style="width:${pct}%"></div>
+      </div>
+      <p class="abhil82-pct">${pct}% — ${bookName}</p>
+      <p class="abhil82-chaps">${chapsDone.toLocaleString()} / 1,189 chapters done</p>
+      <button class="abhil82-btn-cancel" onclick="BibleReader.cancelAbhil82()">Cancel</button>
+    `;
+  }
+
+  async function testThenStartDownload() {
+    const body = document.getElementById('abhil82-setup-body');
+    if (body) body.innerHTML = '<p class="abhil82-info">Testing connection to bible.com…</p>';
+    try {
+      const r = await fetch('api/scrape_abhil82.php?action=test');
+      const d = await r.json();
+      if (!d.success) {
+        if (body) body.innerHTML = `<p class="abhil82-info abhil82-error">Cannot reach bible.com: ${escHtml(d.error||'Unknown error')}</p>
+          <p class="abhil82-desc">Make sure your device has internet access and try again.</p>
+          <button class="abhil82-btn-secondary" onclick="BibleReader.testThenStartDownload()">Retry</button>
+          <button class="abhil82-btn-secondary" onclick="BibleReader.closeAbhil82Setup()">Close</button>`;
+        return;
+      }
+      if (body) body.innerHTML = `<p class="abhil82-info abhil82-ok">Connected! Got Genesis 1 (${d.verse_count} verses). Starting download…</p>`;
+      await new Promise(r => setTimeout(r, 800));
+      startAbhil82Download(1);
+    } catch (e) {
+      if (body) body.innerHTML = `<p class="abhil82-info abhil82-error">Network error: ${escHtml(String(e))}</p>
+        <button class="abhil82-btn-secondary" onclick="BibleReader.testThenStartDownload()">Retry</button>`;
+    }
+  }
+
+  async function startAbhil82Download(fromBook) {
+    dl.active    = true;
+    dl.cancelled = false;
+
+    for (let book = fromBook; book <= 66; book++) {
+      if (dl.cancelled) {
+        renderSetupResume(Array.from({length: book - 1}, (_, i) => i + 1));
+        dl.active = false;
+        return;
+      }
+      renderSetupProgress(book, `Book ${book}`, book - 1, dl.chapsDone);
+
+      try {
+        const r = await fetch(`api/scrape_abhil82.php?action=scrape&book=${book}`);
+        const d = await r.json();
+        if (!d.success) throw new Error(d.error || 'Server error');
+        dl.chapsDone += (BOOK_CHAPTERS[book-1] || 0);
+        renderSetupProgress(book, d.name, book, dl.chapsDone);
+      } catch (e) {
+        const body = document.getElementById('abhil82-setup-body');
+        if (body) body.innerHTML = `<p class="abhil82-info abhil82-error">Error on book ${book}: ${escHtml(String(e))}</p>
+          <button class="abhil82-btn-primary" onclick="BibleReader.startAbhil82Download(${book})">Retry Book</button>
+          <button class="abhil82-btn-secondary" onclick="BibleReader.cancelAbhil82()">Stop</button>`;
+        dl.active = false;
+        return;
+      }
+    }
+
+    dl.active = false;
+    renderSetupDone('All 66 books downloaded! Click Finalize to save and apply.');
+  }
+
+  function cancelAbhil82() {
+    dl.cancelled = true;
+  }
+
+  async function finalizeAbhil82() {
+    const body = document.getElementById('abhil82-setup-body');
+    if (body) body.innerHTML = '<p class="abhil82-info">Saving ABHIL82 Bible data…</p>';
+    try {
+      const r = await fetch('api/scrape_abhil82.php?action=finalize');
+      const d = await r.json();
+      if (!d.success) throw new Error(d.error);
+      if (body) body.innerHTML = `
+        <p class="abhil82-info abhil82-ok">Done! ${(d.total_verses||0).toLocaleString()} verses saved.</p>
+        <p class="abhil82-desc">The ABHIL82 Bible is ready. Reload the app to start reading the actual Hiligaynon text.</p>
+        <button class="abhil82-btn-primary" onclick="location.reload()">Reload App</button>
+      `;
+      // Invalidate cache so it reloads
+      delete booksCache['abhil82'];
+    } catch (e) {
+      if (body) body.innerHTML = `<p class="abhil82-info abhil82-error">Finalize failed: ${escHtml(String(e))}</p>
+        <button class="abhil82-btn-secondary" onclick="BibleReader.finalizeAbhil82()">Retry</button>`;
+    }
+  }
+
+  async function resetAbhil82() {
+    const body = document.getElementById('abhil82-setup-body');
+    if (body) body.innerHTML = '<p class="abhil82-info">Clearing progress…</p>';
+    try {
+      await fetch('api/scrape_abhil82.php?action=reset');
+      dl.booksDone = 0;
+      dl.chapsDone = 0;
+      renderSetupIdle('Progress cleared. Ready to start fresh.');
+    } catch (e) {
+      renderSetupIdle('Error clearing. Try again.');
+    }
+  }
+
   return {
     open, openBook, selectChapter, continueReading,
     nextChapter, prevChapter, toggleBookmark,
@@ -578,5 +768,7 @@ const BibleReader = (function () {
     applyHighlight, clearHighlight,
     backToBooks, backToChapters, backFromBible,
     setVersion,
+    openAbhil82Setup, closeAbhil82Setup, testThenStartDownload,
+    startAbhil82Download, cancelAbhil82, finalizeAbhil82, resetAbhil82,
   };
 })();
