@@ -1049,6 +1049,7 @@
       </div>
       <div class="screen-body">
         <div class="shop-tabs">
+          <button class="shop-tab" id="hof-tab-bible" onclick="BibleReader.open()" style="background:rgba(212,175,55,0.12);border-color:rgba(212,175,55,0.5);color:var(--gold);">📖 Bible</button>
           <button class="shop-tab active" id="hof-tab-history" onclick="App.switchHallOfFameTab('history', this)">📜 History</button>
           <button class="shop-tab" id="hof-tab-leaderboards" onclick="App.switchHallOfFameTab('leaderboards', this)">🏆 Leaderboards</button>
         </div>
@@ -1357,6 +1358,63 @@
       </div>
     </div>
 
+    <!-- ==================== BIBLE: BOOK LIST ==================== -->
+    <div class="screen" id="screen-bible">
+      <div class="screen-header">
+        <button class="btn-back" onclick="BibleReader.backFromBible()">‹</button>
+        <h2>📖 KJV Bible</h2>
+        <div class="spacer"></div>
+      </div>
+      <div class="screen-body">
+        <!-- Continue Reading card -->
+        <div id="bible-last-read" class="bible-continue-card" style="display:none" onclick="BibleReader.continueReading()">
+          <span class="bible-continue-icon">📖</span>
+          <div>
+            <div class="bible-continue-title">Continue Reading</div>
+            <div class="bible-continue-label" id="bible-continue-label">—</div>
+          </div>
+          <span class="bible-book-arrow">›</span>
+        </div>
+        <!-- Book list rendered by JS -->
+        <div id="bible-book-list"><div class="bible-loading">Loading…</div></div>
+      </div>
+    </div>
+
+    <!-- ==================== BIBLE: CHAPTER PICKER ==================== -->
+    <div class="screen" id="screen-bible-chapters">
+      <div class="screen-header">
+        <button class="btn-back" onclick="BibleReader.backToBooks()">‹</button>
+        <h2 id="bible-chapters-title">Chapters</h2>
+        <div class="spacer"></div>
+      </div>
+      <div class="screen-body">
+        <div class="bible-chapter-grid" id="bible-chapter-grid"></div>
+      </div>
+    </div>
+
+    <!-- ==================== BIBLE: READER ==================== -->
+    <div class="screen" id="screen-bible-reader">
+      <div class="screen-header">
+        <button class="btn-back" onclick="BibleReader.backToChapters()">‹</button>
+        <h2 id="bible-reader-title" style="font-size:0.95rem;flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Genesis 1</h2>
+        <button class="bible-bookmark-btn" id="bible-bookmark-btn" onclick="BibleReader.toggleBookmark()" title="Bookmark this chapter">🏷️</button>
+      </div>
+      <!-- Top nav -->
+      <div class="bible-reader-nav">
+        <button class="bible-nav-btn" id="bible-prev-top" onclick="BibleReader.prevChapter()">‹ Prev</button>
+        <span class="bible-nav-label" id="bible-ch-label-top">Chapter 1</span>
+        <button class="bible-nav-btn" id="bible-next-top" onclick="BibleReader.nextChapter()">Next ›</button>
+      </div>
+      <!-- Verse text -->
+      <div class="bible-reader-body" id="bible-reader-body"></div>
+      <!-- Bottom nav -->
+      <div class="bible-reader-nav">
+        <button class="bible-nav-btn" id="bible-prev-bot" onclick="BibleReader.prevChapter()">‹ Prev</button>
+        <span class="bible-nav-label" id="bible-ch-label-bot">Chapter 1</span>
+        <button class="bible-nav-btn" id="bible-next-bot" onclick="BibleReader.nextChapter()">Next ›</button>
+      </div>
+    </div>
+
     <!-- ==================== OVERLAY: ADMIN LOGIN ==================== -->
     <div class="overlay" id="overlay-admin-login" style="display:none">
       <div class="overlay-card">
@@ -1389,6 +1447,7 @@
   <script src="js/shop.js"></script>
   <script src="js/admin.js"></script>
   <script src="js/admin_dashboard.js"></script>
+  <script src="js/bible_reader.js"></script>
   <script src="js/qrcode.js"></script>
   <script src="js/app.js"></script>
   <script src="js/multiplayer.js"></script>

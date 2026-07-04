@@ -4288,6 +4288,172 @@ label,
   line-height: 1.4;
 }
 
+/* ═══════════════════════════════════════════════════════════
+   KJV Bible Reader
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Book list ───────────────────────────────────────────── */
+.bible-loading {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  opacity: 0.55;
+  font-size: 1rem;
+}
+
+.bible-section-header {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-weight: 700;
+  color: var(--gold);
+  padding: 0.9rem 0 0.35rem;
+  opacity: 0.85;
+}
+
+.bible-book-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  margin-bottom: 0.4rem;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.bible-book-item:active { background: rgba(255,255,255,0.09); }
+.bible-book-item.bookmark-item { border-color: rgba(212,175,55,0.25); background: rgba(212,175,55,0.06); }
+
+.bible-book-info { flex: 1; min-width: 0; }
+.bible-book-name { font-size: 0.95rem; font-weight: 600; }
+.bible-book-sub  { font-size: 0.78rem; opacity: 0.5; margin-top: 0.1rem; }
+
+.bible-book-arrow {
+  font-size: 1.2rem;
+  opacity: 0.35;
+  flex-shrink: 0;
+}
+
+/* ── Continue Reading card ───────────────────────────────── */
+.bible-continue-card {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  background: rgba(212,175,55,0.1);
+  border: 1.5px solid rgba(212,175,55,0.35);
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.bible-continue-card:active { background: rgba(212,175,55,0.18); }
+.bible-continue-icon  { font-size: 1.8rem; flex-shrink: 0; }
+.bible-continue-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; opacity: 0.6; }
+.bible-continue-label { font-size: 0.92rem; font-weight: 700; color: var(--gold); margin-top: 0.1rem; }
+
+/* ── Chapter grid ────────────────────────────────────────── */
+.bible-chapter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+}
+
+.bible-chapter-btn {
+  aspect-ratio: 1;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.07);
+  border: 1.5px solid rgba(255,255,255,0.12);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.bible-chapter-btn:active { background: rgba(212,175,55,0.2); border-color: var(--gold); color: var(--gold); }
+
+/* ── Reader screen layout ────────────────────────────────── */
+#screen-bible-reader {
+  display: flex;
+  flex-direction: column;
+}
+#screen-bible-reader .screen-header { flex-shrink: 0; }
+
+.bible-reader-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: rgba(0,0,0,0.18);
+  flex-shrink: 0;
+}
+
+.bible-nav-btn {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.bible-nav-btn:disabled { opacity: 0.25; cursor: default; }
+.bible-nav-btn:not(:disabled):active { background: rgba(212,175,55,0.2); border-color: var(--gold); }
+
+.bible-nav-label {
+  font-size: 0.75rem;
+  opacity: 0.55;
+  font-weight: 600;
+  text-align: center;
+  flex: 1;
+}
+
+/* ── Verse body ──────────────────────────────────────────── */
+.bible-reader-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.85rem 1.1rem 1.5rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.bible-verse {
+  margin: 0 0 0.65rem 0;
+  line-height: 1.7;
+  font-size: 0.97rem;
+  color: rgba(255,255,255,0.88);
+}
+
+.bible-verse-num {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--gold);
+  vertical-align: super;
+  margin-right: 0.3rem;
+  user-select: none;
+}
+
+/* ── Bookmark button ─────────────────────────────────────── */
+.bible-bookmark-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.3rem;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  border-radius: 8px;
+  transition: background 0.12s;
+  line-height: 1;
+}
+.bible-bookmark-btn:active,
+.bible-bookmark-btn.active { background: rgba(212,175,55,0.2); }
+
 /* ── Print / PDF Export ───────────────────────────────────── */
 @media print {
   body {
