@@ -121,29 +121,50 @@ function ensureSeeded(PDO $db): void {
 
 /* ── Seed ABHIL82 from local file or download ─────────────────── */
 function ensureSeededAbhil82(PDO $db): void {
-    $count = (int)$db->query("SELECT COUNT(*) FROM bible_abhil82")->fetchColumn();
-    if ($count > 0) return;
-
     $jsonPath = __DIR__ . '/../bible/abhil82.json';
-    if (!file_exists($jsonPath)) {
-        // Try download sources in order of preference
-        $urls = [
-            // Place actual ABHIL82 JSON at bible/abhil82.json for full Hiligaynon text.
-            // Development fallback: Tagalog 1905 from Scrollmapper (tests multi-version UI).
-            'https://raw.githubusercontent.com/scrollmapper/bible_databases/master/formats/json/TagAngBiblia.json',
-        ];
-        $ctx = stream_context_create(['http' => ['timeout' => 60]]);
-        $raw = null;
-        foreach ($urls as $url) {
-            $raw = @file_get_contents($url, false, $ctx);
-            if ($raw !== false && strlen($raw) > 1000) break;
-            $raw = null;
+
+    $count = (int)$db->query("SELECT COUNT(*) FROM bible_abhil82")->fetchColumn();
+    if ($count > 0) {
+        // If the JSON file exists, check whether it changed (e.g. replaced with real ABHIL82).
+        // Compare the first verse in the DB against the first verse in the file.
+        if (file_exists($jsonPath)) {
+            $raw  = @file_get_contents($jsonPath);
+            $data = $raw ? json_decode(ltrim($raw, "\xef\xbb\xbf"), true) : null;
+            $fileFirstVerse = '';
+            if (is_array($data)) {
+                if (isset($data[0]['chapters'][0][0])) {
+                    // thiagobodruk format
+                    $fileFirstVerse = trim((string)$data[0]['chapters'][0][0]);
+                } elseif (isset($data['books'][0]['chapters'][0]['verses'][0]['text'])) {
+                    // scrollmapper format
+                    $fileFirstVerse = trim((string)$data['books'][0]['chapters'][0]['verses'][0]['text']);
+                }
+            }
+            if ($fileFirstVerse) {
+                $dbFirst = (string)$db->query(
+                    "SELECT text FROM bible_abhil82 WHERE book_num=1 AND chapter=1 AND verse=1 LIMIT 1"
+                )->fetchColumn();
+                if (trim($dbFirst) === $fileFirstVerse) return; // same data, nothing to do
+                // File changed — clear and re-seed with new data
+                $db->exec("DELETE FROM bible_abhil82");
+            }
+        } else {
+            return; // no file, keep existing rows
         }
-        if (!$raw) return;
+    }
+
+    if (!file_exists($jsonPath)) {
+        // Fallback download if file missing entirely (dev convenience only)
+        $ctx = stream_context_create(['http' => ['timeout' => 60]]);
+        $raw = @file_get_contents(
+            'https://raw.githubusercontent.com/scrollmapper/bible_databases/master/formats/json/TagAngBiblia.json',
+            false, $ctx
+        );
+        if (!$raw || strlen($raw) < 1000) return;
         @file_put_contents($jsonPath, $raw);
     }
 
-    $raw = file_get_contents($jsonPath);
+    $raw  = file_get_contents($jsonPath);
     if ($raw === false) return;
     $data = json_decode(ltrim($raw, "\xef\xbb\xbf"), true);
     if (!$data) return;
