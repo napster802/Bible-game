@@ -4390,13 +4390,13 @@ label,
   justify-content: space-between;
   gap: 0.5rem;
   padding: 0.4rem 0.75rem;
-  background: rgba(0,0,0,0.18);
+  background: var(--bg2);
   flex-shrink: 0;
 }
 
 .bible-nav-btn {
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.12);
+  background: var(--bg3);
+  border: 1px solid rgba(128,128,128,0.2);
   color: var(--text);
   border-radius: 8px;
   padding: 0.35rem 0.75rem;
@@ -4428,7 +4428,22 @@ label,
   margin: 0 0 0.65rem 0;
   line-height: 1.7;
   font-size: 0.97rem;
-  color: rgba(255,255,255,0.88);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.1s;
+  border-radius: 6px;
+  padding: 0.15rem 0.2rem;
+}
+
+/* Double-tap highlight selection state */
+.bible-verse.verse-tapped {
+  text-decoration: underline;
+  text-decoration-color: var(--gold);
+  text-underline-offset: 4px;
+  background: rgba(212,175,55,0.08);
+}
+.bible-verse.verse-tapped .bible-verse-num {
+  text-decoration: none;
 }
 
 .bible-verse-num {
@@ -4522,8 +4537,8 @@ mark.hl-search { background: rgba(212,175,55,0.45); color: inherit; border-radiu
 .bible-search-field {
   width: 100%;
   padding: 0.55rem 0.9rem;
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.18);
+  background: var(--bg2);
+  border: 1px solid rgba(128,128,128,0.25);
   border-radius: 10px;
   color: var(--text);
   font-size: 1rem;
@@ -4532,10 +4547,10 @@ mark.hl-search { background: rgba(212,175,55,0.45); color: inherit; border-radiu
   transition: border-color 0.15s;
 }
 .bible-search-field:focus { border-color: var(--gold); }
-.bible-search-field::placeholder { color: rgba(255,255,255,0.35); }
+.bible-search-field::placeholder { color: var(--text2); opacity: 0.6; }
 .bible-search-status {
   font-size: 0.8rem;
-  color: rgba(255,255,255,0.5);
+  color: var(--text2);
   padding: 0.25rem 1rem 0;
   min-height: 1.5em;
   flex-shrink: 0;
@@ -4550,8 +4565,8 @@ mark.hl-search { background: rgba(212,175,55,0.45); color: inherit; border-radiu
   padding: 0.65rem 0.75rem;
   border-radius: 10px;
   margin-bottom: 0.5rem;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.07);
+  background: var(--bg2);
+  border: 1px solid rgba(128,128,128,0.2);
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
 }
@@ -4561,7 +4576,7 @@ mark.hl-search { background: rgba(212,175,55,0.45); color: inherit; border-radiu
   border-color: rgba(212,175,55,0.3);
 }
 .bible-search-ref   { font-size: 0.75rem; font-weight: 700; color: var(--gold); margin-bottom: 0.25rem; }
-.bible-search-snippet { font-size: 0.88rem; color: rgba(255,255,255,0.78); line-height: 1.55; }
+.bible-search-snippet { font-size: 0.88rem; color: var(--text2); line-height: 1.55; }
 
 /* ── Print / PDF Export ───────────────────────────────────── */
 @media print {

@@ -227,10 +227,13 @@ const BibleReader = (function () {
       updateReaderNav(bookNum, bookName, chapter, data.total_chapters);
 
       body.innerHTML = data.verses.map(v => verseHtml(v.verse, v.text, bookNum, chapter)).join('');
-      setupSelectionHighlight(body, bookNum, chapter);
       body.scrollTop = 0;
 
+      // setupSwipe clones the body element (to clear old touch listeners), so run it first
       setupSwipe(body, bookNum, bookName, data.total_chapters);
+      // Re-query the fresh body after cloning, then attach dblclick handlers
+      const freshBody = document.getElementById('bible-reader-body');
+      setupDoubleClickHighlight(freshBody, bookNum, chapter);
     } catch (e) {
       body.innerHTML = `<div class="bible-loading" style="color:#e74c3c;">Failed to load. ${e.message}</div>`;
     }
@@ -348,33 +351,39 @@ const BibleReader = (function () {
     el.innerHTML = `<span class="bible-verse-num">${verseNum}</span>${applyHighlightsToText(raw, hls)}`;
   }
 
-  // ── Selection → highlight bar ─────────────────────────────
-  function setupSelectionHighlight(body, book, chapter) {
-    function onSelChange() {
-      const sel = window.getSelection();
-      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
-        hideHighlightBar(); pendingHl = null; return;
-      }
-      if (!document.getElementById('screen-bible-reader')?.classList.contains('active')) return;
-      const range   = sel.getRangeAt(0);
-      const verseEl = findVerseEl(range.startContainer);
-      if (!verseEl) { hideHighlightBar(); return; }
-      const verseNum = parseInt(verseEl.dataset.verse);
-      const rawText  = verseEl.dataset.raw || '';
-      const selText  = sel.toString();
-      const start    = rawText.indexOf(selText);
-      if (start === -1) { hideHighlightBar(); return; }
-      pendingHl = { book, chapter, verse: verseNum, start, end: start + selText.length };
-      showHighlightBar(range.getBoundingClientRect());
-    }
-    document.addEventListener('selectionchange', onSelChange);
-    const obs = new MutationObserver(() => {
-      if (!document.getElementById('screen-bible-reader')?.classList.contains('active')) {
-        document.removeEventListener('selectionchange', onSelChange);
-        obs.disconnect();
-      }
+  // ── Double-click → highlight bar ─────────────────────────
+  function setupDoubleClickHighlight(body, book, chapter) {
+    // Single tap outside any verse dismisses the bar
+    body.addEventListener('click', e => {
+      const verseEl = findVerseEl(e.target);
+      if (!verseEl) dismissHighlightBar();
+    }, { capture: false });
+
+    body.querySelectorAll('.bible-verse').forEach(verseEl => {
+      verseEl.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        const verseNum = parseInt(verseEl.dataset.verse);
+        const rawText  = verseEl.dataset.raw || '';
+
+        // Remove tapped state from any previously selected verse
+        body.querySelectorAll('.bible-verse.verse-tapped').forEach(v => v.classList.remove('verse-tapped'));
+
+        // Mark this verse as selected for highlighting
+        verseEl.classList.add('verse-tapped');
+
+        // Highlight the whole verse text (start=0, end=length)
+        pendingHl = { book, chapter, verse: verseNum, start: 0, end: rawText.length };
+
+        // Position bar centered below/above the verse element
+        showHighlightBarAtEl(verseEl);
+      });
     });
-    obs.observe(document.getElementById('screen-bible-reader'), { attributeFilter: ['class'] });
+  }
+
+  function dismissHighlightBar() {
+    document.querySelectorAll('.bible-verse.verse-tapped').forEach(v => v.classList.remove('verse-tapped'));
+    hideHighlightBar();
+    pendingHl = null;
   }
 
   function findVerseEl(node) {
@@ -383,16 +392,19 @@ const BibleReader = (function () {
     return el || null;
   }
 
-  function showHighlightBar(rect) {
+  function showHighlightBarAtEl(verseEl) {
     const bar = document.getElementById('bible-hl-bar');
     if (!bar) return;
     bar.style.display = 'flex';
-    const bw = bar.offsetWidth || 220;
-    let left = rect.left + rect.width / 2;
-    let top  = rect.top - 58;
+
+    const rect = verseEl.getBoundingClientRect();
+    const bw   = bar.offsetWidth || 240;
+    let left   = rect.left + rect.width / 2;
+    let top    = rect.bottom + 8;                         // below the verse by default
+    if (top + 50 > window.innerHeight) top = rect.top - 58; // flip above if near bottom
     if (left + bw / 2 > window.innerWidth - 8) left = window.innerWidth - bw / 2 - 8;
     if (left - bw / 2 < 8)                     left = bw / 2 + 8;
-    if (top < 8) top = rect.bottom + 8;
+
     bar.style.left = left + 'px';
     bar.style.top  = top  + 'px';
   }
@@ -404,20 +416,36 @@ const BibleReader = (function () {
 
   function applyHighlight(color) {
     if (!pendingHl) return;
-    saveVerseHighlight(pendingHl.book, pendingHl.chapter, pendingHl.verse, pendingHl.start, pendingHl.end, color);
-    reRenderVerse(pendingHl.book, pendingHl.chapter, pendingHl.verse);
+    const { book, chapter, verse, start, end } = pendingHl;
+    saveVerseHighlight(book, chapter, verse, start, end, color);
+    reRenderVerse(book, chapter, verse);
+    attachVerseDblClick(verse, book, chapter);
     pendingHl = null;
-    window.getSelection()?.removeAllRanges();
     hideHighlightBar();
   }
 
   function clearHighlight() {
     if (!pendingHl) return;
-    removeVerseHighlightsAt(pendingHl.book, pendingHl.chapter, pendingHl.verse, pendingHl.start, pendingHl.end);
-    reRenderVerse(pendingHl.book, pendingHl.chapter, pendingHl.verse);
+    const { book, chapter, verse, start, end } = pendingHl;
+    removeVerseHighlightsAt(book, chapter, verse, start, end);
+    reRenderVerse(book, chapter, verse);
+    attachVerseDblClick(verse, book, chapter);
     pendingHl = null;
-    window.getSelection()?.removeAllRanges();
     hideHighlightBar();
+  }
+
+  function attachVerseDblClick(verseNum, book, chapter) {
+    const verseEl = document.querySelector(`.bible-verse[data-verse="${verseNum}"]`);
+    if (!verseEl) return;
+    verseEl.classList.remove('verse-tapped');
+    verseEl.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      const raw = verseEl.dataset.raw || '';
+      document.querySelectorAll('.bible-verse.verse-tapped').forEach(v => v.classList.remove('verse-tapped'));
+      verseEl.classList.add('verse-tapped');
+      pendingHl = { book, chapter, verse: verseNum, start: 0, end: raw.length };
+      showHighlightBarAtEl(verseEl);
+    });
   }
 
   // ── Search ────────────────────────────────────────────────
@@ -485,9 +513,13 @@ const BibleReader = (function () {
     totalChapters = chapTotal;
     openReader(bookNum, bookName, chapter, chapTotal).then(() => {
       setTimeout(() => {
-        const el = document.querySelector(`.bible-verse[data-verse="${verse}"]`);
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 300);
+        const el   = document.querySelector(`.bible-verse[data-verse="${verse}"]`);
+        const body = document.getElementById('bible-reader-body');
+        if (el && body) {
+          // Scroll within the reader container (not the page) so the header stays fixed
+          body.scrollTop = Math.max(0, el.offsetTop - 16);
+        }
+      }, 350);
     });
   }
 
