@@ -4454,6 +4454,115 @@ label,
 .bible-bookmark-btn:active,
 .bible-bookmark-btn.active { background: rgba(212,175,55,0.2); }
 
+/* ── Bible icon button ───────────────────────────────────── */
+.bible-icon-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  border-radius: 8px;
+  line-height: 1;
+  transition: background 0.12s;
+}
+.bible-icon-btn:active { background: rgba(212,175,55,0.2); }
+
+/* ── Floating highlight colour bar ──────────────────────── */
+.bible-hl-bar {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.6rem;
+  background: rgba(20,18,28,0.96);
+  border: 1px solid rgba(212,175,55,0.4);
+  border-radius: 32px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  pointer-events: auto;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.hl-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.25);
+  cursor: pointer;
+  transition: transform 0.12s, border-color 0.12s;
+  flex-shrink: 0;
+}
+.hl-dot:hover  { transform: scale(1.18); border-color: rgba(255,255,255,0.6); }
+.hl-dot:active { transform: scale(0.92); }
+.hl-sep {
+  width: 1px;
+  height: 20px;
+  background: rgba(255,255,255,0.2);
+  flex-shrink: 0;
+}
+.hl-clear {
+  background: rgba(255,255,255,0.1) !important;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+  border-color: rgba(255,255,255,0.3) !important;
+}
+
+/* ── Highlight mark colours ──────────────────────────────── */
+mark.hl-yellow { background: #FFD700; color: #1a1408; border-radius: 3px; padding: 0 1px; }
+mark.hl-green  { background: #7FE080; color: #0e2610; border-radius: 3px; padding: 0 1px; }
+mark.hl-blue   { background: #7BB8F5; color: #0b1e38; border-radius: 3px; padding: 0 1px; }
+mark.hl-pink   { background: #F5A0D0; color: #2a0a1a; border-radius: 3px; padding: 0 1px; }
+mark.hl-orange { background: #FFB347; color: #1e0e00; border-radius: 3px; padding: 0 1px; }
+mark.hl-search { background: rgba(212,175,55,0.45); color: inherit; border-radius: 2px; }
+
+/* ── Bible search screen ─────────────────────────────────── */
+.bible-search-wrap { padding: 0.75rem 1rem 0; flex-shrink: 0; }
+.bible-search-field {
+  width: 100%;
+  padding: 0.55rem 0.9rem;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 1rem;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+.bible-search-field:focus { border-color: var(--gold); }
+.bible-search-field::placeholder { color: rgba(255,255,255,0.35); }
+.bible-search-status {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.5);
+  padding: 0.25rem 1rem 0;
+  min-height: 1.5em;
+  flex-shrink: 0;
+}
+.bible-search-results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 1rem 1.5rem;
+  -webkit-overflow-scrolling: touch;
+}
+.bible-search-result {
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.bible-search-result:hover,
+.bible-search-result:active {
+  background: rgba(212,175,55,0.1);
+  border-color: rgba(212,175,55,0.3);
+}
+.bible-search-ref   { font-size: 0.75rem; font-weight: 700; color: var(--gold); margin-bottom: 0.25rem; }
+.bible-search-snippet { font-size: 0.88rem; color: rgba(255,255,255,0.78); line-height: 1.55; }
+
 /* ── Print / PDF Export ───────────────────────────────────── */
 @media print {
   body {

@@ -11,6 +11,8 @@ const BibleReader = (function () {
   let curChapter = 1;
   let totalChapters = 1;
   let isBookmarked = false;
+  let pendingHl    = null;    // pending highlight: {book, chapter, verse, start, end}
+  let searchTimer  = null;
 
   // ── Persistence ───────────────────────────────────────────
   function loadStorage() {
@@ -48,6 +50,27 @@ const BibleReader = (function () {
 
   function isBookmarkSaved(bookNum, chapter) {
     return getBookmarks().some(b => b.bookNum === bookNum && b.chapter === chapter);
+  }
+
+  function getVerseHighlights(book, chapter, verse) {
+    const s = loadStorage();
+    return ((s.highlights || {})[ `${book}:${chapter}:${verse}` ]) || [];
+  }
+  function saveVerseHighlight(book, chapter, verse, start, end, color) {
+    const s = loadStorage();
+    if (!s.highlights) s.highlights = {};
+    const key  = `${book}:${chapter}:${verse}`;
+    const list = (s.highlights[key] || []).filter(h => !(h.start < end && h.end > start));
+    list.push({ start, end, color });
+    s.highlights[key] = list;
+    saveStorage(s);
+  }
+  function removeVerseHighlightsAt(book, chapter, verse, start, end) {
+    const s = loadStorage();
+    if (!s.highlights) return;
+    const key = `${book}:${chapter}:${verse}`;
+    s.highlights[key] = (s.highlights[key] || []).filter(h => !(h.start < end && h.end > start));
+    saveStorage(s);
   }
 
   // ── Navigation helpers ────────────────────────────────────
@@ -203,9 +226,8 @@ const BibleReader = (function () {
       totalChapters = data.total_chapters;
       updateReaderNav(bookNum, bookName, chapter, data.total_chapters);
 
-      body.innerHTML = data.verses.map(v =>
-        `<p class="bible-verse"><span class="bible-verse-num">${v.verse}</span>${escHtml(v.text)}</p>`
-      ).join('');
+      body.innerHTML = data.verses.map(v => verseHtml(v.verse, v.text, bookNum, chapter)).join('');
+      setupSelectionHighlight(body, bookNum, chapter);
       body.scrollTop = 0;
 
       setupSwipe(body, bookNum, bookName, data.total_chapters);
@@ -295,16 +317,197 @@ const BibleReader = (function () {
       goTo('screen-bible');
     }
   }
-  function backFromBible()  { goTo('screen-history'); }
+  function backFromBible()  { goTo('screen-home'); }
+
+  // ── Verse render helpers ──────────────────────────────────
+  function verseHtml(verseNum, rawText, book, chapter) {
+    const hls = getVerseHighlights(book, chapter, verseNum);
+    const body = applyHighlightsToText(rawText, hls);
+    return `<p class="bible-verse" data-verse="${verseNum}" data-raw="${escAttr(rawText)}"><span class="bible-verse-num">${verseNum}</span>${body}</p>`;
+  }
+
+  function applyHighlightsToText(text, highlights) {
+    if (!highlights || !highlights.length) return escHtml(text);
+    const sorted = [...highlights].sort((a, b) => a.start - b.start);
+    let result = '', pos = 0;
+    for (const hl of sorted) {
+      if (hl.start > pos) result += escHtml(text.slice(pos, hl.start));
+      result += `<mark class="hl-${hl.color}">${escHtml(text.slice(hl.start, hl.end))}</mark>`;
+      pos = hl.end;
+    }
+    if (pos < text.length) result += escHtml(text.slice(pos));
+    return result;
+  }
+
+  function reRenderVerse(book, chapter, verseNum) {
+    const el = document.querySelector(`.bible-verse[data-verse="${verseNum}"]`);
+    if (!el) return;
+    const raw = el.dataset.raw;
+    if (!raw) return;
+    const hls = getVerseHighlights(book, chapter, verseNum);
+    el.innerHTML = `<span class="bible-verse-num">${verseNum}</span>${applyHighlightsToText(raw, hls)}`;
+  }
+
+  // ── Selection → highlight bar ─────────────────────────────
+  function setupSelectionHighlight(body, book, chapter) {
+    function onSelChange() {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+        hideHighlightBar(); pendingHl = null; return;
+      }
+      if (!document.getElementById('screen-bible-reader')?.classList.contains('active')) return;
+      const range   = sel.getRangeAt(0);
+      const verseEl = findVerseEl(range.startContainer);
+      if (!verseEl) { hideHighlightBar(); return; }
+      const verseNum = parseInt(verseEl.dataset.verse);
+      const rawText  = verseEl.dataset.raw || '';
+      const selText  = sel.toString();
+      const start    = rawText.indexOf(selText);
+      if (start === -1) { hideHighlightBar(); return; }
+      pendingHl = { book, chapter, verse: verseNum, start, end: start + selText.length };
+      showHighlightBar(range.getBoundingClientRect());
+    }
+    document.addEventListener('selectionchange', onSelChange);
+    const obs = new MutationObserver(() => {
+      if (!document.getElementById('screen-bible-reader')?.classList.contains('active')) {
+        document.removeEventListener('selectionchange', onSelChange);
+        obs.disconnect();
+      }
+    });
+    obs.observe(document.getElementById('screen-bible-reader'), { attributeFilter: ['class'] });
+  }
+
+  function findVerseEl(node) {
+    let el = node instanceof Element ? node : node?.parentElement;
+    while (el && !el.classList?.contains('bible-verse')) el = el.parentElement;
+    return el || null;
+  }
+
+  function showHighlightBar(rect) {
+    const bar = document.getElementById('bible-hl-bar');
+    if (!bar) return;
+    bar.style.display = 'flex';
+    const bw = bar.offsetWidth || 220;
+    let left = rect.left + rect.width / 2;
+    let top  = rect.top - 58;
+    if (left + bw / 2 > window.innerWidth - 8) left = window.innerWidth - bw / 2 - 8;
+    if (left - bw / 2 < 8)                     left = bw / 2 + 8;
+    if (top < 8) top = rect.bottom + 8;
+    bar.style.left = left + 'px';
+    bar.style.top  = top  + 'px';
+  }
+
+  function hideHighlightBar() {
+    const bar = document.getElementById('bible-hl-bar');
+    if (bar) bar.style.display = 'none';
+  }
+
+  function applyHighlight(color) {
+    if (!pendingHl) return;
+    saveVerseHighlight(pendingHl.book, pendingHl.chapter, pendingHl.verse, pendingHl.start, pendingHl.end, color);
+    reRenderVerse(pendingHl.book, pendingHl.chapter, pendingHl.verse);
+    pendingHl = null;
+    window.getSelection()?.removeAllRanges();
+    hideHighlightBar();
+  }
+
+  function clearHighlight() {
+    if (!pendingHl) return;
+    removeVerseHighlightsAt(pendingHl.book, pendingHl.chapter, pendingHl.verse, pendingHl.start, pendingHl.end);
+    reRenderVerse(pendingHl.book, pendingHl.chapter, pendingHl.verse);
+    pendingHl = null;
+    window.getSelection()?.removeAllRanges();
+    hideHighlightBar();
+  }
+
+  // ── Search ────────────────────────────────────────────────
+  function openSearch() {
+    goTo('screen-bible-search');
+    const inp = document.getElementById('bible-search-input');
+    if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 150); }
+    const status  = document.getElementById('bible-search-status');
+    const results = document.getElementById('bible-search-results');
+    if (status)  status.textContent = '';
+    if (results) results.innerHTML  = '';
+  }
+
+  function closeSearch() {
+    if (curBook) goTo('screen-bible-reader');
+    else { goTo('screen-bible'); renderBookList(); }
+  }
+
+  function onSearchInput(val) {
+    clearTimeout(searchTimer);
+    const q = val.trim();
+    if (q.length < 2) {
+      const s = document.getElementById('bible-search-status');
+      const r = document.getElementById('bible-search-results');
+      if (s) s.textContent = ''; if (r) r.innerHTML = ''; return;
+    }
+    searchTimer = setTimeout(() => doSearch(q), 400);
+  }
+
+  async function doSearch(q) {
+    const status  = document.getElementById('bible-search-status');
+    const results = document.getElementById('bible-search-results');
+    if (status)  status.textContent = 'Searching…';
+    if (results) results.innerHTML  = '';
+    try {
+      const res  = await fetch(`api/bible.php?action=search&q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      const count = data.results.length, total = data.total;
+      if (status) status.textContent = count === 0 ? 'No results.'
+        : count < total ? `Showing first ${count} of ${total} results` : `${total} result${total !== 1 ? 's' : ''}`;
+      if (results) {
+        results.innerHTML = data.results.map(r => {
+          const chapTotal = totalChapForBook(r.book_num) || 1;
+          return `<div class="bible-search-result" onclick="BibleReader.goToSearchResult(${r.book_num},'${escAttr(r.book_name)}',${r.chapter},${r.verse},${chapTotal})">
+            <div class="bible-search-ref">${escHtml(r.book_name)} ${r.chapter}:${r.verse}</div>
+            <div class="bible-search-snippet">${highlightQuery(r.text, q)}</div>
+          </div>`;
+        }).join('');
+      }
+    } catch(e) {
+      if (status) status.textContent = 'Search failed: ' + e.message;
+    }
+  }
+
+  function highlightQuery(text, q) {
+    const safe = escHtml(text);
+    const re   = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    return safe.replace(re, m => `<mark class="hl-search">${m}</mark>`);
+  }
+
+  function goToSearchResult(bookNum, bookName, chapter, verse, chapTotal) {
+    if (!allBooks) allBooks = [];
+    curBook       = allBooks.find(b => b.book_num === bookNum) || { book_num: bookNum, book_name: bookName, chapters: chapTotal };
+    totalChapters = chapTotal;
+    openReader(bookNum, bookName, chapter, chapTotal).then(() => {
+      setTimeout(() => {
+        const el = document.querySelector(`.bible-verse[data-verse="${verse}"]`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
+    });
+  }
 
   // ── Utility ───────────────────────────────────────────────
   function escHtml(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
+  function escAttr(s) {
+    return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+  function totalChapForBook(bookNum) {
+    if (!allBooks) return 1;
+    return allBooks.find(b => b.book_num === bookNum)?.chapters || 1;
+  }
 
   return {
     open, openBook, selectChapter, continueReading,
     nextChapter, prevChapter, toggleBookmark,
+    openSearch, closeSearch, onSearchInput, goToSearchResult,
+    applyHighlight, clearHighlight,
     backToBooks, backToChapters, backFromBible
   };
 })();

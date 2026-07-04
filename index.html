@@ -66,6 +66,7 @@
         </div>
         <div class="home-links">
           <button class="btn btn-ghost" onclick="App.goTo('history')">🏆 Hall of Fame</button>
+          <button class="btn btn-ghost" onclick="BibleReader.open()">📖 Bible</button>
           <button class="btn btn-ghost" onclick="App.goMyProfile()">👤 My Profile</button>
           <button class="btn btn-ghost" onclick="App.goShop()">🛍️ Shop</button>
           <button class="btn btn-ghost" onclick="App.goTo('settings')">⚙️ Settings</button>
@@ -1049,7 +1050,6 @@
       </div>
       <div class="screen-body">
         <div class="shop-tabs">
-          <button class="shop-tab" id="hof-tab-bible" onclick="BibleReader.open()" style="background:rgba(212,175,55,0.12);border-color:rgba(212,175,55,0.5);color:var(--gold);">📖 Bible</button>
           <button class="shop-tab active" id="hof-tab-history" onclick="App.switchHallOfFameTab('history', this)">📜 History</button>
           <button class="shop-tab" id="hof-tab-leaderboards" onclick="App.switchHallOfFameTab('leaderboards', this)">🏆 Leaderboards</button>
         </div>
@@ -1363,7 +1363,7 @@
       <div class="screen-header">
         <button class="btn-back" onclick="BibleReader.backFromBible()">‹</button>
         <h2>📖 KJV Bible</h2>
-        <div class="spacer"></div>
+        <button class="bible-icon-btn" onclick="BibleReader.openSearch()" title="Search">🔍</button>
       </div>
       <div class="screen-body">
         <!-- Continue Reading card -->
@@ -1397,6 +1397,7 @@
       <div class="screen-header">
         <button class="btn-back" onclick="BibleReader.backToChapters()">‹</button>
         <h2 id="bible-reader-title" style="font-size:0.95rem;flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Genesis 1</h2>
+        <button class="bible-icon-btn" onclick="BibleReader.openSearch()" title="Search">🔍</button>
         <button class="bible-bookmark-btn" id="bible-bookmark-btn" onclick="BibleReader.toggleBookmark()" title="Bookmark this chapter">🏷️</button>
       </div>
       <!-- Top nav -->
@@ -1413,6 +1414,36 @@
         <span class="bible-nav-label" id="bible-ch-label-bot">Chapter 1</span>
         <button class="bible-nav-btn" id="bible-next-bot" onclick="BibleReader.nextChapter()">Next ›</button>
       </div>
+    </div>
+
+    <!-- ==================== BIBLE: SEARCH ==================== -->
+    <div class="screen" id="screen-bible-search">
+      <div class="screen-header">
+        <button class="btn-back" onclick="BibleReader.closeSearch()">‹</button>
+        <h2>🔍 Search Bible</h2>
+        <div class="spacer"></div>
+      </div>
+      <div class="screen-body" style="display:flex;flex-direction:column;">
+        <div class="bible-search-wrap">
+          <input type="search" id="bible-search-input" class="bible-search-field"
+            placeholder="Search any word or phrase…"
+            oninput="BibleReader.onSearchInput(this.value)"
+            autocomplete="off" autocorrect="off" spellcheck="false">
+        </div>
+        <div id="bible-search-status" class="bible-search-status"></div>
+        <div id="bible-search-results" class="bible-search-results"></div>
+      </div>
+    </div>
+
+    <!-- ==================== BIBLE: Highlight color bar (fixed floating) ==================== -->
+    <div id="bible-hl-bar" class="bible-hl-bar" style="display:none">
+      <button class="hl-dot" style="background:#FFD700" onclick="BibleReader.applyHighlight('yellow')" title="Yellow"></button>
+      <button class="hl-dot" style="background:#7FE080" onclick="BibleReader.applyHighlight('green')"  title="Green"></button>
+      <button class="hl-dot" style="background:#7BB8F5" onclick="BibleReader.applyHighlight('blue')"   title="Blue"></button>
+      <button class="hl-dot" style="background:#F5A0D0" onclick="BibleReader.applyHighlight('pink')"   title="Pink"></button>
+      <button class="hl-dot" style="background:#FFB347" onclick="BibleReader.applyHighlight('orange')" title="Orange"></button>
+      <div class="hl-sep"></div>
+      <button class="hl-dot hl-clear" onclick="BibleReader.clearHighlight()" title="Remove highlight">✕</button>
     </div>
 
     <!-- ==================== OVERLAY: ADMIN LOGIN ==================== -->

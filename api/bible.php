@@ -49,6 +49,30 @@ if ($action === 'text') {
     ]);
 }
 
+if ($action === 'search') {
+    $q = trim($_GET['q'] ?? '');
+    if (mb_strlen($q) < 2) jsonOut(['success' => false, 'error' => 'Query too short'], 400);
+    $stmt = $db->prepare("
+        SELECT book_num, book_name, testament, chapter, verse, text
+        FROM bible_kjv
+        WHERE text LIKE ?
+        ORDER BY book_num, chapter, verse
+        LIMIT 100
+    ");
+    $stmt->execute(['%' . $q . '%']);
+    $rows = $stmt->fetchAll();
+    foreach ($rows as &$r) {
+        $r['book_num'] = (int)$r['book_num'];
+        $r['chapter']  = (int)$r['chapter'];
+        $r['verse']    = (int)$r['verse'];
+    }
+    unset($r);
+    $cntStmt = $db->prepare("SELECT COUNT(*) FROM bible_kjv WHERE text LIKE ?");
+    $cntStmt->execute(['%' . $q . '%']);
+    $total = (int)$cntStmt->fetchColumn();
+    jsonOut(['success' => true, 'results' => $rows, 'total' => $total, 'query' => $q]);
+}
+
 jsonOut(['success' => false, 'error' => 'Unknown action'], 400);
 
 /* ── Seed from bundled JSON on first use ──────────────────── */
