@@ -36,7 +36,7 @@ define('DB_PATH', __DIR__ . '/../data/game.db');
 // Bump whenever migrateSchema()'s $columns table gains/changes entries, so
 // existing deployments pick up the new columns exactly once instead of never
 // (see the PRAGMA user_version guard around migrateSchema() in initDB()).
-define('SCHEMA_VERSION', 8);
+define('SCHEMA_VERSION', 9);
 
 function getDB(): PDO {
     static $db = null;
@@ -105,6 +105,7 @@ function initDB(PDO $db): void {
             is_host INTEGER DEFAULT 0,
             joined_at INTEGER NOT NULL,
             last_ping INTEGER NOT NULL,
+            has_shield INTEGER DEFAULT 0,
             PRIMARY KEY (device_id, room_code)
         );
         CREATE TABLE IF NOT EXISTS profiles (
@@ -117,6 +118,19 @@ function initDB(PDO $db): void {
             equipped_border TEXT,
             owned_name_effects TEXT DEFAULT '[]',
             owned_borders TEXT DEFAULT '[]',
+            owned_titles TEXT DEFAULT '[]',
+            equipped_title TEXT,
+            owned_answer_skins TEXT DEFAULT '[]',
+            equipped_answer_skin TEXT,
+            owned_clue_themes TEXT DEFAULT '[]',
+            equipped_clue_theme TEXT,
+            owned_anim_borders TEXT DEFAULT '[]',
+            equipped_anim_border TEXT,
+            owned_nick_colors TEXT DEFAULT '[]',
+            equipped_nick_color TEXT,
+            owned_emoji_frames TEXT DEFAULT '[]',
+            equipped_emoji_frame TEXT,
+            booster_count INTEGER DEFAULT 0,
             updated_at INTEGER NOT NULL
         );
         CREATE TABLE IF NOT EXISTS answers (
@@ -345,6 +359,19 @@ function migrateSchema(PDO $db): void {
             'equipped_border'       => "TEXT",
             'owned_name_effects'    => "TEXT DEFAULT '[]'",
             'owned_borders'         => "TEXT DEFAULT '[]'",
+            'owned_titles'          => "TEXT DEFAULT '[]'",
+            'equipped_title'        => "TEXT",
+            'owned_answer_skins'    => "TEXT DEFAULT '[]'",
+            'equipped_answer_skin'  => "TEXT",
+            'owned_clue_themes'     => "TEXT DEFAULT '[]'",
+            'equipped_clue_theme'   => "TEXT",
+            'owned_anim_borders'    => "TEXT DEFAULT '[]'",
+            'equipped_anim_border'  => "TEXT",
+            'owned_nick_colors'     => "TEXT DEFAULT '[]'",
+            'equipped_nick_color'   => "TEXT",
+            'owned_emoji_frames'    => "TEXT DEFAULT '[]'",
+            'equipped_emoji_frame'  => "TEXT",
+            'booster_count'         => "INTEGER DEFAULT 0",
         ],
         'players' => [
             'streak'         => "INTEGER DEFAULT 0",
@@ -358,6 +385,7 @@ function migrateSchema(PDO $db): void {
             'team_id'        => "INTEGER DEFAULT 0",
             'imp_class'      => "TEXT",
             'imp_class_used' => "INTEGER DEFAULT 0",
+            'has_shield'     => "INTEGER DEFAULT 0",
         ],
         'hs_bets' => [
             'bet_amount' => "INTEGER DEFAULT 0",

@@ -96,8 +96,12 @@ const Multiplayer = (function () {
   let blitzStartTime = 0;
   let blitzCorrectAnswer = false;
 
-  const POWERUP_COSTS = { fifty: 800, double: 1500, freeze: 1000, steal: 2000 };
-  const POWERUP_LABELS = { fifty: '50/50', double: '2x Points', freeze: 'Freeze', steal: 'Steal' };
+  const POWERUP_COSTS  = { fifty: 800, double: 1500, freeze: 1000, steal: 2000, hint: 400, shield: 1200 };
+  const POWERUP_LABELS = { fifty: '50/50', double: '2x Points', freeze: 'Freeze', steal: 'Steal', hint: 'Hint', shield: 'Shield' };
+
+  // Cached cosmetics for the current player (updated on each poll)
+  let myEquippedAnswerSkin = null;
+  let myEquippedClueTheme  = null;
 
   // Hot Seat betting state
   let hsSelectedBetPct = 5;
@@ -239,6 +243,12 @@ const Multiplayer = (function () {
     }
     currentGameFormat = data.room.game_format || 'classic';
     currentDifficulty = data.room.difficulty;
+    // Cache this player's cosmetic equip state for use in answer feedback / clue screens
+    const _me = data.players.find(p => p.device_id === deviceId);
+    if (_me) {
+      myEquippedAnswerSkin = _me.equipped_answer_skin || null;
+      myEquippedClueTheme  = _me.equipped_clue_theme  || null;
+    }
     currentQuizMode = data.room.quiz_mode || 'difficulty';
     currentBook = data.room.book || null;
     currentCategory = data.room.category || null;
@@ -411,12 +421,15 @@ const Multiplayer = (function () {
     players.forEach(p => {
       const row = document.createElement('div');
       row.className = 'player-item';
-      const avatarHtml = (p.avatar && p.avatar.startsWith('data:'))
-        ? `<img src="${p.avatar}" style="width:1.8rem;height:1.8rem;border-radius:50%;object-fit:cover;">`
-        : `<span class="player-avatar-badge">${p.avatar}</span>`;
+      const avatarHtml = buildAvatarHtml(p, '1.8rem');
+      const titleLabel = p.equipped_title && typeof Shop !== 'undefined' ? Shop.getTitleLabel(p.equipped_title) : '';
+      const titleHtml  = titleLabel ? ` <span class="player-title-badge">${escapeHtml(titleLabel)}</span>` : '';
+      const nickStyle  = p.equipped_nick_color && typeof Shop !== 'undefined'
+        ? ` style="color:${Shop.getNickColorHex(p.equipped_nick_color)}"`
+        : '';
       row.innerHTML = `
         ${avatarHtml}
-        <span class="player-item-name">${escapeHtml(p.name)}${p.is_host ? ' 👑' : ''}</span>
+        <span class="player-item-name"${nickStyle}>${escapeHtml(p.name)}${titleHtml}${p.is_host ? ' 👑' : ''}</span>
       `;
       if (allowRemove && !p.is_host) {
         const btn = document.createElement('button');
@@ -427,6 +440,22 @@ const Multiplayer = (function () {
       }
       container.appendChild(row);
     });
+  }
+
+  function buildAvatarHtml(p, size) {
+    size = size || '1.8rem';
+    const base = (p.avatar && p.avatar.startsWith('data:'))
+      ? `<img src="${p.avatar}" style="width:${size};height:${size};border-radius:50%;object-fit:cover;">`
+      : `<span class="player-avatar-badge">${p.avatar || '📖'}</span>`;
+    const frameEmoji = p.equipped_emoji_frame && typeof Shop !== 'undefined' ? Shop.getEmojiFrameEmoji(p.equipped_emoji_frame) : null;
+    const animBorder = p.equipped_anim_border || null;
+    if (frameEmoji) {
+      return `<span class="emoji-frame-wrap">${frameEmoji}${base}${frameEmoji}</span>`;
+    }
+    if (animBorder) {
+      return `<span class="anim-border-wrap ${animBorder}">${base}</span>`;
+    }
+    return base;
   }
 
   // ---------------- QUESTION ----------------
@@ -1708,9 +1737,7 @@ const Multiplayer = (function () {
   }
 
   function avatarHtmlFor(p) {
-    return (p.avatar && p.avatar.startsWith('data:'))
-      ? `<img src="${p.avatar}" style="width:1.8rem;height:1.8rem;border-radius:50%;object-fit:cover;">`
-      : `<span class="player-avatar-badge">${p.avatar}</span>`;
+    return buildAvatarHtml(p, '1.8rem');
   }
 
   // Tells a contestant which side they're on - the word card alone only
@@ -2092,6 +2119,13 @@ const Multiplayer = (function () {
     if (form) form.style.display = eliminated ? 'none' : '';
     if (statusBadge) statusBadge.style.display = eliminated ? 'none' : 'flex';
 
+    // Apply clue card theme
+    if (wordCard && myEquippedClueTheme) {
+      wordCard.className = 'imp-word-card clue-theme-' + myEquippedClueTheme;
+    } else if (wordCard) {
+      wordCard.className = 'imp-word-card';
+    }
+
     if (eliminated) return;
 
     const wordEl = document.getElementById('imp-clue-word');
@@ -2132,7 +2166,10 @@ const Multiplayer = (function () {
     if (isHost || eliminated) {
       if (wordCard) wordCard.style.display = 'none';
     } else {
-      if (wordCard) wordCard.style.display = '';
+      if (wordCard) {
+        wordCard.style.display = '';
+        wordCard.className = 'imp-word-card' + (myEquippedClueTheme ? ' clue-theme-' + myEquippedClueTheme : '');
+      }
       const wordEl = document.getElementById('imp-reveal-word');
       if (wordEl) wordEl.textContent = lookupImpostorWord(data);
       renderImpRoleBadge('imp-reveal-role-badge', data);
@@ -2715,18 +2752,24 @@ const Multiplayer = (function () {
     const walletVal = document.getElementById('pu-wallet-val');
     if (walletVal) walletVal.textContent = wallet.toLocaleString();
 
+    const myHasShield = data.my_has_shield || false;
+
     Object.keys(POWERUP_COSTS).forEach(type => {
       const btn = document.getElementById(`pu-${type}`);
       if (!btn) return;
       const cost = POWERUP_COSTS[type];
       let disabled = used.includes(type) || wallet < cost || frozen;
-      if (type === 'fifty' || type === 'double') disabled = disabled || answered;
+      if (type === 'fifty' || type === 'double' || type === 'hint') disabled = disabled || answered;
       if (type === 'steal') disabled = disabled || iAmLeader;
+      if (type === 'shield') disabled = disabled || myHasShield; // can't stack shields
       btn.disabled = disabled;
       btn.classList.toggle('used', used.includes(type));
+      btn.classList.toggle('active-shield', type === 'shield' && myHasShield);
       btn.title = used.includes(type)
         ? `${POWERUP_LABELS[type]} already used this game`
-        : (type === 'steal' && iAmLeader ? 'You are already the leader' : `${POWERUP_LABELS[type]} - ${cost.toLocaleString()} pts`);
+        : (type === 'steal' && iAmLeader ? 'You are already the leader'
+          : type === 'shield' && myHasShield ? 'Shield active!'
+          : `${POWERUP_LABELS[type]} - ${cost.toLocaleString()} pts`);
     });
   }
 
@@ -2746,12 +2789,25 @@ const Multiplayer = (function () {
       if (type === 'fifty') {
         applyFiftyFifty();
         App.showToast('🎯 Two wrong answers eliminated!', 'success');
+      } else if (type === 'hint') {
+        applyHint();
+        App.showToast('💡 One wrong answer removed!', 'success');
       } else if (type === 'double') {
         App.showToast('⚡ Double Points armed for this question!', 'success');
       } else if (type === 'freeze') {
-        App.showToast('❄️ Target frozen for 5 seconds!', 'success');
+        if (res.shield_blocked) {
+          App.showToast('🛡️ Blocked! Your target had a shield!', 'info');
+        } else {
+          App.showToast('❄️ Target frozen for 5 seconds!', 'success');
+        }
       } else if (type === 'steal') {
-        App.showToast(`🦹 You stole ${res.steal_amount.toLocaleString()} points!`, 'success');
+        if (res.shield_blocked) {
+          App.showToast('🛡️ Blocked! Your target had a shield!', 'info');
+        } else {
+          App.showToast(`🦹 You stole ${res.steal_amount.toLocaleString()} points!`, 'success');
+        }
+      } else if (type === 'shield') {
+        App.showToast('🛡️ Shield activated! Next Freeze or Steal will be blocked.', 'success');
       }
       poll();
     });
@@ -2765,12 +2821,22 @@ const Multiplayer = (function () {
     wrongIndices.sort(() => Math.random() - 0.5);
     wrongIndices.slice(0, 2).forEach(i => {
       const btn = document.getElementById(`c${i}`);
-      if (btn) {
-        btn.disabled = true;
-        btn.classList.add('eliminated');
-        btn.onclick = null;
-      }
+      if (btn) { btn.disabled = true; btn.classList.add('eliminated'); btn.onclick = null; }
     });
+  }
+
+  function applyHint() {
+    if (!lastData || !lastData.current_question) return;
+    const q = lookupQuestion(lastData.current_question);
+    const correctIdx = q.choices.indexOf(q.answer);
+    const wrongIndices = [0, 1, 2, 3].filter(i => {
+      const btn = document.getElementById(`c${i}`);
+      return i !== correctIdx && btn && !btn.disabled;
+    });
+    if (wrongIndices.length === 0) return;
+    const removeIdx = wrongIndices[Math.floor(Math.random() * wrongIndices.length)];
+    const btn = document.getElementById(`c${removeIdx}`);
+    if (btn) { btn.disabled = true; btn.classList.add('eliminated'); btn.onclick = null; }
   }
 
   function openFreezeTargetPicker() {
@@ -2954,11 +3020,9 @@ const Multiplayer = (function () {
 
   function showWaitingFeedback(isCorrect, points, question, streak, doubled) {
     App.goTo('feedback');
-    // Memory Match awards partial credit for pairs found even on an
-    // incomplete board, so "wrong but scored points" needs its own label
-    // instead of looking like a flat zero-point miss.
     const partial = !isCorrect && points > 0;
-    document.getElementById('fb-icon').className = 'feedback-icon ' + (isCorrect ? 'correct' : partial ? 'partial' : 'wrong');
+    const skinClass = isCorrect && myEquippedAnswerSkin ? ` answer-skin-${myEquippedAnswerSkin}` : '';
+    document.getElementById('fb-icon').className = 'feedback-icon ' + (isCorrect ? 'correct' : partial ? 'partial' : 'wrong') + skinClass;
     document.getElementById('fb-icon').textContent = isCorrect ? '✓' : partial ? '½' : '✗';
     document.getElementById('fb-verdict').textContent = isCorrect ? 'Correct!' : partial ? 'Partial Credit!' : 'Incorrect!';
     document.getElementById('fb-pts').textContent = points > 0 ? `+${points}` : '0 pts';

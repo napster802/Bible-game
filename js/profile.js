@@ -64,6 +64,19 @@ const Profile = (function () {
     if (profile.equippedBorder === undefined) profile.equippedBorder = null;
     if (profile.ownedNameEffects === undefined) profile.ownedNameEffects = [];
     if (profile.ownedBorders === undefined) profile.ownedBorders = [];
+    if (profile.equippedTitle === undefined) profile.equippedTitle = null;
+    if (profile.ownedTitles === undefined) profile.ownedTitles = [];
+    if (profile.equippedAnswerSkin === undefined) profile.equippedAnswerSkin = null;
+    if (profile.ownedAnswerSkins === undefined) profile.ownedAnswerSkins = [];
+    if (profile.equippedClueTheme === undefined) profile.equippedClueTheme = null;
+    if (profile.ownedClueThemes === undefined) profile.ownedClueThemes = [];
+    if (profile.equippedAnimBorder === undefined) profile.equippedAnimBorder = null;
+    if (profile.ownedAnimBorders === undefined) profile.ownedAnimBorders = [];
+    if (profile.equippedNickColor === undefined) profile.equippedNickColor = null;
+    if (profile.ownedNickColors === undefined) profile.ownedNickColors = [];
+    if (profile.equippedEmojiFrame === undefined) profile.equippedEmojiFrame = null;
+    if (profile.ownedEmojiFrames === undefined) profile.ownedEmojiFrames = [];
+    if (profile.boosterCount === undefined) profile.boosterCount = 0;
     return profile;
   }
 
@@ -97,7 +110,20 @@ const Profile = (function () {
       equippedNameEffect: existing.equippedNameEffect,
       equippedBorder: existing.equippedBorder,
       ownedNameEffects: existing.ownedNameEffects,
-      ownedBorders: existing.ownedBorders
+      ownedBorders: existing.ownedBorders,
+      equippedTitle: existing.equippedTitle,
+      ownedTitles: existing.ownedTitles,
+      equippedAnswerSkin: existing.equippedAnswerSkin,
+      ownedAnswerSkins: existing.ownedAnswerSkins,
+      equippedClueTheme: existing.equippedClueTheme,
+      ownedClueThemes: existing.ownedClueThemes,
+      equippedAnimBorder: existing.equippedAnimBorder,
+      ownedAnimBorders: existing.ownedAnimBorders,
+      equippedNickColor: existing.equippedNickColor,
+      ownedNickColors: existing.ownedNickColors,
+      equippedEmojiFrame: existing.equippedEmojiFrame,
+      ownedEmojiFrames: existing.ownedEmojiFrames,
+      boosterCount: existing.boosterCount,
     });
     safeSet(STORAGE_KEY, JSON.stringify(profile));
     cached = profile;
@@ -143,7 +169,20 @@ const Profile = (function () {
           equippedNameEffect: res.profile.equippedNameEffect,
           equippedBorder: res.profile.equippedBorder,
           ownedNameEffects: res.profile.ownedNameEffects,
-          ownedBorders: res.profile.ownedBorders
+          ownedBorders: res.profile.ownedBorders,
+          equippedTitle: res.profile.equippedTitle,
+          ownedTitles: res.profile.ownedTitles,
+          equippedAnswerSkin: res.profile.equippedAnswerSkin,
+          ownedAnswerSkins: res.profile.ownedAnswerSkins,
+          equippedClueTheme: res.profile.equippedClueTheme,
+          ownedClueThemes: res.profile.ownedClueThemes,
+          equippedAnimBorder: res.profile.equippedAnimBorder,
+          ownedAnimBorders: res.profile.ownedAnimBorders,
+          equippedNickColor: res.profile.equippedNickColor,
+          ownedNickColors: res.profile.ownedNickColors,
+          equippedEmojiFrame: res.profile.equippedEmojiFrame,
+          ownedEmojiFrames: res.profile.ownedEmojiFrames,
+          boosterCount: res.profile.boosterCount || 0,
         });
         safeSet(STORAGE_KEY, JSON.stringify(profile));
         cached = profile;
@@ -170,7 +209,20 @@ const Profile = (function () {
           equippedNameEffect: res.profile.equippedNameEffect,
           equippedBorder: res.profile.equippedBorder,
           ownedNameEffects: res.profile.ownedNameEffects,
-          ownedBorders: res.profile.ownedBorders
+          ownedBorders: res.profile.ownedBorders,
+          equippedTitle: res.profile.equippedTitle,
+          ownedTitles: res.profile.ownedTitles,
+          equippedAnswerSkin: res.profile.equippedAnswerSkin,
+          ownedAnswerSkins: res.profile.ownedAnswerSkins,
+          equippedClueTheme: res.profile.equippedClueTheme,
+          ownedClueThemes: res.profile.ownedClueThemes,
+          equippedAnimBorder: res.profile.equippedAnimBorder,
+          ownedAnimBorders: res.profile.ownedAnimBorders,
+          equippedNickColor: res.profile.equippedNickColor,
+          ownedNickColors: res.profile.ownedNickColors,
+          equippedEmojiFrame: res.profile.equippedEmojiFrame,
+          ownedEmojiFrames: res.profile.ownedEmojiFrames,
+          boosterCount: res.profile.boosterCount || 0,
         });
         safeSet(STORAGE_KEY, JSON.stringify(cached));
         return cached;

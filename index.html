@@ -412,6 +412,16 @@
           <span class="pu-label">Steal</span>
           <span class="pu-cost">2,000</span>
         </button>
+        <button class="powerup-btn" id="pu-hint" onclick="Multiplayer.usePowerup('hint')">
+          <span class="pu-icon">💡</span>
+          <span class="pu-label">Hint</span>
+          <span class="pu-cost">400</span>
+        </button>
+        <button class="powerup-btn" id="pu-shield" onclick="Multiplayer.usePowerup('shield')">
+          <span class="pu-icon">🛡️</span>
+          <span class="pu-label">Shield</span>
+          <span class="pu-cost">1,200</span>
+        </button>
         <span class="pu-wallet-display">💰 <span id="pu-wallet-val">0</span></span>
       </div>
 
@@ -1217,9 +1227,16 @@
       </div>
       <div class="screen-body">
         <div class="wallet-badge">💰 <span id="shop-wallet">0</span> pts</div>
-        <div class="shop-tabs">
-          <button class="shop-tab active" id="shop-tab-effects" onclick="Shop.setTab('effects')">✨ Name Effects</button>
-          <button class="shop-tab" id="shop-tab-borders" onclick="Shop.setTab('borders')">🖼️ Profile Borders</button>
+        <div class="shop-tabs" id="shop-tabs">
+          <button class="shop-tab active" id="shop-tab-effects"      onclick="Shop.setTab('effects')">✨ Effects</button>
+          <button class="shop-tab"        id="shop-tab-borders"      onclick="Shop.setTab('borders')">🖼️ Borders</button>
+          <button class="shop-tab"        id="shop-tab-titles"       onclick="Shop.setTab('titles')">👑 Titles</button>
+          <button class="shop-tab"        id="shop-tab-ncolors"      onclick="Shop.setTab('ncolors')">🎨 Colors</button>
+          <button class="shop-tab"        id="shop-tab-skins"        onclick="Shop.setTab('skins')">🎬 Skins</button>
+          <button class="shop-tab"        id="shop-tab-clue"         onclick="Shop.setTab('clue')">📜 Clue Themes</button>
+          <button class="shop-tab"        id="shop-tab-aborder"      onclick="Shop.setTab('aborder')">🌟 Glow Borders</button>
+          <button class="shop-tab"        id="shop-tab-eframe"       onclick="Shop.setTab('eframe')">😊 Frames</button>
+          <button class="shop-tab"        id="shop-tab-consumables"  onclick="Shop.setTab('consumables')">🚀 Boosters</button>
         </div>
         <div class="shop-grid" id="shop-grid"></div>
       </div>

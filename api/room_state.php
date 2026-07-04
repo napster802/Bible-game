@@ -250,22 +250,33 @@ if ($status === 'finished' && (int)$room['points_awarded'] === 0 && $room['game_
 // never from solo/local play, and the points_awarded flag makes this
 // idempotent no matter how many clients poll after the room finishes.
 if ($status === 'finished' && (int)$room['points_awarded'] === 0) {
-    $creditStmt = $db->prepare("SELECT device_id, score FROM players WHERE room_code = ? AND is_host = 0");
+    $creditStmt = $db->prepare("
+        SELECT pl.device_id, pl.score, COALESCE(pr.booster_count, 0) AS booster_count
+        FROM players pl
+        LEFT JOIN profiles pr ON pl.device_id = pr.device_id
+        WHERE pl.room_code = ? AND pl.is_host = 0
+    ");
     $creditStmt->execute([$code]);
     $toCredit = $creditStmt->fetchAll();
 
     $db->beginTransaction();
     foreach ($toCredit as $pc) {
-        $score = (int)$pc['score'];
-        if ($score <= 0) continue;
+        $rawScore = (int)$pc['score'];
+        if ($rawScore <= 0) continue;
+        // Apply 1.5× booster if the player has one stocked
+        $boosterCount = (int)$pc['booster_count'];
+        $creditScore = $boosterCount > 0 ? (int)round($rawScore * 1.5) : $rawScore;
+        if ($boosterCount > 0) {
+            $db->prepare("UPDATE profiles SET booster_count = booster_count - 1, updated_at = ? WHERE device_id = ? AND booster_count > 0")
+               ->execute([nowMs(), $pc['device_id']]);
+        }
         $db->prepare("INSERT INTO profiles (device_id, name, avatar, wallet, updated_at) VALUES (?, '', '', ?, ?)
                       ON CONFLICT(device_id) DO UPDATE SET wallet = wallet + excluded.wallet, updated_at = excluded.updated_at")
-           ->execute([$pc['device_id'], $score, nowMs()]);
-        // Lifetime leaderboard total, kept separate from the spendable wallet
-        // above so shop purchases never lower a player's Hall of Fame rank.
+           ->execute([$pc['device_id'], $creditScore, nowMs()]);
+        // Lifetime leaderboard uses raw score for fair comparison
         $db->prepare("INSERT INTO leaderboard_stats (device_id, game_format, total_points, updated_at) VALUES (?, ?, ?, ?)
                       ON CONFLICT(device_id, game_format) DO UPDATE SET total_points = total_points + excluded.total_points, updated_at = excluded.updated_at")
-           ->execute([$pc['device_id'], $room['game_format'], $score, nowMs()]);
+           ->execute([$pc['device_id'], $room['game_format'], $rawScore, nowMs()]);
     }
     $db->prepare("UPDATE rooms SET points_awarded = 1 WHERE code = ?")->execute([$code]);
     $db->commit();
@@ -273,8 +284,17 @@ if ($status === 'finished' && (int)$room['points_awarded'] === 0) {
     $room['points_awarded'] = 1;
 }
 
-// Players sorted by score
-$playerStmt = $db->prepare("SELECT * FROM players WHERE room_code = ? ORDER BY score DESC, correct_count DESC");
+// Players sorted by score — includes cosmetic equip state from profiles
+$playerStmt = $db->prepare("
+    SELECT p.*,
+        pr.equipped_title, pr.equipped_nick_color, pr.equipped_emoji_frame,
+        pr.equipped_anim_border, pr.equipped_answer_skin, pr.equipped_clue_theme,
+        COALESCE(pr.booster_count, 0) AS booster_count
+    FROM players p
+    LEFT JOIN profiles pr ON p.device_id = pr.device_id
+    WHERE p.room_code = ?
+    ORDER BY p.score DESC, p.correct_count DESC
+");
 $playerStmt->execute([$code]);
 $players = $playerStmt->fetchAll();
 
@@ -390,7 +410,14 @@ foreach ($players as $p) {
         'eliminated'   => (bool)$p['eliminated'],
         'impostor_acted'        => $impostorActed,
         'impostor_acted_hidden' => $impostorActedHidden,
-        'team_id'      => (int)($p['team_id'] ?? 0)
+        'team_id'               => (int)($p['team_id'] ?? 0),
+        'has_shield'            => (bool)$p['has_shield'],
+        'equipped_title'        => $p['equipped_title'] ?? null,
+        'equipped_nick_color'   => $p['equipped_nick_color'] ?? null,
+        'equipped_emoji_frame'  => $p['equipped_emoji_frame'] ?? null,
+        'equipped_anim_border'  => $p['equipped_anim_border'] ?? null,
+        'equipped_answer_skin'  => $p['equipped_answer_skin'] ?? null,
+        'equipped_clue_theme'   => $p['equipped_clue_theme'] ?? null,
     ];
 }
 
@@ -1048,7 +1075,9 @@ $myWalletCol = $myWalletStmt->fetchColumn();
 $myWallet = $myWalletCol === false ? null : (int)$myWalletCol;
 
 $myUsedPowerups = $myPlayer ? (json_decode($myPlayer['used_powerups'] ?: '[]', true) ?: []) : [];
-$myFrozenUntil = $myPlayer ? (int)$myPlayer['frozen_until'] : 0;
+$myFrozenUntil  = $myPlayer ? (int)$myPlayer['frozen_until'] : 0;
+$myHasShield    = $myPlayer ? (bool)$myPlayer['has_shield'] : false;
+$myBoosterCount = $myPlayer ? (int)($myPlayer['booster_count'] ?? 0) : 0;
 
 // Live reactions / quick-chat / steal announcements, broadcast to everyone
 // polling this room. since_event_id=0 (a fresh join) only returns the last
@@ -1110,6 +1139,8 @@ jsonOut([
     'my_wallet'         => $myWallet,
     'my_used_powerups'  => $myUsedPowerups,
     'my_frozen_until'   => $myFrozenUntil,
+    'my_has_shield'     => $myHasShield,
+    'my_booster_count'  => $myBoosterCount,
     'am_i_impostor'     => $amIImpostor,
     'impostor_clue_count' => $impostorClueCount,
     'impostor_vote_count' => $impostorVoteCount,

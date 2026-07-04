@@ -2521,17 +2521,25 @@ label,
   display: flex;
   gap: 0.5rem;
   margin: 1rem 0;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 4px;
 }
+.shop-tabs::-webkit-scrollbar { display: none; }
 
 .shop-tab {
-  flex: 1;
-  padding: 0.6rem;
+  flex: 0 0 auto;
+  padding: 0.6rem 0.75rem;
   border-radius: var(--radius-sm);
   border: 2px solid var(--text2);
   background: transparent;
   color: var(--text2);
   font-weight: 700;
   cursor: pointer;
+  font-size: 0.85rem;
 }
 
 .shop-tab.active {
@@ -3894,6 +3902,155 @@ label,
 }
 .hs-bet-slider-row input[type=range] { flex: 1; min-width: 80px; }
 .hs-bet-coins { font-size: 0.82rem; color: var(--gold, #f4d03f); }
+
+/* ── Shop: new tabs scrollable ──────────────────────────────── */
+.shop-tabs {
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.shop-tabs::-webkit-scrollbar { display: none; }
+
+.shop-card-desc {
+  font-size: 0.78rem;
+  opacity: 0.75;
+  text-align: center;
+  margin-bottom: 0.25rem;
+}
+.consumable-card .shop-card-desc { font-size: 0.85rem; opacity: 0.9; }
+
+/* ── Title Badges ────────────────────────────────────────────── */
+.player-title-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--gold), var(--gold2));
+  color: #1a1a1a;
+  border-radius: 10px;
+  padding: 0.1rem 0.45rem;
+  margin-left: 0.35rem;
+  vertical-align: middle;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+/* ── Emoji Frames ────────────────────────────────────────────── */
+.emoji-frame-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+/* ── Animated Borders ───────────────────────────────────────── */
+.anim-border-wrap { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; }
+
+@keyframes holy-aura {
+  0%, 100% { box-shadow: 0 0 0 3px #FFD700, 0 0 12px #FFD700; }
+  50%       { box-shadow: 0 0 0 5px #FFD700, 0 0 24px #FFD700; }
+}
+@keyframes radiant-crown {
+  0%   { box-shadow: 0 0 0 3px hsl(0,90%,60%),   0 0 14px hsl(0,90%,60%); }
+  25%  { box-shadow: 0 0 0 3px hsl(90,90%,60%),  0 0 14px hsl(90,90%,60%); }
+  50%  { box-shadow: 0 0 0 3px hsl(180,90%,60%), 0 0 14px hsl(180,90%,60%); }
+  75%  { box-shadow: 0 0 0 3px hsl(270,90%,60%), 0 0 14px hsl(270,90%,60%); }
+  100% { box-shadow: 0 0 0 3px hsl(360,90%,60%), 0 0 14px hsl(360,90%,60%); }
+}
+@keyframes divine-fire {
+  0%, 100% { box-shadow: 0 0 0 3px #FF4500, 0 0 10px #FF4500; }
+  33%       { box-shadow: 0 0 0 5px #FF6B35, 0 0 18px #FF6B35; }
+  66%       { box-shadow: 0 0 0 4px #FF8C00, 0 0 14px #FF8C00; }
+}
+.anim-border-wrap.aborder-1 { animation: holy-aura      2s ease-in-out infinite; border-radius: 50%; }
+.anim-border-wrap.aborder-2 { animation: radiant-crown  3s linear infinite;      border-radius: 50%; }
+.anim-border-wrap.aborder-3 { animation: divine-fire    1.5s ease-in-out infinite; border-radius: 50%; }
+.anim-border-preview.aborder-1 { animation: holy-aura      2s ease-in-out infinite; border-radius: 50%; padding: 4px; }
+.anim-border-preview.aborder-2 { animation: radiant-crown  3s linear infinite;      border-radius: 50%; padding: 4px; }
+.anim-border-preview.aborder-3 { animation: divine-fire    1.5s ease-in-out infinite; border-radius: 50%; padding: 4px; }
+
+/* ── Answer Animation Skins ─────────────────────────────────── */
+@keyframes golden-blaze {
+  0%   { transform: scale(1);    filter: brightness(1);     text-shadow: 0 0 0 transparent; }
+  30%  { transform: scale(1.3);  filter: brightness(1.8);   text-shadow: 0 0 20px #FFD700, 0 0 40px #FF8C00; }
+  60%  { transform: scale(1.15); filter: brightness(1.4);   text-shadow: 0 0 12px #FFD700; }
+  100% { transform: scale(1);    filter: brightness(1);     text-shadow: none; }
+}
+@keyframes holy-light {
+  0%   { transform: scale(1);   filter: brightness(1);   }
+  25%  { transform: scale(1.4); filter: brightness(3) saturate(0); }
+  70%  { transform: scale(1.1); filter: brightness(1.5); }
+  100% { transform: scale(1);   filter: brightness(1);   }
+}
+@keyframes fire-of-elijah {
+  0%   { text-shadow: none; color: inherit; }
+  20%  { text-shadow: 0 0 10px #FF4500, 0 0 25px #FF6B35; color: #FF6B35; }
+  50%  { text-shadow: 0 0 15px #FF8C00, 0 0 35px #FFD700; color: #FFD700; transform: scale(1.25); }
+  80%  { text-shadow: 0 0 8px #FF4500; color: #FF8C00; }
+  100% { text-shadow: none; color: inherit; }
+}
+@keyframes divine-dove {
+  0%   { transform: translateX(-60px) scale(0.8); opacity: 0; }
+  30%  { transform: translateX(0)     scale(1.3); opacity: 1; }
+  70%  { transform: translateX(10px)  scale(1.1); opacity: 1; }
+  100% { transform: translateX(60px)  scale(0.8); opacity: 0; }
+}
+@keyframes starfall {
+  0%   { transform: scale(1)    rotate(0deg);   filter: brightness(1); }
+  25%  { transform: scale(1.35) rotate(-10deg); filter: brightness(2) drop-shadow(0 0 8px #FFD700); }
+  60%  { transform: scale(1.15) rotate(5deg);   filter: brightness(1.5) drop-shadow(0 0 4px #FFF); }
+  100% { transform: scale(1)    rotate(0deg);   filter: brightness(1); }
+}
+.feedback-icon.correct.answer-skin-skin-1 { animation: golden-blaze   0.8s ease-out forwards; }
+.feedback-icon.correct.answer-skin-skin-2 { animation: holy-light      0.7s ease-out forwards; }
+.feedback-icon.correct.answer-skin-skin-3 { animation: fire-of-elijah  0.9s ease-out forwards; }
+.feedback-icon.correct.answer-skin-skin-4 { animation: divine-dove     1.0s ease-out forwards; }
+.feedback-icon.correct.answer-skin-skin-5 { animation: starfall        0.8s ease-out forwards; }
+/* Shop preview */
+.answer-skin-preview { font-size: 1.6rem; font-weight: 900; display: flex; align-items: center; justify-content: center; min-height: 2.4rem; }
+.answer-skin-preview.answer-skin-skin-1 { animation: golden-blaze   1.2s ease-in-out infinite alternate; }
+.answer-skin-preview.answer-skin-skin-2 { animation: holy-light      1.0s ease-in-out infinite alternate; }
+.answer-skin-preview.answer-skin-skin-3 { animation: fire-of-elijah  1.4s ease-in-out infinite alternate; }
+.answer-skin-preview.answer-skin-skin-4 { animation: divine-dove     2.0s ease-in-out infinite; }
+.answer-skin-preview.answer-skin-skin-5 { animation: starfall        1.2s ease-in-out infinite alternate; }
+
+/* ── Clue Card Themes (Word Impostor only) ───────────────────── */
+.imp-word-card.clue-theme-clue-1 {
+  background: linear-gradient(135deg, #c8a96a, #e8c98a);
+  color: #3a2a0a;
+  border: 2px solid #a07840;
+}
+.imp-word-card.clue-theme-clue-1 .imp-word { color: #5a3e10; }
+.imp-word-card.clue-theme-clue-1 .hint-text { color: #6a4e20; }
+
+.imp-word-card.clue-theme-clue-2 {
+  background: linear-gradient(135deg, #1a0a2e, #3a1a5e);
+  color: #e8d0ff;
+  border: 2px solid #7b4fa6;
+  box-shadow: 0 0 20px rgba(123,79,166,0.4);
+}
+.imp-word-card.clue-theme-clue-2 .imp-word { color: #c8a0ff; }
+
+.imp-word-card.clue-theme-clue-3 {
+  background: linear-gradient(135deg, #2e3a2e, #4a5e4a);
+  color: #d0e8d0;
+  border: 2px solid #6b8b6b;
+}
+.imp-word-card.clue-theme-clue-3 .imp-word { color: #a8d8a8; }
+
+.imp-word-card.clue-theme-clue-4 {
+  background: linear-gradient(135deg, #050a1a, #0a1530);
+  color: #d0e0f8;
+  border: 2px solid #2a4a8a;
+  box-shadow: 0 0 24px rgba(42,74,138,0.5), inset 0 0 20px rgba(0,0,50,0.3);
+}
+.imp-word-card.clue-theme-clue-4 .imp-word { color: #88c0ff; }
+
+/* ── Shield active indicator on power-up button ─────────────── */
+.powerup-btn.active-shield {
+  border-color: #4a9eff;
+  background: rgba(74,158,255,0.15);
+}
 
 /* ── Print / PDF Export ───────────────────────────────────── */
 @media print {
