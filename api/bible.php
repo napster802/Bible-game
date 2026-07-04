@@ -1,21 +1,30 @@
 <?php
 /* ------------------------------------------------------------
-   KJV Bible reader API
-   GET ?action=books            → [{book_num, book_name, testament, chapters}]
-   GET ?action=text&book=N&ch=N → {book_name, testament, total_chapters, verses:[{verse,text}]}
-   GET ?action=seed             → one-time data load (called automatically on first books request)
+   KJV Bible reader API (multi-version)
+   GET ?action=books&version=kjv           → [{book_num, book_name, testament, chapters}]
+   GET ?action=text&book=N&ch=N&version=X  → {book_name, testament, total_chapters, verses:[{verse,text}]}
+   GET ?action=search&q=X&version=X        → {results, total, query}
+   version: 'kjv' (default) | 'abhil82'
    ------------------------------------------------------------ */
 require_once __DIR__ . '/db.php';
 
-$action = trim($_GET['action'] ?? '');
+$action  = trim($_GET['action'] ?? '');
+$version = trim($_GET['version'] ?? 'kjv');
+if (!in_array($version, ['kjv', 'abhil82'], true)) $version = 'kjv';
+$table   = ($version === 'abhil82') ? 'bible_abhil82' : 'bible_kjv';
+
 $db = getDB();
 
 ensureSeeded($db);
+if ($version === 'abhil82') {
+    set_time_limit(120);
+    ensureSeededAbhil82($db);
+}
 
 if ($action === 'books') {
     $rows = $db->query("
         SELECT book_num, book_name, testament, MAX(chapter) AS chapters
-        FROM bible_kjv
+        FROM $table
         GROUP BY book_num
         ORDER BY book_num
     ")->fetchAll();
@@ -31,12 +40,12 @@ if ($action === 'text') {
     $chapter = (int)($_GET['ch']   ?? 0);
     if ($bookNum < 1 || $chapter < 1) jsonOut(['success' => false, 'error' => 'Missing params'], 400);
 
-    $stmt = $db->prepare("SELECT verse, text FROM bible_kjv WHERE book_num=? AND chapter=? ORDER BY verse");
+    $stmt = $db->prepare("SELECT verse, text FROM $table WHERE book_num=? AND chapter=? ORDER BY verse");
     $stmt->execute([$bookNum, $chapter]);
     $verses = $stmt->fetchAll();
     foreach ($verses as &$v) $v['verse'] = (int)$v['verse'];
 
-    $meta = $db->prepare("SELECT book_name, testament, MAX(chapter) AS total_ch FROM bible_kjv WHERE book_num=?");
+    $meta = $db->prepare("SELECT book_name, testament, MAX(chapter) AS total_ch FROM $table WHERE book_num=?");
     $meta->execute([$bookNum]);
     $m = $meta->fetch();
 
@@ -54,7 +63,7 @@ if ($action === 'search') {
     if (mb_strlen($q) < 2) jsonOut(['success' => false, 'error' => 'Query too short'], 400);
     $stmt = $db->prepare("
         SELECT book_num, book_name, testament, chapter, verse, text
-        FROM bible_kjv
+        FROM $table
         WHERE text LIKE ?
         ORDER BY book_num, chapter, verse
         LIMIT 100
@@ -67,7 +76,7 @@ if ($action === 'search') {
         $r['verse']    = (int)$r['verse'];
     }
     unset($r);
-    $cntStmt = $db->prepare("SELECT COUNT(*) FROM bible_kjv WHERE text LIKE ?");
+    $cntStmt = $db->prepare("SELECT COUNT(*) FROM $table WHERE text LIKE ?");
     $cntStmt->execute(['%' . $q . '%']);
     $total = (int)$cntStmt->fetchColumn();
     jsonOut(['success' => true, 'results' => $rows, 'total' => $total, 'query' => $q]);
@@ -75,14 +84,13 @@ if ($action === 'search') {
 
 jsonOut(['success' => false, 'error' => 'Unknown action'], 400);
 
-/* ── Seed from bundled JSON on first use ──────────────────── */
+/* ── Seed KJV from bundled JSON on first use ──────────────────── */
 function ensureSeeded(PDO $db): void {
     $count = (int)$db->query("SELECT COUNT(*) FROM bible_kjv")->fetchColumn();
     if ($count > 0) return;
 
     $jsonPath = __DIR__ . '/../bible/en_kjv.json';
     if (!file_exists($jsonPath)) {
-        // Try to download
         $url = 'https://raw.githubusercontent.com/thiagobodruk/bible/master/json/en_kjv.json';
         $ctx = stream_context_create(['http' => ['timeout' => 60]]);
         $raw = @file_get_contents($url, false, $ctx);
@@ -108,5 +116,69 @@ function ensureSeeded(PDO $db): void {
             }
         }
     }
+    $db->exec('COMMIT');
+}
+
+/* ── Seed ABHIL82 from local file or download ─────────────────── */
+function ensureSeededAbhil82(PDO $db): void {
+    $count = (int)$db->query("SELECT COUNT(*) FROM bible_abhil82")->fetchColumn();
+    if ($count > 0) return;
+
+    $jsonPath = __DIR__ . '/../bible/abhil82.json';
+    if (!file_exists($jsonPath)) {
+        // Try download sources in order of preference
+        $urls = [
+            // Place actual ABHIL82 JSON at bible/abhil82.json for full Hiligaynon text.
+            // Development fallback: Tagalog 1905 from Scrollmapper (tests multi-version UI).
+            'https://raw.githubusercontent.com/scrollmapper/bible_databases/master/formats/json/TagAngBiblia.json',
+        ];
+        $ctx = stream_context_create(['http' => ['timeout' => 60]]);
+        $raw = null;
+        foreach ($urls as $url) {
+            $raw = @file_get_contents($url, false, $ctx);
+            if ($raw !== false && strlen($raw) > 1000) break;
+            $raw = null;
+        }
+        if (!$raw) return;
+        @file_put_contents($jsonPath, $raw);
+    }
+
+    $raw = file_get_contents($jsonPath);
+    if ($raw === false) return;
+    $data = json_decode(ltrim($raw, "\xef\xbb\xbf"), true);
+    if (!$data) return;
+
+    $db->exec('BEGIN');
+    $stmt = $db->prepare("INSERT INTO bible_abhil82(book_num,book_name,testament,chapter,verse,text) VALUES(?,?,?,?,?,?)");
+
+    // Handle two JSON formats:
+    // scrollmapper: {"translation":..., "books":[{"name":..., "chapters":[{"chapter":N, "verses":[{"verse":N,"text":"..."}]}]}]}
+    // thiagobodruk: [{"abbrev":..., "name":..., "chapters":[["verse1","verse2",...], ...]}]
+    if (isset($data['books']) && is_array($data['books'])) {
+        foreach ($data['books'] as $bi => $book) {
+            $num       = $bi + 1;
+            $name      = $book['name'];
+            $testament = ($num <= 39) ? 'OT' : 'NT';
+            foreach ($book['chapters'] as $ch) {
+                $chNum = (int)$ch['chapter'];
+                foreach ($ch['verses'] as $v) {
+                    $stmt->execute([$num, $name, $testament, $chNum, (int)$v['verse'], trim((string)$v['text'])]);
+                }
+            }
+        }
+    } elseif (is_array($data) && isset($data[0]['chapters'])) {
+        foreach ($data as $bi => $book) {
+            $num       = $bi + 1;
+            $name      = $book['name'];
+            $testament = ($num <= 39) ? 'OT' : 'NT';
+            foreach ($book['chapters'] as $ci => $verses) {
+                $ch = $ci + 1;
+                foreach ($verses as $vi => $text) {
+                    $stmt->execute([$num, $name, $testament, $ch, $vi + 1, trim((string)$text)]);
+                }
+            }
+        }
+    }
+
     $db->exec('COMMIT');
 }

@@ -36,7 +36,7 @@ define('DB_PATH', __DIR__ . '/../data/game.db');
 // Bump whenever migrateSchema()'s $columns table gains/changes entries, so
 // existing deployments pick up the new columns exactly once instead of never
 // (see the PRAGMA user_version guard around migrateSchema() in initDB()).
-define('SCHEMA_VERSION', 10);
+define('SCHEMA_VERSION', 11);
 
 function getDB(): PDO {
     static $db = null;
@@ -288,6 +288,16 @@ function initDB(PDO $db): void {
             text      TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_bible_book_ch ON bible_kjv(book_num, chapter);
+        CREATE TABLE IF NOT EXISTS bible_abhil82 (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            book_num  INTEGER NOT NULL,
+            book_name TEXT NOT NULL,
+            testament TEXT NOT NULL,
+            chapter   INTEGER NOT NULL,
+            verse     INTEGER NOT NULL,
+            text      TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_bible_abhil82_book_ch ON bible_abhil82(book_num, chapter);
     ");
     // ALTER TABLE attempts (in migrateSchema) momentarily need a stronger lock
     // than plain reads/writes, even when the column already exists and the

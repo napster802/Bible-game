@@ -1362,7 +1362,10 @@
     <div class="screen" id="screen-bible">
       <div class="screen-header">
         <button class="btn-back" onclick="BibleReader.backFromBible()">‹</button>
-        <h2>📖 KJV Bible</h2>
+        <select id="bible-version-select" class="bible-version-select" onchange="BibleReader.setVersion(this.value)" aria-label="Bible version">
+          <option value="kjv">📖 KJV Bible</option>
+          <option value="abhil82">📖 ABHIL82 Hiligaynon</option>
+        </select>
         <button class="bible-icon-btn" onclick="BibleReader.openSearch()" title="Search">🔍</button>
       </div>
       <div class="screen-body">
@@ -1385,7 +1388,7 @@
       <div class="screen-header">
         <button class="btn-back" onclick="BibleReader.backToBooks()">‹</button>
         <h2 id="bible-chapters-title">Chapters</h2>
-        <div class="spacer"></div>
+        <span id="bible-version-title" class="bible-version-badge">📖 KJV Bible</span>
       </div>
       <div class="screen-body">
         <div class="bible-chapter-grid" id="bible-chapter-grid"></div>
@@ -1420,7 +1423,7 @@
     <div class="screen" id="screen-bible-search">
       <div class="screen-header">
         <button class="btn-back" onclick="BibleReader.closeSearch()">‹</button>
-        <h2>🔍 Search Bible</h2>
+        <h2 id="bible-search-title">🔍 Search KJV</h2>
         <div class="spacer"></div>
       </div>
       <div class="screen-body" style="display:flex;flex-direction:column;">

@@ -4,9 +4,16 @@
    ============================================================ */
 const BibleReader = (function () {
 
-  const STORAGE_KEY = 'bca_bible';
+  // ── Version state ─────────────────────────────────────────
+  let curVersion = 'kjv';   // 'kjv' | 'abhil82'
+  let booksCache = {};      // {kjv: [...], abhil82: [...]}
 
-  let allBooks = null;        // [{book_num, book_name, testament, chapters}]
+  // Storage key is version-aware; KJV keeps legacy key for backward compat
+  function storageKey() {
+    return curVersion === 'kjv' ? 'bca_bible' : `bca_bible_${curVersion}`;
+  }
+
+  let allBooks = null;        // current version's [{book_num, book_name, testament, chapters}]
   let curBook  = null;        // current book object
   let curChapter = 1;
   let totalChapters = 1;
@@ -16,10 +23,10 @@ const BibleReader = (function () {
 
   // ── Persistence ───────────────────────────────────────────
   function loadStorage() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
+    try { return JSON.parse(localStorage.getItem(storageKey()) || '{}'); }
     catch (e) { return {}; }
   }
-  function saveStorage(obj) { localStorage.setItem(STORAGE_KEY, JSON.stringify(obj)); }
+  function saveStorage(obj) { localStorage.setItem(storageKey(), JSON.stringify(obj)); }
 
   function getBookmarks() { return loadStorage().bookmarks || []; }
   function getLastRead()  { return loadStorage().lastRead  || null; }
@@ -79,9 +86,33 @@ const BibleReader = (function () {
     document.getElementById(screenId).classList.add('active');
   }
 
+  // ── Version switching ─────────────────────────────────────
+  function setVersion(v) {
+    if (!['kjv', 'abhil82'].includes(v) || v === curVersion) return;
+    curVersion = v;
+    allBooks   = booksCache[curVersion] || null;
+    curBook    = null;
+    curChapter = 1;
+    totalChapters = 1;
+    updateVersionUI();
+    goTo('screen-bible');
+    renderBookList();
+  }
+
+  function updateVersionUI() {
+    const sel = document.getElementById('bible-version-select');
+    if (sel) sel.value = curVersion;
+    const vname = curVersion === 'abhil82' ? '📖 ABHIL82 Hiligaynon' : '📖 KJV Bible';
+    const titleEl = document.getElementById('bible-version-title');
+    if (titleEl) titleEl.textContent = vname;
+    const searchTitle = document.getElementById('bible-search-title');
+    if (searchTitle) searchTitle.textContent = `🔍 Search ${curVersion === 'abhil82' ? 'ABHIL82' : 'KJV'}`;
+  }
+
   // ── Open — Book List ──────────────────────────────────────
   function open() {
     goTo('screen-bible');
+    updateVersionUI();
     renderBookList();
   }
 
@@ -99,13 +130,18 @@ const BibleReader = (function () {
       lastReadEl.style.display = 'none';
     }
 
-    if (allBooks) { renderBooks(listEl); return; }
+    if (booksCache[curVersion]) {
+      allBooks = booksCache[curVersion];
+      renderBooks(listEl);
+      return;
+    }
 
     listEl.innerHTML = '<div class="bible-loading">📖 Loading Bible…</div>';
     try {
-      const res = await fetch('api/bible.php?action=books');
+      const res = await fetch(`api/bible.php?action=books&version=${curVersion}`);
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
+      booksCache[curVersion] = data.books;
       allBooks = data.books;
       renderBooks(listEl);
     } catch (e) {
@@ -219,7 +255,7 @@ const BibleReader = (function () {
     saveLastRead(bookNum, bookName, chapter);
 
     try {
-      const res = await fetch(`api/bible.php?action=text&book=${bookNum}&ch=${chapter}`);
+      const res = await fetch(`api/bible.php?action=text&book=${bookNum}&ch=${chapter}&version=${curVersion}`);
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
 
@@ -481,7 +517,7 @@ const BibleReader = (function () {
     if (status)  status.textContent = 'Searching…';
     if (results) results.innerHTML  = '';
     try {
-      const res  = await fetch(`api/bible.php?action=search&q=${encodeURIComponent(q)}`);
+      const res  = await fetch(`api/bible.php?action=search&q=${encodeURIComponent(q)}&version=${curVersion}`);
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
       const count = data.results.length, total = data.total;
@@ -508,7 +544,7 @@ const BibleReader = (function () {
   }
 
   function goToSearchResult(bookNum, bookName, chapter, verse, chapTotal) {
-    if (!allBooks) allBooks = [];
+    if (!allBooks) allBooks = booksCache[curVersion] || [];
     curBook       = allBooks.find(b => b.book_num === bookNum) || { book_num: bookNum, book_name: bookName, chapters: chapTotal };
     totalChapters = chapTotal;
     openReader(bookNum, bookName, chapter, chapTotal).then(() => {
@@ -540,6 +576,7 @@ const BibleReader = (function () {
     nextChapter, prevChapter, toggleBookmark,
     openSearch, closeSearch, onSearchInput, goToSearchResult,
     applyHighlight, clearHighlight,
-    backToBooks, backToChapters, backFromBible
+    backToBooks, backToChapters, backFromBible,
+    setVersion,
   };
 })();
