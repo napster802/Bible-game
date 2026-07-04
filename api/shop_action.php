@@ -10,16 +10,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { jsonOut([]); }
 
 // [item_count, price_pts, owned_column, equipped_column]
 const ITEM_TYPES = [
-    'effect'  => [20, 20000,  'owned_name_effects',  'equipped_name_effect'],
-    'border'  => [20, 50000,  'owned_borders',        'equipped_border'],
-    'title'   => [10, 15000,  'owned_titles',         'equipped_title'],
-    'skin'    => [5,  30000,  'owned_answer_skins',   'equipped_answer_skin'],
-    'clue'    => [4,  25000,  'owned_clue_themes',    'equipped_clue_theme'],
-    'aborder' => [3,  100000, 'owned_anim_borders',   'equipped_anim_border'],
-    'ncolor'  => [10, 5000,   'owned_nick_colors',    'equipped_nick_color'],
-    'eframe'  => [5,  40000,  'owned_emoji_frames',   'equipped_emoji_frame'],
+    'effect'  => [20, 5000,   'owned_name_effects',  'equipped_name_effect'],
+    'border'  => [20, 12500,  'owned_borders',        'equipped_border'],
+    'title'   => [10, 3750,   'owned_titles',         'equipped_title'],
+    'skin'    => [5,  7500,   'owned_answer_skins',   'equipped_answer_skin'],
+    'clue'    => [4,  6250,   'owned_clue_themes',    'equipped_clue_theme'],
+    'aborder' => [3,  25000,  'owned_anim_borders',   'equipped_anim_border'],
+    'ncolor'  => [10, 1250,   'owned_nick_colors',    'equipped_nick_color'],
+    'eframe'  => [5,  10000,  'owned_emoji_frames',   'equipped_emoji_frame'],
 ];
-const BOOSTER_PRICE = 5000;
+const BOOSTER_PRICE = 1250;
 
 $input    = getInput();
 $deviceId = trim($input['device_id'] ?? '');

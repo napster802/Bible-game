@@ -6,6 +6,7 @@ const AdminDash = (function () {
 
   let allPlayers = [];
   let ptsTarget   = null; // { device_id, name }
+  let dateFilter  = null; // { fromMs, toMs } or null
 
   // ── Helpers ──────────────────────────────────────────────
   function api(action, extra) {
@@ -80,7 +81,46 @@ const AdminDash = (function () {
 
   function filterPlayers(q) {
     const lq = q.toLowerCase();
-    renderList(allPlayers.filter(p => p.name.toLowerCase().includes(lq)));
+    const base = dateFilter ? allPlayers.filter(p => p.updated_at >= dateFilter.fromMs && p.updated_at <= dateFilter.toMs) : allPlayers;
+    renderList(base.filter(p => p.name.toLowerCase().includes(lq)));
+  }
+
+  function applyDateFilter() {
+    const fromDate = document.getElementById('admin-filter-from-date').value;
+    const fromTime = document.getElementById('admin-filter-from-time').value || '00:00';
+    const toDate   = document.getElementById('admin-filter-to-date').value;
+    const toTime   = document.getElementById('admin-filter-to-time').value   || '23:59';
+
+    if (!fromDate || !toDate) { App.showToast('Please select both From and To dates.', 'error'); return; }
+
+    const fromMs = new Date(fromDate + 'T' + fromTime + ':00').getTime();
+    const toMs   = new Date(toDate   + 'T' + toTime   + ':59').getTime();
+
+    if (isNaN(fromMs) || isNaN(toMs)) { App.showToast('Invalid date/time values.', 'error'); return; }
+    if (fromMs > toMs) { App.showToast('From date must be before To date.', 'error'); return; }
+
+    dateFilter = { fromMs, toMs };
+
+    const matched = allPlayers.filter(p => p.updated_at >= fromMs && p.updated_at <= toMs);
+    const totalPts = matched.reduce((s, p) => s + (p.wallet || 0), 0);
+
+    const summary = document.getElementById('admin-filter-summary');
+    summary.style.display = 'block';
+    summary.innerHTML = `<strong>${matched.length}</strong> player${matched.length !== 1 ? 's' : ''} active in range &nbsp;·&nbsp; <strong>${totalPts.toLocaleString()} pts</strong> total accumulated`;
+
+    const q = document.getElementById('admin-search').value || '';
+    filterPlayers(q);
+  }
+
+  function clearDateFilter() {
+    dateFilter = null;
+    document.getElementById('admin-filter-from-date').value = '';
+    document.getElementById('admin-filter-from-time').value = '00:00';
+    document.getElementById('admin-filter-to-date').value   = '';
+    document.getElementById('admin-filter-to-time').value   = '23:59';
+    document.getElementById('admin-filter-summary').style.display = 'none';
+    const q = document.getElementById('admin-search').value || '';
+    filterPlayers(q);
   }
 
   function renderList(players) {
@@ -161,5 +201,5 @@ const AdminDash = (function () {
     });
   }
 
-  return { open, close, refresh, filterPlayers, openPtsModal, closePtsModal, applyPts, confirmDelete };
+  return { open, close, refresh, filterPlayers, applyDateFilter, clearDateFilter, openPtsModal, closePtsModal, applyPts, confirmDelete };
 })();

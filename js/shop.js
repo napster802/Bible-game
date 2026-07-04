@@ -4,8 +4,8 @@
 const Shop = (function () {
 
   // ── Catalog definitions ──────────────────────────────────
-  const EFFECT_PRICE  = 20000;
-  const BORDER_PRICE  = 50000;
+  const EFFECT_PRICE  = 5000;
+  const BORDER_PRICE  = 12500;
   const CATALOG_SIZE  = 20;
 
   const FLAVOR_NAMES = [
@@ -27,7 +27,7 @@ const Shop = (function () {
     { id: 'title-9',  name: 'Guardian'          },
     { id: 'title-10', name: 'Beloved'           },
   ];
-  const TITLE_PRICE = 15000;
+  const TITLE_PRICE = 3750;
 
   const SKIN_CATALOG = [
     { id: 'skin-1', name: 'Golden Blaze',   desc: 'Golden particles on correct answer' },
@@ -36,7 +36,7 @@ const Shop = (function () {
     { id: 'skin-4', name: 'Divine Dove',    desc: 'Dove soars across the screen' },
     { id: 'skin-5', name: 'Starfall',       desc: 'Stars shower on correct answer' },
   ];
-  const SKIN_PRICE = 30000;
+  const SKIN_PRICE = 7500;
 
   const CLUE_CATALOG = [
     { id: 'clue-1', name: 'Parchment Scroll', desc: 'Ancient scroll appearance', color: '#c8a96a' },
@@ -44,14 +44,14 @@ const Shop = (function () {
     { id: 'clue-3', name: 'Temple Stone',     desc: 'Carved stone tablet',       color: '#6b7c6b' },
     { id: 'clue-4', name: 'Night Sky',        desc: 'Dark celestial theme',      color: '#1a2a4a' },
   ];
-  const CLUE_PRICE = 25000;
+  const CLUE_PRICE = 6250;
 
   const ABORDER_CATALOG = [
     { id: 'aborder-1', name: 'Holy Aura',     desc: 'Pulsing golden glow' },
     { id: 'aborder-2', name: 'Radiant Crown', desc: 'Rainbow rotating halo' },
     { id: 'aborder-3', name: 'Divine Fire',   desc: 'Flickering flame ring' },
   ];
-  const ABORDER_PRICE = 100000;
+  const ABORDER_PRICE = 25000;
 
   const NCOLOR_CATALOG = [
     { id: 'ncolor-1',  name: 'Gold',       hex: '#FFD700' },
@@ -65,7 +65,7 @@ const Shop = (function () {
     { id: 'ncolor-9',  name: 'Silver',     hex: '#BDC3C7' },
     { id: 'ncolor-10', name: 'Lime',       hex: '#A8D63A' },
   ];
-  const NCOLOR_PRICE = 5000;
+  const NCOLOR_PRICE = 1250;
 
   const EFRAME_CATALOG = [
     { id: 'eframe-1', name: 'Dove Ring',  emoji: '🕊️' },
@@ -74,8 +74,8 @@ const Shop = (function () {
     { id: 'eframe-4', name: 'Crown Ring', emoji: '👑' },
     { id: 'eframe-5', name: 'Angel Ring', emoji: '😇' },
   ];
-  const EFRAME_PRICE = 40000;
-  const BOOSTER_PRICE = 5000;
+  const EFRAME_PRICE = 10000;
+  const BOOSTER_PRICE = 1250;
 
   function buildCatalog(prefix) {
     const items = [];

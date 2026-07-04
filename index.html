@@ -1318,6 +1318,25 @@
         <!-- Player list -->
         <div class="admin-section-title">Players</div>
         <input type="search" class="admin-search" id="admin-search" placeholder="🔍 Search players…" oninput="AdminDash.filterPlayers(this.value)">
+        <!-- Date/hour range filter -->
+        <div class="admin-filter-bar" id="admin-filter-bar">
+          <div class="admin-filter-label">📅 Filter by activity &amp; points date range</div>
+          <div class="admin-filter-row">
+            <span class="admin-filter-caption">From</span>
+            <input type="date" class="admin-filter-date" id="admin-filter-from-date">
+            <input type="time" class="admin-filter-time" id="admin-filter-from-time" value="00:00">
+          </div>
+          <div class="admin-filter-row">
+            <span class="admin-filter-caption">To</span>
+            <input type="date" class="admin-filter-date" id="admin-filter-to-date">
+            <input type="time" class="admin-filter-time" id="admin-filter-to-time" value="23:59">
+          </div>
+          <div class="admin-filter-actions">
+            <button class="btn btn-primary" style="font-size:0.82rem;padding:0.45rem 1rem;" onclick="AdminDash.applyDateFilter()">Apply Filter</button>
+            <button class="btn btn-ghost"   style="font-size:0.82rem;padding:0.45rem 1rem;" onclick="AdminDash.clearDateFilter()">Clear</button>
+          </div>
+          <div class="admin-filter-summary" id="admin-filter-summary" style="display:none"></div>
+        </div>
         <div class="admin-player-list" id="admin-player-list">
           <div style="text-align:center;opacity:0.5;padding:2rem;">Loading…</div>
         </div>

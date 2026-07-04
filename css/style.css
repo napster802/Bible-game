@@ -4224,6 +4224,70 @@ label,
   margin: 0.25rem 0 0.5rem;
 }
 
+/* ── Admin date/hour filter bar ──────────────────────────── */
+.admin-filter-bar {
+  background: rgba(255,255,255,0.04);
+  border: 1.5px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.admin-filter-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.admin-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-filter-caption {
+  font-size: 0.8rem;
+  font-weight: 600;
+  opacity: 0.6;
+  width: 2.8rem;
+  flex-shrink: 0;
+}
+
+.admin-filter-date,
+.admin-filter-time {
+  background: rgba(255,255,255,0.07);
+  border: 1.5px solid rgba(255,255,255,0.15);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.82rem;
+  padding: 0.35rem 0.55rem;
+  flex: 1;
+  min-width: 0;
+}
+.admin-filter-date:focus,
+.admin-filter-time:focus { outline: none; border-color: var(--gold); }
+
+.admin-filter-time { max-width: 6.5rem; flex: none; }
+
+.admin-filter-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.admin-filter-summary {
+  font-size: 0.82rem;
+  padding: 0.45rem 0.65rem;
+  background: rgba(212,175,55,0.1);
+  border: 1px solid rgba(212,175,55,0.3);
+  border-radius: 8px;
+  color: rgba(255,255,255,0.85);
+  line-height: 1.4;
+}
+
 /* ── Print / PDF Export ───────────────────────────────────── */
 @media print {
   body {
